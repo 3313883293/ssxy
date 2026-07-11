@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>某科学的书生学院</title>
         <link rel="stylesheet" href="style.css">
     <script src="js/Skills.js"></script>
@@ -61,32 +61,6 @@
 </div>
 
 <script>
-    /* ====== 移动端横屏适配 ====== */
-    (function mobileAdapt() {
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 'ontouchstart' in window;
-        if (!isMobile) return;
-
-        // 尝试锁定横屏（需要用户点击触发）
-        function tryLock() {
-            if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
-                window.screen.orientation.lock('landscape').catch(function() {
-                    // 锁定失败没关系，竖屏也能玩
-                });
-            }
-        }
-
-        // 用户首次点击时触发横屏锁定
-        document.addEventListener('click', function firstClick() {
-            tryLock();
-            document.removeEventListener('click', firstClick);
-            document.removeEventListener('touchstart', firstClick);
-        }, { once: true });
-        document.addEventListener('touchstart', function firstTouch() {
-            tryLock();
-            document.removeEventListener('click', firstClick);
-            document.removeEventListener('touchstart', firstTouch);
-        }, { once: true });
-    })();
     function showPage(id) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(id).classList.add('active');
