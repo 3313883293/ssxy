@@ -131,28 +131,3 @@ body {
 }
 .action-controls { display: flex; gap: 10px; margin-top: 10px; }
 .game-over { color: #f9ca24; font-weight: bold; margin-top: 10px; text-align: center; }
-/* ====== 手机端适配 ====== */
-@media (max-width: 768px) {
-    body {
-        display: block;
-        align-items: unset;
-        justify-content: unset;
-    }
-    .container {
-        width: 100%;
-        min-height: 100vh; min-height: 100dvh;
-        padding: 10px;
-        overflow-y: auto;
-    }
-    .title-page { padding-top: 15vh; }
-    .title-page h1 { font-size: 2em; }
-    .char-slot { width: 90px; padding: 10px; }
-    .level-card { width: 90%; }
-    .character-card { width: 85px; padding: 6px; }
-    .character-card .name { font-size: 0.75em; }
-    .all-characters { gap: 8px; overflow-x: auto; }
-    .skill-btn { font-size: 0.75em; padding: 5px 10px; }
-    .battle-header h2 { font-size: 1.1em; }
-    .log { max-height: 80px; }
-    .bottom-panel { padding: 8px; }
-}
