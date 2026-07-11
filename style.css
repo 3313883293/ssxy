@@ -1,0 +1,133 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #1a1a2e; color: #eee;
+    min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+}
+.container {
+    width: 1000px; min-height: 600px;
+    padding: 20px; position: relative;
+}
+.page { display: none; flex-direction: column; align-items: center; }
+.page.active { display: flex; }
+
+.title-page { justify-content: center; gap: 30px; }
+.title-page h1 { font-size: 3em; color: #e94560; text-shadow: 0 0 20px #e94560; }
+.title-page .sub { color: #aaa; font-size: 1.2em; }
+.btn-main {
+    background: #e94560; border: none; color: white;
+    padding: 12px 40px; border-radius: 30px; font-size: 1.3em;
+    cursor: pointer; transition: 0.2s;
+}
+.btn-main:hover { transform: scale(1.05); background: #c73650; }
+
+.select-char-page { gap: 20px; }
+.select-char-page h2 { color: #f9ca24; }
+.char-slots { display: flex; gap: 30px; margin: 15px 0; }
+.char-slot {
+    background: #16213e; border-radius: 12px; padding: 15px;
+    width: 140px; text-align: center; border: 2px solid #2ecc71;
+    cursor: pointer; transition: 0.2s;
+}
+.char-slot:hover { transform: scale(1.05); border-color: #f9ca24; }
+.char-slot .name { font-weight: bold; margin: 8px 0; }
+.char-slot .desc { color: #ccc; font-size: 0.85em; }
+.control-buttons { display: flex; gap: 15px; }
+
+.select-level-page { gap: 20px; }
+.select-level-page h2 { color: #f9ca24; }
+.level-card {
+    background: #16213e; border-radius: 12px; padding: 20px;
+    width: 400px; text-align: center; cursor: pointer;
+    transition: 0.2s; border: 2px solid transparent;
+}
+.level-card:hover { border-color: #e94560; transform: scale(1.02); }
+.level-card h3 { color: #e94560; }
+.level-card .enemy-preview { margin-top: 10px; color: #ccc; font-size: 0.85em; }
+
+.battle-page { gap: 10px; }
+.battle-header { text-align: center; margin-bottom: 5px; }
+.battle-header h2 { color: #e94560; font-size: 1.5em; }
+.win-condition { color: #f9ca24; margin-bottom: 5px; font-size: 0.9em; }
+.turn-info { color: #aaa; margin-bottom: 10px; }
+.arena {
+    display: flex; justify-content: center; width: 100%;
+    position: relative;
+}
+.all-characters { display: flex; gap: 15px; }
+.character-card {
+    background: #16213e; border-radius: 12px; padding: 12px;
+    width: 150px; text-align: center; border: 2px solid transparent;
+    transition: 0.2s; position: relative;
+}
+.player-card { border-color: #2ecc71; }
+.enemy-card { border-color: #e74c3c; }
+.character-card.dead { opacity: 0.4; }
+.character-card.current { box-shadow: 0 0 12px #e94560; border-color: #e94560; }
+.character-card.selectable { cursor: pointer; border-color: #f9ca24; }
+.character-card.selectable:hover { transform: scale(1.06); }
+.character-card .name { font-size: 1.1em; font-weight: bold; margin-bottom: 5px; }
+.bar-container { background: #333; border-radius: 8px; height: 8px; margin: 3px 0; overflow: hidden; }
+.hp-bar { background: #2ecc71; height: 100%; width: 100%; }
+.sp-bar { background: #3498db; height: 100%; width: 100%; }
+.stats { font-size: 0.75em; color: #ccc; margin-top: 4px; }
+.position-mark { font-size: 0.65em; color: #888; position: absolute; top: 3px; right: 8px; }
+.buff-indicator {
+    position: absolute; top: 30px; left: 5px; font-size: 0.7em;
+    background: #0f3460; padding: 2px 6px; border-radius: 10px;
+    color: #f9ca24;
+}
+@keyframes hitFlash {
+    0% { filter: brightness(2) drop-shadow(0 0 10px red); }
+    100% { filter: brightness(1) drop-shadow(0 0 0px red); }
+}
+@keyframes attackerFlash {
+    0% { filter: brightness(2) drop-shadow(0 0 15px white); }
+    100% { filter: brightness(1) drop-shadow(0 0 0px white); }
+}
+@keyframes damageFloat {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-30px); }
+}
+.damage-number {
+    position: absolute; color: #ff4757; font-weight: bold;
+    font-size: 1.2em; text-shadow: 0 0 5px black;
+    pointer-events: none; animation: damageFloat 1s ease-out forwards; z-index: 10;
+}
+.coin-indicator {
+    position: absolute; color: #f9ca24; font-size: 0.9em; font-weight: bold;
+    text-shadow: 0 0 5px black; pointer-events: none;
+    animation: damageFloat 0.8s ease-out forwards; z-index: 10;
+}
+.hit-animation { animation: hitFlash 0.2s ease-out; }
+.attacker-animation { animation: attackerFlash 0.3s ease-out; }
+
+.bottom-panel {
+    width: 100%; background: #16213e; border-radius: 12px; padding: 12px;
+}
+.skill-detail {
+    background: #0f3460; border-radius: 8px; padding: 8px;
+    margin-bottom: 10px; font-size: 0.9em; display: none;
+}
+.skill-detail.active { display: block; }
+.skill-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.skill-btn {
+    background: #0f3460; border: none; color: white;
+    padding: 8px 14px; border-radius: 20px; cursor: pointer; font-size: 0.9em;
+}
+.skill-btn:hover:not(:disabled) { background: #e94560; }
+.skill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.target-hint { margin-top: 8px; color: #f9ca24; }
+.log {
+    background: #0a0a1a; border-radius: 8px; padding: 10px;
+    margin-top: 8px; max-height: 120px; overflow-y: auto; font-size: 0.8em; color: #ccc;
+}
+.log p { margin: 2px 0; }
+.next-btn {
+    margin-top: 10px; background: #e94560; color: white;
+    padding: 10px; border: none; border-radius: 20px;
+    cursor: pointer; width: 100%; font-size: 1em;
+}
+.action-controls { display: flex; gap: 10px; margin-top: 10px; }
+.game-over { color: #f9ca24; font-weight: bold; margin-top: 10px; text-align: center; }

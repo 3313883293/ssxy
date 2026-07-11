@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>某科学的书生学院</title>
+        <link rel="stylesheet" href="style.css">
+    <script src="js/Skills.js"></script>
+    <script src="js/Characters.js"></script>
+    <script src="js/Roles.js"></script>
+    <script src="js/BattleState.js"></script>
+    <script src="js/SkillSystem.js"></script>
+
+
+</head>
+<body>
+<div class="container">
+    <div id="pageTitle" class="page active">
+        <h1>某科学的书生学院</h1>
+        <div class="sub">回合制策略对决</div>
+        <button class="btn-main" onclick="showPage('pageSelectChar')">开始游戏</button>
+    </div>
+
+    <div id="pageSelectChar" class="page">
+        <h2>选择出战角色与站位</h2>
+        <p style="color:#aaa;">点击角色可在「上阵」与「空位」间切换</p>
+        <div class="char-slots" id="charSlots"></div>
+        <div class="control-buttons">
+            <button class="btn-main" onclick="startLevelSelect()">确认出战</button>
+            <button class="btn-main" style="background:#555;" onclick="showPage('pageTitle')">返回</button>
+        </div>
+    </div>
+
+    <div id="pageLevel" class="page">
+        <h2>选择关卡</h2>
+        <div class="level-card" onclick="startBattle(1)">
+            <h3>第一关</h3>
+            <div class="enemy-preview">
+                敌方配置：持盾警察×1 持棍警察×1 持枪警察×1
+            </div>
+        </div>
+        <button class="btn-main" style="background:#555; margin-top:15px;" onclick="showPage('pageSelectChar')">返回</button>
+    </div>
+
+    <div id="pageBattle" class="page">
+        <div class="battle-header">
+            <h2>⚔️ 战斗</h2>
+            <div class="win-condition">🏆 胜利条件：击败敌方全部角色</div>
+            <div class="turn-info" id="turnDisplay">第 1 回合</div>
+        </div>
+        <div class="arena">
+            <div class="all-characters" id="allChars"></div>
+        </div>
+        <div class="bottom-panel">
+            <div class="skill-detail" id="skillDetail"></div>
+            <div id="actionContent">等待开始...</div>
+            <div class="log" id="logPanel"><p>战斗开始！</p></div>
+            <button class="next-btn" id="nextRoundBtn" style="display:none;">▶ 开始回合</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showPage(id) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+
+    // ==================== 选角色界面 ====================
+
+    let selectedSlots = [];
+
+    function initCharSelection() {
+        selectedSlots = ['模板一', '模板一', '模板一'];
+        renderCharSlots();
+    }
+
+    function toggleSlot(index) {
+        const current = selectedSlots[index];
+        selectedSlots[index] = (current === null) ? '模板一' : null;
+        renderCharSlots();
+    }
+
+    function renderCharSlots() {
+        const container = document.getElementById('charSlots');
+        container.innerHTML = '';
+        selectedSlots.forEach((role, idx) => {
+            const div = document.createElement('div');
+            div.className = 'char-slot';
+            if (role === null) {
+                div.style.borderColor = '#555';
+                div.innerHTML = `<div class="name">空位</div><div class="desc">点击上阵</div>`;
+            } else {
+                div.style.borderColor = '#2ecc71';
+                div.innerHTML = `<div class="name">${role}</div><div class="desc">站位${idx+1}</div>`;
+            }
+            div.onclick = () => toggleSlot(idx);
+            container.appendChild(div);
+        });
+    }
+
+    function startLevelSelect() {
+        const count = selectedSlots.filter(r => r !== null).length;
+        if (count === 0) {
+            alert('至少选择一个角色出战！');
+            return;
+        }
+        showPage('pageLevel');
+    }
+
+    // ==================== 战斗状态实例 ====================
+    let battleState = new BattleState();
+    // 全局函数包装（供 Characters.js 中的 takeDamage 调用）
+    function repositionAll() { battleState.repositionAll(); }
+
+    const allCharsDiv = document.getElementById('allChars');
+    const actionContent = document.getElementById('actionContent');
+    const turnDisplay = document.getElementById('turnDisplay');
+    const logPanel = document.getElementById('logPanel');
+    const nextRoundBtn = document.getElementById('nextRoundBtn');
+    const skillDetailDiv = document.getElementById('skillDetail');
+
+    function log(msg) {
+        const p = document.createElement('p');
+        p.textContent = msg;
+        logPanel.appendChild(p);
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    // ==================== 渲染与技能查看 ====================
+    function renderCharacters() {
+        allCharsDiv.innerHTML = '';
+        const alive = battleState.allCharacters.filter(c => c.alive).sort((a,b) => {
+            if (a.team !== b.team) return a.team === 'player' ? -1 : 1;
+            return a.order - b.order;
+        });
+        alive.forEach(char => {
+            const card = document.createElement('div');
+            card.className = 'character-card ' + (char.team === 'player' ? 'player-card' : 'enemy-card');
+            if (char === battleState.currentActor) card.classList.add('current');
+            card.dataset.characterId = char.id;
+            card.dataset.team = char.team;
+            let buffText = '';
+            if (char.buffs.length > 0) {
+                const defBuff = char.buffs.find(b => b.type === 'def');
+                if (defBuff) buffText = `防${defBuff.value>0?'+':''}${defBuff.value}`;
+            }
+            card.innerHTML = `
+                <span class="position-mark">位置${char.position}</span>
+                ${buffText ? `<span class="buff-indicator">${buffText}</span>` : ''}
+                <div class="name">${char.name}</div>
+                <div class="bar-container"><div class="hp-bar" style="width:${(char.hp/char.maxHp)*100}%"></div></div>
+                <div style="font-size:0.7em;">HP ${char.hp}/${char.maxHp}</div>
+                <div class="bar-container"><div class="sp-bar" style="width:${(char.sp/char.maxSP)*100}%"></div></div>
+                <div style="font-size:0.7em;">算力 ${char.sp}/${char.maxSP}</div>
+                <div class="stats">防${char.def} 速${char.speed}</div>
+            `;
+
+            // 统一点击处理：选中技能时切换目标，未选中时显示技能信息
+            card.addEventListener('click', function(e) {
+                const charId = parseInt(this.dataset.characterId);
+                const char = battleState.findCharacterById(charId);
+                if (!char || !char.alive) return;
+
+                if (battleState.selectedSkill && char.team === 'enemy' && this.classList.contains('selectable')) {
+                    if (battleState.currentSelectedTargets.has(char)) {
+                        battleState.currentSelectedTargets.delete(char);
+                        this.style.borderColor = '#e74c3c';
+                    } else {
+                        battleState.currentSelectedTargets.add(char);
+                        this.style.borderColor = '#f9ca24';
+                    }
+                    return;
+                }
+
+                showSkillInfo(char);
+            });
+
+            allCharsDiv.appendChild(card);
+            char.cardElement = card;
+        });
+    }
+
+    function showSkillInfo(char) {
+        const skills = char.skills;
+        if (!skills || skills.length === 0) return;
+        let info = `<strong>${char.name}</strong> 技能组：<br>`;
+        skills.forEach((skill, i) => {
+            const formula = `${skill.baseDamage} + ${skill.bonusDamage} × 硬币(${skill.coinCount})`;
+            info += `【${skill.name}】消耗${skill.spCost}算力，距离${skill.attackRange}，伤害${formula}`;
+            if (skill.buff) {
+                info += `，效果：防御${skill.buff.value>0?'+':''}${skill.buff.value}`;
+            }
+            info += `<br>`;
+        });
+        skillDetailDiv.innerHTML = info;
+        skillDetailDiv.classList.add('active');
+    }
+
+    function updateTurnDisplay() { turnDisplay.textContent = `第 ${battleState.turnCount} 回合`; }
+
+    function checkVictory() {
+        if (battleState.getAlivePlayers().length === 0) {
+            log('💀 我方全灭，战斗失败！');
+            actionContent.innerHTML = '<div class="game-over">战斗失败！</div>';
+            nextRoundBtn.style.display = 'none';
+            return true;
+        }
+        if (battleState.getAliveEnemies().length === 0) {
+            log('🎉 敌方全灭，我方胜利！');
+            actionContent.innerHTML = '<div class="game-over">战斗胜利！</div>';
+            nextRoundBtn.style.display = 'none';
+            return true;
+        }
+        return false;
+    }
+
+    // ==================== 回合流程 ====================
+    function startNewRound() {
+        battleState.turnCount++;
+        updateTurnDisplay();
+        log(`--- 第 ${battleState.turnCount} 回合 ---`);
+        log(`我方存活：${battleState.getAlivePlayers().length}　敌方存活：${battleState.getAliveEnemies().length}`);
+        battleState.allCharacters.forEach(c => c.regenSP());
+
+        const alive = battleState.allCharacters.filter(c => c.alive);
+        alive.sort((a, b) => {
+            if (b.speed !== a.speed) return b.speed - a.speed;
+            if (a.team === 'player' && b.team === 'enemy') return -1;
+            if (a.team === 'enemy' && b.team === 'player') return 1;
+            return a.position - b.position;
+        });
+        battleState.actionQueue = [...alive];
+        log(`行动顺序: ${battleState.actionQueue.map(c => c.name+'('+c.team[0]+c.position+')').join(' → ')}`);
+        nextRoundBtn.style.display = 'none';
+        processNextAction();
+    }
+
+    function processNextAction() {
+        if (checkVictory()) return;
+        if (battleState.actionQueue.length === 0) {
+            nextRoundBtn.style.display = 'block';
+            actionContent.innerHTML = '回合结束，点击按钮继续';
+            return;
+        }
+        battleState.currentActor = battleState.actionQueue.shift();
+        if (!battleState.currentActor.alive) { processNextAction(); return; }
+        renderCharacters();
+        if (battleState.currentActor.team === 'player') playerTurn(battleState.currentActor);
+        else enemyTurn(battleState.currentActor);
+    }
+
+    // ==================== 玩家回合 ====================
+    function playerTurn(actor) {
+        // 检测是否至少有一个技能能打到敌人
+        const canAnySkillHit = actor.skills.some(skill => {
+            return battleState.getAliveEnemies().some(enemy =>
+                Math.abs(actor.position - enemy.position) <= skill.attackRange
+            );
+        });
+
+        if (!canAnySkillHit) {
+            log(`${actor.name}(位置${actor.position}) 所有技能均无法攻击到目标，自动跳过`);
+            battleState.currentActor = null;
+            battleState.selectedSkill = null;
+            renderCharacters();
+            // 延时后继续下一个行动
+            setTimeout(() => processNextAction(), 500);
+            return;
+        }
+
+        battleState.waitingForPlayer = true;
+        battleState.selectedSkill = null;
+        skillDetailDiv.classList.remove('active');
+        resetActionUI();
+        drawPlayerActions(actor);
+    }
+
+    function resetActionUI() {
+        const oldConfirm = document.getElementById('confirmTargetBtn');
+        if (oldConfirm) oldConfirm.remove();
+        const oldCancel = document.getElementById('cancelTargetBtn');
+        if (oldCancel) oldCancel.remove();
+    }
+
+    function drawPlayerActions(actor) {
+        const skills = actor.skills;
+        let html = `<p><strong>${actor.name}(位置${actor.position})</strong> 的回合，选择技能：</p><div class="skill-buttons">`;
+        skills.forEach((skill, index) => {
+            const disabled = actor.sp < skill.spCost ? 'disabled' : '';
+            html += `<button class="skill-btn" data-skill-index="${index}" ${disabled}>
+                ${skill.name} (${skill.spCost}算力)
+            </button>`;
+        });
+        html += `</div>`;
+        html += `<div style="margin-top:10px;"><button class="skill-btn" id="skipTurnBtn" style="background:#555;">⏭ 跳过本回合</button></div>`;
+        html += `<div class="target-hint" id="targetHint"></div>`;
+        actionContent.innerHTML = html;
+        document.querySelectorAll('.skill-btn[data-skill-index]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.target.dataset.skillIndex);
+                selectPlayerSkill(actor, index);
+            });
+        });
+
+        // 跳过按钮事件
+        const skipBtn = document.getElementById('skipTurnBtn');
+        if (skipBtn) {
+            skipBtn.addEventListener('click', () => {
+                log(`${actor.name} 跳过本回合`);
+                battleState.currentActor = null;
+                battleState.selectedSkill = null;
+                skillDetailDiv.classList.remove('active');
+                resetActionUI();
+                renderCharacters();
+                processNextAction();
+            });
+        }
+    }
+
+    function selectPlayerSkill(actor, skillIndex) {
+        const skill = actor.skills[skillIndex];
+        if (actor.sp < skill.spCost) { log('算力不足！'); return; }
+        battleState.selectedSkill = skill;
+        resetActionUI();
+        skillDetailDiv.classList.add('active');
+        skillDetailDiv.innerHTML = `
+            <strong>${skill.name}</strong><br>
+            消耗算力：${skill.spCost}　攻击距离：${skill.attackRange}<br>
+            伤害公式：${skill.baseDamage} + ${skill.bonusDamage} × 硬币(${skill.coinCount})<br>
+            ${skill.buff ? `<span style="color:#f9ca24">效果：防御${skill.buff.value>0?'+':''}${skill.buff.value}（持续至下一次受击）</span>` : ''}
+        `;
+        const targetHint = document.getElementById('targetHint');
+        const enemiesInRange = battleState.getAliveEnemies().filter(e => 
+            Math.abs(actor.position - e.position) <= skill.attackRange
+        );
+        if (enemiesInRange.length === 0) {
+            targetHint.textContent = '该技能范围内无可用目标！请重新选择技能。';
+            battleState.selectedSkill = null;
+            skillDetailDiv.classList.remove('active');
+            return;
+        }
+        targetHint.textContent = '请点击攻击范围内的敌方角色（可多选），再按确认或取消。';
+        const allCards = allCharsDiv.querySelectorAll('.character-card');
+        battleState.currentSelectedTargets = new Set();
+        allCards.forEach(card => {
+            const charId = parseInt(card.dataset.characterId);
+            const char = battleState.findCharacterById(charId);
+            if (!char || char.team !== 'enemy' || !char.alive) {
+                card.classList.remove('selectable');
+                return;
+            }
+            if (enemiesInRange.includes(char)) {
+                card.classList.add('selectable');
+                card.style.borderColor = '#e74c3c';
+            } else {
+                card.classList.remove('selectable');
+            }
+        });
+        const btnContainer = document.createElement('div');
+        btnContainer.className = 'action-controls';
+        btnContainer.id = 'targetBtnContainer';
+        const confirmBtn = document.createElement('button');
+        confirmBtn.id = 'confirmTargetBtn';
+        confirmBtn.textContent = '✅ 确认';
+        confirmBtn.style.cssText = 'background:#2ecc71; color:white; padding:8px 16px; border:none; border-radius:20px; cursor:pointer;';
+        confirmBtn.onclick = () => {
+            if (battleState.currentSelectedTargets.size === 0) { alert('请至少选择一个目标'); return; }
+            const selectedTargets = Array.from(battleState.currentSelectedTargets);
+            cleanupTargetSelection(allCards);
+            resetActionUI();
+            skillDetailDiv.classList.remove('active');
+            executePlayerAction(actor, selectedTargets);
+        };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.id = 'cancelTargetBtn';
+        cancelBtn.textContent = '❌ 取消';
+        cancelBtn.style.cssText = 'background:#e94560; color:white; padding:8px 16px; border:none; border-radius:20px; cursor:pointer;';
+        cancelBtn.onclick = () => {
+            cleanupTargetSelection(allCards);
+            resetActionUI();
+            skillDetailDiv.classList.remove('active');
+            battleState.selectedSkill = null;
+            targetHint.textContent = '';
+            drawPlayerActions(actor);
+        };
+        btnContainer.appendChild(confirmBtn);
+        btnContainer.appendChild(cancelBtn);
+        actionContent.appendChild(btnContainer);
+    }
+
+    function cleanupTargetSelection(allCards) {
+        allCards.forEach(card => {
+            card.classList.remove('selectable');
+            card.style.borderColor = '';
+        });
+        battleState.currentSelectedTargets.clear();
+    }
+
+    function executePlayerAction(actor, targets) {
+        battleState.waitingForPlayer = false;
+SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState, allCharsDiv, log);
+
+        battleState.currentActor = null;
+        battleState.selectedSkill = null;
+        renderCharacters();
+        processNextAction();
+    }
+
+    // ==================== 敌方 AI ====================
+    function enemyTurn(actor) {
+        const availableSkills = actor.skills.filter(s => actor.sp >= s.spCost);
+        if (availableSkills.length === 0) {
+            log(`${actor.name} 算力不足，跳过`);
+            setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
+            return;
+        }
+        const sortedSkills = [...availableSkills].sort((a,b) => b.spCost - a.spCost);
+        let chosenSkill = null;
+        let targets = [];
+        for (let sk of sortedSkills) {
+            const candidates = battleState.getAlivePlayers().filter(p => 
+                Math.abs(actor.position - p.position) <= sk.attackRange
+            );
+            if (candidates.length > 0) {
+                chosenSkill = sk;
+                targets = candidates;
+                break;
+            }
+        }
+        if (!chosenSkill) {
+            log(`${actor.name} 没有可攻击目标，跳过`);
+            setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
+            return;
+        }
+        log(`${actor.name} 使用 ${chosenSkill.name}，目标：${targets.map(t=>t.name+'('+t.position+')').join(', ')}`);
+        setTimeout(() => {
+            SkillSystem.executeSkill(actor, chosenSkill, targets, battleState, allCharsDiv, log);
+            battleState.currentActor = null;
+            renderCharacters();
+            processNextAction();
+        }, 900);
+    }
+
+
+    // ==================== 开始战斗 ====================
+    function startBattle(level) {
+        battleState.reset();
+        battleState.currentLevel = level;
+        globalId = 0;
+
+        const playerChars = [];
+        let pos = 0;
+        selectedSlots.forEach((role) => {
+            if (role !== null) {
+                const char = createRoleInstance(role, 'player', pos);
+                if (char) {
+                    char.order = pos;
+                    playerChars.push(char);
+                    pos++;
+                }
+            }
+        });
+
+        playerChars.sort((a,b) => a.order - b.order);
+        playerChars.forEach((c, i) => { c.position = i; c.order = i; });
+
+        const enemyChars = [
+            createPolice('enemy', playerChars.length, 0),
+            createStickPolice('enemy', playerChars.length + 1, 100),
+            createGunPolice('enemy', playerChars.length + 2, 200)
+        ];
+        enemyChars.forEach((c, i) => { c.order = i + playerChars.length; });
+
+        battleState.playerTeam.push(...playerChars);
+        battleState.enemyTeam.push(...enemyChars);
+        battleState.allCharacters.push(...playerChars, ...enemyChars);
+
+        repositionAll();
+        renderCharacters();
+        updateTurnDisplay();
+        logPanel.innerHTML = '<p>战斗开始！</p>';
+        actionContent.innerHTML = '点击按钮开始第一回合';
+        nextRoundBtn.style.display = 'block';
+        nextRoundBtn.onclick = startNewRound;
+        showPage('pageBattle');
+    }
+
+    initCharSelection();
+</script>
+</body>
+</html>
