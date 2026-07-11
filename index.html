@@ -61,23 +61,6 @@
 </div>
 
 <script>
-    /* ====== 移动端竖屏自动旋转 ====== */
-    (function() {
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 'ontouchstart' in window;
-        if (!isMobile) return;
-        function updateRotate() {
-            if (window.innerHeight > window.innerWidth) {
-                document.documentElement.classList.add('auto-rotate');
-            } else {
-                document.documentElement.classList.remove('auto-rotate');
-            }
-        }
-        updateRotate();
-        window.addEventListener('resize', updateRotate);
-        window.addEventListener('orientationchange', function() {
-            setTimeout(updateRotate, 400);
-        });
-    })();
     function showPage(id) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(id).classList.add('active');
