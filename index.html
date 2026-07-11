@@ -14,6 +14,11 @@
 
 </head>
 <body>
+<div id="rotate-hint">
+    <p style="font-size:2em;margin-bottom:20px;">📱</p>
+    <p>点击屏幕锁定横屏</p>
+    <p style="font-size:0.8em;margin-top:10px;color:#aaa;">点击任意位置即可</p>
+</div>
 <div class="container">
     <div id="pageTitle" class="page active">
         <h1>某科学的书生学院</h1>
@@ -61,23 +66,79 @@
 </div>
 
 <script>
-    /* ====== 移动端自动横屏旋转 ====== */
-    (function autoRotate() {
+    /* ====== 移动端横屏锁定 ====== */
+    (function lockLandscape() {
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 'ontouchstart' in window;
         if (!isMobile) return;
 
-        function updateRotation() {
-            if (window.innerHeight > window.innerWidth) {
-                document.documentElement.classList.add('auto-rotate');
+        // 尝试锁定横屏
+        function tryLock() {
+            if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+                window.screen.orientation.lock('landscape').catch(function(e) {
+                    console.log('横屏锁定失败，启用CSS旋转备用：', e);
+                    enableCSSRotate();
+                });
             } else {
-                document.documentElement.classList.remove('auto-rotate');
+                enableCSSRotate();
             }
         }
-        updateRotation();
-        window.addEventListener('resize', updateRotation);
-        window.addEventListener('orientationchange', function() {
-            setTimeout(updateRotation, 400);
-        });
+
+        // CSS旋转备用方案
+        function enableCSSRotate() {
+            if (!document.getElementById('rotate-style')) {
+                var style = document.createElement('style');
+                style.id = 'rotate-style';
+                style.textContent = `
+                    @media (orientation: portrait) {
+                        html.auto-rotate {
+                            position: fixed;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 100%;
+                            overflow: hidden;
+                        }
+                        html.auto-rotate body {
+                            margin: 0;
+                            padding: 0;
+                            width: 100vh;
+                            height: 100vw;
+                            transform-origin: left top;
+                            transform: rotate(90deg) translateY(-100vw);
+                            overflow: hidden;
+                        }
+                        html.auto-rotate .container {
+                            width: 100vw;
+                            height: 100vh;
+                            overflow-y: auto;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            function updateRotate() {
+                if (window.innerHeight > window.innerWidth) {
+                    document.documentElement.classList.add('auto-rotate');
+                } else {
+                    document.documentElement.classList.remove('auto-rotate');
+                }
+            }
+            updateRotate();
+            window.addEventListener('resize', updateRotate);
+            window.addEventListener('orientationchange', function() {
+                setTimeout(updateRotate, 500);
+            });
+        }
+
+        // 在用户首次点击时触发锁定（浏览器要求用户手势）
+        function onFirstTouch() {
+            tryLock();
+            document.removeEventListener('click', onFirstTouch);
+            document.removeEventListener('touchstart', onFirstTouch);
+        }
+        document.addEventListener('click', onFirstTouch);
+        document.addEventListener('touchstart', onFirstTouch);
     })();
     function showPage(id) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
