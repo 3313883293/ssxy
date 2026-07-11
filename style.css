@@ -131,20 +131,33 @@ body {
 }
 .action-controls { display: flex; gap: 10px; margin-top: 10px; }
 .game-over { color: #f9ca24; font-weight: bold; margin-top: 10px; text-align: center; }
-/* ====== 横屏提示遮罩 ====== */
-#rotate-mask {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh;
-    background: #1a1a2e;
-    display: none;
-    justify-content: center; align-items: center;
-    flex-direction: column;
-    z-index: 9999;
+/* ====== 移动端自动横屏旋转 ====== */
+html.auto-rotate {
+    width: 100vh;
+    height: 100vw;
+    overflow: hidden;
 }
-#rotate-mask.show { display: flex; }
-#rotate-mask .icon { font-size: 60px; margin-bottom: 20px; animation: rotateHint 2s ease-in-out infinite; }
-#rotate-mask p { font-size: 1.2em; color: #f9ca24; text-align: center; max-width: 260px; }
-@keyframes rotateHint {
-    0%, 100% { transform: rotate(0deg); }
-    50% { transform: rotate(90deg); }
+html.auto-rotate body {
+    width: 100vh;
+    height: 100vw;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
 }
-
+html.auto-rotate .container {
+    position: fixed;
+    top: 0;
+    left: 100vw;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: 0 0;
+    transform: rotate(90deg);
+    overflow-y: auto;
+}
+html.auto-rotate .container::-webkit-scrollbar {
+    width: 4px;
+}
+html.auto-rotate .container::-webkit-scrollbar-thumb {
+    background: #e94560;
+    border-radius: 4px;
+}

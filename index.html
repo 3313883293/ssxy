@@ -14,11 +14,6 @@
 
 </head>
 <body>
-<!-- 横屏提示遮罩 -->
-<div id="rotate-mask">
-    <div class="icon">📱</div>
-    <p>请将设备横屏游玩</p>
-</div>
 <div class="container">
     <div id="pageTitle" class="page active">
         <h1>某科学的书生学院</h1>
@@ -66,24 +61,24 @@
 </div>
 
 <script>
-    /* ====== 横屏检测 ====== */
-    (function checkOrientation() {
-        const mask = document.getElementById('rotate-mask');
-        function update() {
-            if (window.innerWidth >= window.innerHeight) {
-                mask.classList.remove('show');
+    /* ====== 移动端自动横屏旋转 ====== */
+    (function autoRotate() {
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 'ontouchstart' in window;
+        if (!isMobile) return;
+
+        function updateRotation() {
+            if (window.innerHeight > window.innerWidth) {
+                document.documentElement.classList.add('auto-rotate');
             } else {
-                mask.classList.add('show');
+                document.documentElement.classList.remove('auto-rotate');
             }
         }
-        update();
-        window.addEventListener('resize', update);
+        updateRotation();
+        window.addEventListener('resize', updateRotation);
         window.addEventListener('orientationchange', function() {
-            setTimeout(update, 300);
+            setTimeout(updateRotation, 400);
         });
     })();
-
-
     function showPage(id) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(id).classList.add('active');
