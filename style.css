@@ -2,12 +2,12 @@
 body {
     font-family: 'Segoe UI', sans-serif;
     background: #1a1a2e; color: #eee;
-    min-height: 100vh; min-height: 100dvh;
+    min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
 }
 .container {
-    max-width: 1000px; width: 100%; min-height: 100vh; min-height: 100dvh;
+    width: 1000px; min-height: 600px;
     padding: 20px; position: relative;
-    overflow-y: auto;
 }
 .page { display: none; flex-direction: column; align-items: center; }
 .page.active { display: flex; }
@@ -133,17 +133,26 @@ body {
 .game-over { color: #f9ca24; font-weight: bold; margin-top: 10px; text-align: center; }
 /* ====== 手机端适配 ====== */
 @media (max-width: 768px) {
-    .container { padding: 10px; }
+    body {
+        display: block;
+        align-items: unset;
+        justify-content: unset;
+    }
+    .container {
+        width: 100%;
+        min-height: 100vh; min-height: 100dvh;
+        padding: 10px;
+        overflow-y: auto;
+    }
+    .title-page { padding-top: 15vh; }
     .title-page h1 { font-size: 2em; }
     .char-slot { width: 90px; padding: 10px; }
+    .level-card { width: 90%; }
     .character-card { width: 85px; padding: 6px; }
     .character-card .name { font-size: 0.75em; }
     .all-characters { gap: 8px; overflow-x: auto; }
     .skill-btn { font-size: 0.75em; padding: 5px 10px; }
     .battle-header h2 { font-size: 1.1em; }
     .log { max-height: 80px; }
-    .battle-page { flex: 1; }
-    .bottom-panel { flex: 1; display: flex; flex-direction: column; }
-    .log { flex: 1; }
+    .bottom-panel { padding: 8px; }
 }
-
