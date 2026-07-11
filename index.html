@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>某科学的书生学院</title>
         <link rel="stylesheet" href="style.css">
     <script src="js/Skills.js"></script>
@@ -14,6 +14,11 @@
 
 </head>
 <body>
+<!-- 横屏提示遮罩 -->
+<div id="rotate-mask">
+    <div class="icon">📱</div>
+    <p>请将设备横屏游玩</p>
+</div>
 <div class="container">
     <div id="pageTitle" class="page active">
         <h1>某科学的书生学院</h1>
@@ -61,6 +66,24 @@
 </div>
 
 <script>
+    /* ====== 横屏检测 ====== */
+    (function checkOrientation() {
+        const mask = document.getElementById('rotate-mask');
+        function update() {
+            if (window.innerWidth >= window.innerHeight) {
+                mask.classList.remove('show');
+            } else {
+                mask.classList.add('show');
+            }
+        }
+        update();
+        window.addEventListener('resize', update);
+        window.addEventListener('orientationchange', function() {
+            setTimeout(update, 300);
+        });
+    })();
+
+
     function showPage(id) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById(id).classList.add('active');
