@@ -74,9 +74,14 @@ body {
 .stats { font-size: 0.75em; color: #ccc; margin-top: 4px; }
 .position-mark { font-size: 0.65em; color: #888; position: absolute; top: 3px; right: 8px; }
 .buff-indicator {
-    position: absolute; top: 30px; left: 5px; font-size: 0.7em;
-    background: #0f3460; padding: 2px 6px; border-radius: 10px;
+    font-size: 0.7em;
+    background: #0f3460;
+    padding: 2px 6px;
+    border-radius: 10px;
     color: #f9ca24;
+    line-height: 1.6;
+    margin-top: 3px;
+    display: inline-block;
 }
 @keyframes hitFlash {
     0% { filter: brightness(2) drop-shadow(0 0 10px red); }

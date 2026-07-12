@@ -10,8 +10,6 @@
     <script src="js/Roles.js"></script>
     <script src="js/BattleState.js"></script>
     <script src="js/SkillSystem.js"></script>
-
-
 </head>
 <body>
 <div class="container">
@@ -23,7 +21,7 @@
 
     <div id="pageSelectChar" class="page">
         <h2>选择出战角色与站位</h2>
-        <p style="color:#aaa;">点击角色可在「上阵」与「空位」间切换</p>
+        <p style="color:#aaa;">点击角色可在「空位 → 模板一 → 鲁盼旋」间切换</p>
         <div class="char-slots" id="charSlots"></div>
         <div class="control-buttons">
             <button class="btn-main" onclick="startLevelSelect()">确认出战</button>
@@ -66,9 +64,7 @@
         document.getElementById(id).classList.add('active');
     }
 
-
     // ==================== 选角色界面 ====================
-
     let selectedSlots = [];
 
     function initCharSelection() {
@@ -78,7 +74,9 @@
 
     function toggleSlot(index) {
         const current = selectedSlots[index];
-        selectedSlots[index] = (current === null) ? '模板一' : null;
+        if (current === null) selectedSlots[index] = '模板一';
+        else if (current === '模板一') selectedSlots[index] = '鲁盼旋';
+        else selectedSlots[index] = null;
         renderCharSlots();
     }
 
@@ -102,16 +100,12 @@
 
     function startLevelSelect() {
         const count = selectedSlots.filter(r => r !== null).length;
-        if (count === 0) {
-            alert('至少选择一个角色出战！');
-            return;
-        }
+        if (count === 0) { alert('至少选择一个角色出战！'); return; }
         showPage('pageLevel');
     }
 
     // ==================== 战斗状态实例 ====================
     let battleState = new BattleState();
-    // 全局函数包装（供 Characters.js 中的 takeDamage 调用）
     function repositionAll() { battleState.repositionAll(); }
 
     const allCharsDiv = document.getElementById('allChars');
@@ -141,40 +135,51 @@
             if (char === battleState.currentActor) card.classList.add('current');
             card.dataset.characterId = char.id;
             card.dataset.team = char.team;
-            let buffText = '';
-            if (char.buffs.length > 0) {
-                const defBuff = char.buffs.find(b => b.type === 'def');
-                if (defBuff) buffText = `防${defBuff.value>0?'+':''}${defBuff.value}`;
-            }
+
+            // 实时总防御 + buff 竖排
+            let totalDef = char.getTotalDef();
+            let buffLines = [];
+            char.buffs.forEach(buff => {
+                if (buff.type === 'def') {
+                    const sign = buff.value > 0 ? '+' : '';
+                    buffLines.push(`防${sign}${buff.value}`);
+                } else if (buff.type === 'e') {
+                    buffLines.push(`恶×${buff.stack}层`);
+                } else if (buff.type === 'rage') {
+                    buffLines.push(`愤怒×${buff.stack}层`);
+                } else if (buff.type === 'burn') {
+                    buffLines.push(`燃烧Lv${buff.level}×${buff.stack}层`);
+                }
+            });
+            const buffText = buffLines.join('<br>');
+
             card.innerHTML = `
                 <span class="position-mark">位置${char.position}</span>
-                ${buffText ? `<span class="buff-indicator">${buffText}</span>` : ''}
                 <div class="name">${char.name}</div>
                 <div class="bar-container"><div class="hp-bar" style="width:${(char.hp/char.maxHp)*100}%"></div></div>
                 <div style="font-size:0.7em;">HP ${char.hp}/${char.maxHp}</div>
                 <div class="bar-container"><div class="sp-bar" style="width:${(char.sp/char.maxSP)*100}%"></div></div>
                 <div style="font-size:0.7em;">算力 ${char.sp}/${char.maxSP}</div>
-                <div class="stats">防${char.def} 速${char.speed}</div>
+                <div class="stats">防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}</div>
+                ${buffText ? `<div class="buff-indicator">${buffText}</div>` : ''}
             `;
 
-            // 统一点击处理：选中技能时切换目标，未选中时显示技能信息
             card.addEventListener('click', function(e) {
                 const charId = parseInt(this.dataset.characterId);
-                const char = battleState.findCharacterById(charId);
-                if (!char || !char.alive) return;
+                const c = battleState.findCharacterById(charId);
+                if (!c || !c.alive) return;
 
-                if (battleState.selectedSkill && char.team === 'enemy' && this.classList.contains('selectable')) {
-                    if (battleState.currentSelectedTargets.has(char)) {
-                        battleState.currentSelectedTargets.delete(char);
+                if (battleState.selectedSkill && c.team === 'enemy' && this.classList.contains('selectable')) {
+                    if (battleState.currentSelectedTargets.has(c)) {
+                        battleState.currentSelectedTargets.delete(c);
                         this.style.borderColor = '#e74c3c';
                     } else {
-                        battleState.currentSelectedTargets.add(char);
+                        battleState.currentSelectedTargets.add(c);
                         this.style.borderColor = '#f9ca24';
                     }
                     return;
                 }
-
-                showSkillInfo(char);
+                showSkillInfo(c);
             });
 
             allCharsDiv.appendChild(card);
@@ -192,6 +197,11 @@
             if (skill.buff) {
                 info += `，效果：防御${skill.buff.value>0?'+':''}${skill.buff.value}`;
             }
+            if (skill.special) {
+                if (skill.special.type === 'burn') info += `，命中：施加${skill.special.stacks}层【燃烧】`;
+                else if (skill.special.type === 'ignoreDef') info += `，特效：无视${skill.special.value}防御`;
+                else if (skill.special.type === 'evilDrain') info += `，特效：目标每层【恶】+${skill.special.bonus}伤害，清零【恶】`;
+            }
             info += `<br>`;
         });
         skillDetailDiv.innerHTML = info;
@@ -200,21 +210,27 @@
 
     function updateTurnDisplay() { turnDisplay.textContent = `第 ${battleState.turnCount} 回合`; }
 
-function checkVictory() {
-    if (battleState.getAlivePlayers().length === 0) {
-        log('💀 我方全灭，战斗失败！');
-        actionContent.innerHTML = '<div class="game-over">战斗失败！</div><br><button class="btn-main" onclick="backToTitle()" style="margin-top:5px;">返回主界面</button>';
-        nextRoundBtn.style.display = 'none';
-        return true;
+    function checkVictory() {
+        if (battleState.getAlivePlayers().length === 0) {
+            log('💀 我方全灭，战斗失败！');
+            actionContent.innerHTML = '<div class="game-over">战斗失败！</div><br><button class="btn-main" onclick="backToTitle()" style="margin-top:5px;">返回主界面</button>';
+            nextRoundBtn.style.display = 'none';
+            return true;
+        }
+        if (battleState.getAliveEnemies().length === 0) {
+            log('🎉 敌方全灭，我方胜利！');
+            actionContent.innerHTML = '<div class="game-over">战斗胜利！</div><br><button class="btn-main" onclick="backToTitle()" style="margin-top:5px;">返回主界面</button>';
+            nextRoundBtn.style.display = 'none';
+            return true;
+        }
+        return false;
     }
-    if (battleState.getAliveEnemies().length === 0) {
-        log('🎉 敌方全灭，我方胜利！');
-        actionContent.innerHTML = '<div class="game-over">战斗胜利！</div><br><button class="btn-main" onclick="backToTitle()" style="margin-top:5px;">返回主界面</button>';
-        nextRoundBtn.style.display = 'none';
-        return true;
+
+    function backToTitle() {
+        battleState.reset();
+        initCharSelection();
+        showPage('pageTitle');
     }
-    return false;
-}
 
     // ==================== 回合流程 ====================
     function startNewRound() {
@@ -240,6 +256,7 @@ function checkVictory() {
     function processNextAction() {
         if (checkVictory()) return;
         if (battleState.actionQueue.length === 0) {
+            onTurnEnd();
             nextRoundBtn.style.display = 'block';
             actionContent.innerHTML = '回合结束，点击按钮继续';
             return;
@@ -251,9 +268,34 @@ function checkVictory() {
         else enemyTurn(battleState.currentActor);
     }
 
+    // ==================== 回合结束 ====================
+    function onTurnEnd() {
+        // —— 时点广播：onTurnEnd ——
+        Character.invokePassives('onTurnEnd', battleState, log);
+
+        // —— 燃烧扣血 ———
+        battleState.allCharacters.forEach(c => {
+            if (!c.alive) return;
+            const burnLevel = c.getBuffLevel('burn');
+            const burnStack = c.getBuffStack('burn');
+            if (burnStack > 0 && burnLevel > 0) {
+                const burnDmg = burnLevel * 50;
+                const actual = c.takeTrueDamage(burnDmg);
+                log(`🔥 ${c.name} 受到${burnDmg}点燃烧伤害（Lv${burnLevel}×${burnStack}层），实际${actual} (HP:${c.hp})`);
+                c.reduceBuffStack('burn', 1);
+                if (c.getBuffStack('burn') <= 0) c.clearBuff('burn');
+                if (!c.alive) {
+                    log(`💥 ${c.name} 被烧死！`);
+                    Character.invokePassives('onAllyDeath', battleState, c, log);
+                }
+            }
+        });
+
+        renderCharacters();
+    }
+
     // ==================== 玩家回合 ====================
     function playerTurn(actor) {
-        // 检测是否至少有一个技能能打到敌人
         const canAnySkillHit = actor.skills.some(skill => {
             return battleState.getAliveEnemies().some(enemy =>
                 Math.abs(actor.position - enemy.position) <= skill.attackRange
@@ -262,10 +304,10 @@ function checkVictory() {
 
         if (!canAnySkillHit) {
             log(`${actor.name}(位置${actor.position}) 所有技能均无法攻击到目标，自动跳过`);
+            actor.actedThisTurn = false;
             battleState.currentActor = null;
             battleState.selectedSkill = null;
             renderCharacters();
-            // 延时后继续下一个行动
             setTimeout(() => processNextAction(), 500);
             return;
         }
@@ -297,6 +339,7 @@ function checkVictory() {
         html += `<div style="margin-top:10px;"><button class="skill-btn" id="skipTurnBtn" style="background:#555;">⏭ 跳过本回合</button></div>`;
         html += `<div class="target-hint" id="targetHint"></div>`;
         actionContent.innerHTML = html;
+
         document.querySelectorAll('.skill-btn[data-skill-index]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const index = parseInt(e.target.dataset.skillIndex);
@@ -304,11 +347,11 @@ function checkVictory() {
             });
         });
 
-        // 跳过按钮事件
         const skipBtn = document.getElementById('skipTurnBtn');
         if (skipBtn) {
             skipBtn.addEventListener('click', () => {
                 log(`${actor.name} 跳过本回合`);
+                actor.actedThisTurn = false;
                 battleState.currentActor = null;
                 battleState.selectedSkill = null;
                 skillDetailDiv.classList.remove('active');
@@ -330,6 +373,9 @@ function checkVictory() {
             消耗算力：${skill.spCost}　攻击距离：${skill.attackRange}<br>
             伤害公式：${skill.baseDamage} + ${skill.bonusDamage} × 硬币(${skill.coinCount})<br>
             ${skill.buff ? `<span style="color:#f9ca24">效果：防御${skill.buff.value>0?'+':''}${skill.buff.value}（持续至下一次受击）</span>` : ''}
+            ${skill.special && skill.special.type==='burn' ? `<span style="color:#f9ca24">命中：施加${skill.special.stacks}层【燃烧】</span>` : ''}
+            ${skill.special && skill.special.type==='ignoreDef' ? `<span style="color:#f9ca24">特效：无视${skill.special.value}防御</span>` : ''}
+            ${skill.special && skill.special.type==='evilDrain' ? `<span style="color:#f9ca24">特效：目标每层【恶】+${skill.special.bonus}伤害，清零【恶】</span>` : ''}
         `;
         const targetHint = document.getElementById('targetHint');
         const enemiesInRange = battleState.getAliveEnemies().filter(e => 
@@ -373,7 +419,6 @@ function checkVictory() {
             skillDetailDiv.classList.remove('active');
             executePlayerAction(actor, selectedTargets);
         };
-
         const cancelBtn = document.createElement('button');
         cancelBtn.id = 'cancelTargetBtn';
         cancelBtn.textContent = '❌ 取消';
@@ -401,8 +446,7 @@ function checkVictory() {
 
     function executePlayerAction(actor, targets) {
         battleState.waitingForPlayer = false;
-SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState, allCharsDiv, log);
-
+        SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState, allCharsDiv, log);
         battleState.currentActor = null;
         battleState.selectedSkill = null;
         renderCharacters();
@@ -411,7 +455,7 @@ SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState,
 
     // ==================== 敌方 AI ====================
     function enemyTurn(actor) {
-    actionContent.innerHTML = '<p style="color:#aaa;">敌方行动中...</p>';
+        actionContent.innerHTML = '<p style="color:#aaa;">敌方行动中...</p>';
         const availableSkills = actor.skills.filter(s => actor.sp >= s.spCost);
         if (availableSkills.length === 0) {
             log(`${actor.name} 算力不足，跳过`);
@@ -445,13 +489,6 @@ SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState,
         }, 900);
     }
 
-// 返回主界面
-function backToTitle() {
-    battleState.reset();
-    initCharSelection();
-    showPage('pageTitle');
-}
-
     // ==================== 开始战斗 ====================
     function startBattle(level) {
         battleState.reset();
@@ -463,14 +500,9 @@ function backToTitle() {
         selectedSlots.forEach((role) => {
             if (role !== null) {
                 const char = createRoleInstance(role, 'player', pos);
-                if (char) {
-                    char.order = pos;
-                    playerChars.push(char);
-                    pos++;
-                }
+                if (char) { char.order = pos; playerChars.push(char); pos++; }
             }
         });
-
         playerChars.sort((a,b) => a.order - b.order);
         playerChars.forEach((c, i) => { c.position = i; c.order = i; });
 

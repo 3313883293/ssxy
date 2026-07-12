@@ -38,7 +38,75 @@ function createGunPolice(team, position, initialSP = null) {
     return char;
 }
 
+// ==================== 鲁盼旋 ====================
+function createLuPanxuan(team, position) {
+    const skills = [
+        new Skill('斩祟·亮剑',       100,  200,  50,  3,  4, null, { type: 'burn', stacks: 1 }),
+        new Skill('剑气迸进',         700,  500, 500,  1,  6, null, { type: 'ignoreDef', value: 200 }),
+        new Skill('十二连·剑斩邪祟', 1200,  300, 100, 12,  3, null, { type: 'evilDrain', bonus: 50 })
+    ];
+    const char = new Character('鲁盼旋', 2000, 200, [5,7], 1200, 400, skills, team, position);
+    // ——— 被动零：惩恶之火 — 友方受伤时伤害来源获得 1 层【恶】 ———
+    char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
+        if (actual > 0 && target.team === 'player') {
+            attacker.addBuffStack('e', 1, 1);
+            log(`  🔥 ${attacker.name} 获得1层【恶】`);
+        }
+    });
+
+    // ——— 被动一：无行动回合结束回复 200 算力 ———
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        if (!self.actedThisTurn) {
+            const before = self.sp;
+            self.sp = Math.min(self.maxSP, self.sp + 200);
+            const gained = self.sp - before;
+            if (gained > 0) log(`♻️ ${self.name}(位置${self.position}) 未使用技能，回复${gained}算力 (${self.sp}/${self.maxSP})`);
+        }
+    });
+
+    // ——— 被动二：回合结束，获得等同于场上恶总层数的愤怒 ———
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        let totalEvil = 0;
+        bs.allCharacters.forEach(c => { if (c.alive) totalEvil += c.getBuffStack('e'); });
+        if (totalEvil > 0) {
+            self.addBuffStack('rage', totalEvil, 1);
+            const rageBuff = self.buffs.find(b => b.type === 'rage');
+            if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
+            log(`💢 ${self.name}(位置${self.position}) 从场上${totalEvil}层【恶】获得${totalEvil}层【愤怒】（上限5层）`);
+        }
+    });
+
+    // ——— 被动三：友方死亡获得 5 层愤怒 ———
+    char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
+        if (deadChar.team === 'player' && self !== deadChar) {
+            self.addBuffStack('rage', 3, 1);
+            const rageBuff = self.buffs.find(b => b.type === 'rage');
+            if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
+            log(`  💢 ${self.name}(位置${self.position}) 获得3层【愤怒】（上限5层）`);
+        }
+    });
+
+    // ——— 被动四：技能命中后施加燃烧（分配硬币数级） ———
+    //          若目标燃烧 ≤3 层，消耗 1 层愤怒额外施加 1 层燃烧
+    char.registerPassive('onSkillHit', (self, bs, actor, target, coins, log) => {
+        if (self !== actor) return;  // 仅技能施放者自己触发
+        if (target.alive) {
+            target.addBuffLevel('burn', coins);
+            log(`  🔥 ${target.name} 获得${coins}级【燃烧】`);
+            if (target.getBuffStack('burn') <= 3 && self.getBuffStack('rage') > 0) {
+                self.reduceBuffStack('rage', 1);
+                target.addBuffStack('burn', 1, 1);
+                log(`  🔥 消耗1层【愤怒】，${target.name} 额外获得1层【燃烧】`);
+            }
+        }
+    });
+
+    return char;
+}
+
+// ==================== 工厂入口 ====================
 function createRoleInstance(roleName, team, position) {
     if (roleName === '模板一') return createTemplateOne(team, position);
+    if (roleName === '鲁盼旋') return createLuPanxuan(team, position);
     return null;
 }
