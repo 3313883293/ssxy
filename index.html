@@ -200,21 +200,21 @@
 
     function updateTurnDisplay() { turnDisplay.textContent = `第 ${battleState.turnCount} 回合`; }
 
-    function checkVictory() {
-        if (battleState.getAlivePlayers().length === 0) {
-            log('💀 我方全灭，战斗失败！');
-            actionContent.innerHTML = '<div class="game-over">战斗失败！</div>';
-            nextRoundBtn.style.display = 'none';
-            return true;
-        }
-        if (battleState.getAliveEnemies().length === 0) {
-            log('🎉 敌方全灭，我方胜利！');
-            actionContent.innerHTML = '<div class="game-over">战斗胜利！</div>';
-            nextRoundBtn.style.display = 'none';
-            return true;
-        }
-        return false;
+function checkVictory() {
+    if (battleState.getAlivePlayers().length === 0) {
+        log('💀 我方全灭，战斗失败！');
+        actionContent.innerHTML = '<div class="game-over">战斗失败！</div><br><button class="btn-main" onclick="backToTitle()" style="margin-top:5px;">返回主界面</button>';
+        nextRoundBtn.style.display = 'none';
+        return true;
     }
+    if (battleState.getAliveEnemies().length === 0) {
+        log('🎉 敌方全灭，我方胜利！');
+        actionContent.innerHTML = '<div class="game-over">战斗胜利！</div><br><button class="btn-main" onclick="backToTitle()" style="margin-top:5px;">返回主界面</button>';
+        nextRoundBtn.style.display = 'none';
+        return true;
+    }
+    return false;
+}
 
     // ==================== 回合流程 ====================
     function startNewRound() {
@@ -411,6 +411,7 @@ SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState,
 
     // ==================== 敌方 AI ====================
     function enemyTurn(actor) {
+    actionContent.innerHTML = '<p style="color:#aaa;">敌方行动中...</p>';
         const availableSkills = actor.skills.filter(s => actor.sp >= s.spCost);
         if (availableSkills.length === 0) {
             log(`${actor.name} 算力不足，跳过`);
@@ -444,6 +445,12 @@ SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState,
         }, 900);
     }
 
+// 返回主界面
+function backToTitle() {
+    battleState.reset();
+    initCharSelection();
+    showPage('pageTitle');
+}
 
     // ==================== 开始战斗 ====================
     function startBattle(level) {
