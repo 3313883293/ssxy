@@ -73,6 +73,8 @@ body {
 .sp-bar { background: #3498db; height: 100%; width: 100%; }
 .stats { font-size: 0.75em; color: #ccc; margin-top: 4px; }
 .position-mark { font-size: 0.65em; color: #888; position: absolute; top: 3px; right: 8px; }
+
+/* === Buff 指示器（点击弹出详情） === */
 .buff-indicator {
     font-size: 0.7em;
     background: #0f3460;
@@ -101,6 +103,7 @@ body {
     border-radius: 8px;
     font-weight: bold;
 }
+
 @keyframes hitFlash {
     0% { filter: brightness(2) drop-shadow(0 0 10px red); }
     100% { filter: brightness(1) drop-shadow(0 0 0px red); }
@@ -154,6 +157,7 @@ body {
 }
 .action-controls { display: flex; gap: 10px; margin-top: 10px; }
 .game-over { color: #f9ca24; font-weight: bold; margin-top: 10px; text-align: center; }
+
 /* === 选角：下方角色栏 === */
 .char-roster {
     display: flex;
@@ -185,6 +189,7 @@ body {
     border-color: #f9ca24 !important;
     box-shadow: 0 0 10px #f9ca24;
 }
+
 /* === Buff详情弹窗 === */
 .buff-popup-overlay {
     position: fixed;
@@ -253,9 +258,7 @@ body {
     text-align: center;
     line-height: 1.4;
 }
-.buff-popup-text {
-    flex: 1;
-}
+.buff-popup-text { flex: 1; }
 .buff-popup-text .title {
     font-weight: bold;
     font-size: 0.95em;
@@ -271,4 +274,73 @@ body {
     text-align: center;
     padding: 20px;
     font-size: 0.9em;
+}
+
+/* === 选角详情预览 === */
+.role-detail {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 10px 0;
+    width: 100%;
+    border: 1px solid #0f3460;
+    animation: rdFadeIn 0.25s ease-out;
+}
+@keyframes rdFadeIn {
+    0% { opacity: 0; transform: translateY(-8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+.role-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #0f3460;
+    margin-bottom: 10px;
+}
+.role-detail-icon { font-size: 1.3em; }
+.role-detail-name {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #f9ca24;
+}
+.role-detail-stats {
+    font-size: 0.85em;
+    color: #aaa;
+    margin-left: auto;
+}
+.rd-section {
+    margin-bottom: 10px;
+}
+.rd-section-title {
+    font-size: 0.95em;
+    font-weight: bold;
+    color: #3498db;
+    margin-bottom: 6px;
+}
+.rd-skill {
+    background: #0f3460;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+}
+.rd-skill-name {
+    font-weight: bold;
+    color: #e94560;
+    font-size: 0.9em;
+}
+.rd-skill-info {
+    color: #ccc;
+    font-size: 0.8em;
+    margin-top: 2px;
+    line-height: 1.5;
+}
+.rd-passive {
+    background: #0f3460;
+    border-radius: 6px;
+    padding: 5px 10px;
+    margin-bottom: 4px;
+    font-size: 0.82em;
+    color: #ccc;
+    border-left: 3px solid #f9ca24;
 }
