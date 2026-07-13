@@ -22,6 +22,9 @@ class Character {
         this.buffs = [];              // [{ type, value, stack, level, duration }]
         this.actedThisTurn = false;   // 本回合是否使用了技能
         this.passives = [];           // [{ trigger, callback }]
+        this.damageDealt = 0;
+        this.damageReceived = 0;
+        this.dotDamageMap = {};
     }
 
     // —————— 防御 ——————
@@ -40,6 +43,8 @@ class Character {
         const totalDef = this.getTotalDef();
         const actual = Math.max(0, dmg - totalDef);
         this.hp = Math.max(0, this.hp - actual);
+        this.damageReceived += actual;
+        if (attacker && attacker.alive) attacker.damageDealt += actual;
         if (this.hp <= 0) {
             this.alive = false;
             this.hp = 0;
@@ -55,6 +60,7 @@ class Character {
     takeTrueDamage(dmg) {
         if (!this.alive) return 0;
         this.hp = Math.max(0, this.hp - dmg);
+        this.damageReceived += dmg;
         if (this.hp <= 0) {
             this.alive = false;
             this.hp = 0;

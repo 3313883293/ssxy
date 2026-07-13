@@ -2,9 +2,9 @@
 
 function createTemplateOne(team, position) {
     const skills = [
-        new Skill('技能一·突刺', 200, 200, 100, 2, 2),
-        new Skill('技能二·重斩', 400, 400, 200, 2, 3),
-        new Skill('技能三·终结', 800, 600, 200, 3, 3)
+        new Skill('技能一·突刺', 200, 300, 100, 2, 2),
+        new Skill('技能二·重斩', 400, 600, 300, 2, 3),
+        new Skill('技能三·终结', 800, 800, 400, 3, 3)
     ];
     return new Character('模板一', 2000, 200, [3,7], 1000, 300, skills, team, position);
 }
@@ -31,9 +31,9 @@ function createStickPolice(team, position, initialSP = null) {
 
 function createGunPolice(team, position, initialSP = null) {
     const skills = [
-        new Skill('开火', 250, 400, 1600, 1, 4)
+        new Skill('开火', 200, 400, 1200, 1, 4)
     ];
-    const char = new Character('持枪警察', 2000, 100, [4,8], 300, 50, skills, team, position);
+    const char = new Character('持枪警察', 2000, 100, [4,8], 200, 50, skills, team, position);
     if (initialSP !== null) char.sp = initialSP;
     return char;
 }
@@ -104,9 +104,58 @@ function createLuPanxuan(team, position) {
     return char;
 }
 
+// ==================== 稻草人系列（测试用） ====================
+function createScarecrowPaper(team, position) {
+    const skills = [
+        new Skill('轻击', 0, 50, 0, 1, 1)
+    ];
+    return new Character('纸糊稻草人', 9999, 0, [1,1], 100, 0, skills, team, position);
+}
+
+function createScarecrowIron(team, position) {
+    const skills = [
+        new Skill('轻击', 0, 50, 0, 1, 1)
+    ];
+    return new Character('铁皮稻草人', 9999, 999, [1,1], 100, 0, skills, team, position);
+}
+
+function createScarecrowStandard(team, position) {
+    const skills = [
+        new Skill('轻击', 0, 50, 0, 1, 1)
+    ];
+    return new Character('标准稻草人', 9999, 200, [1,2], 100, 0, skills, team, position);
+}
+
+function createScarecrowFast(team, position) {
+    const skills = [
+        new Skill('轻击', 0, 50, 0, 1, 1)
+    ];
+    return new Character('灵敏稻草人', 5000, 50, [8,10], 100, 0, skills, team, position);
+}
+
+function createScarecrowRegen(team, position) {
+    const skills = [
+        new Skill('轻击', 0, 50, 0, 1, 1)
+    ];
+    const char = new Character('再生稻草人', 9999, 100, [1,2], 100, 0, skills, team, position);
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        if (self.alive && self.hp < self.maxHp) {
+            const heal = 500;
+            self.hp = Math.min(self.maxHp, self.hp + heal);
+            log(`🌿 ${self.name}(位置${self.position}) 再生恢复${heal}HP (${self.hp}/${self.maxHp})`);
+        }
+    });
+    return char;
+}
+
 // ==================== 工厂入口 ====================
 function createRoleInstance(roleName, team, position) {
     if (roleName === '模板一') return createTemplateOne(team, position);
     if (roleName === '鲁盼旋') return createLuPanxuan(team, position);
+    if (roleName === '纸糊稻草人') return createScarecrowPaper(team, position);
+    if (roleName === '铁皮稻草人') return createScarecrowIron(team, position);
+    if (roleName === '标准稻草人') return createScarecrowStandard(team, position);
+    if (roleName === '灵敏稻草人') return createScarecrowFast(team, position);
+    if (roleName === '再生稻草人') return createScarecrowRegen(team, position);
     return null;
 }

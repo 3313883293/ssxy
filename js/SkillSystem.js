@@ -60,10 +60,10 @@ class SkillSystem {
             let dmg = 0;
             if (coins > 0) {
                 dmg = skill.baseDamage + effectiveCoins * skill.bonusDamage;
-                // 鲁盼旋：每有2层愤怒使技能伤害+100
+                // 鲁盼旋：每有2层愤怒使技能伤害+50
                 if (actor.name === '鲁盼旋') {
                     const rageStacks = actor.getBuffStack('rage');
-                    dmg += Math.floor(rageStacks / 2) * 100;
+                    dmg += Math.floor(rageStacks / 2) * 50;
                 }
             }
 

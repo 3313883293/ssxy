@@ -76,12 +76,30 @@ body {
 .buff-indicator {
     font-size: 0.7em;
     background: #0f3460;
-    padding: 2px 6px;
-    border-radius: 10px;
+    padding: 3px 8px;
+    border-radius: 12px;
     color: #f9ca24;
-    line-height: 1.6;
-    margin-top: 3px;
-    display: inline-block;
+    line-height: 1.5;
+    margin-top: 4px;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    cursor: pointer;
+    transition: 0.2s;
+    border: 1px solid transparent;
+}
+.buff-indicator:hover {
+    background: #1a4a7a;
+    border-color: #f9ca24;
+    transform: scale(1.02);
+}
+.buff-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 4px;
+    border-radius: 8px;
+    font-weight: bold;
 }
 @keyframes hitFlash {
     0% { filter: brightness(2) drop-shadow(0 0 10px red); }
@@ -136,3 +154,121 @@ body {
 }
 .action-controls { display: flex; gap: 10px; margin-top: 10px; }
 .game-over { color: #f9ca24; font-weight: bold; margin-top: 10px; text-align: center; }
+/* === 选角：下方角色栏 === */
+.char-roster {
+    display: flex;
+    gap: 20px;
+    margin: 10px 0 15px;
+    padding: 15px 20px;
+    background: #0f3460;
+    border-radius: 12px;
+    width: 100%;
+    justify-content: center;
+}
+.roster-card {
+    background: #16213e;
+    border-radius: 10px;
+    padding: 12px 20px;
+    text-align: center;
+    border: 2px solid #3498db;
+    cursor: pointer;
+    transition: 0.2s;
+    min-width: 100px;
+}
+.roster-card:hover {
+    transform: scale(1.05);
+    border-color: #f9ca24;
+}
+.roster-card .name { font-weight: bold; font-size: 1em; margin-bottom: 4px; }
+.roster-card .desc { font-size: 0.75em; color: #aaa; }
+.char-slot.select-target {
+    border-color: #f9ca24 !important;
+    box-shadow: 0 0 10px #f9ca24;
+}
+/* === Buff详情弹窗 === */
+.buff-popup-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    backdrop-filter: blur(4px);
+}
+.buff-popup {
+    background: #16213e;
+    border: 2px solid #f9ca24;
+    border-radius: 16px;
+    padding: 0;
+    width: 380px;
+    max-width: 90vw;
+    box-shadow: 0 0 40px rgba(249,202,36,0.3);
+    animation: popIn 0.25s ease-out;
+}
+@keyframes popIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.buff-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid #0f3460;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #f9ca24;
+}
+.buff-popup-close {
+    cursor: pointer;
+    font-size: 1.3em;
+    color: #aaa;
+    transition: 0.2s;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+}
+.buff-popup-close:hover { color: #e94560; background: #0f3460; }
+.buff-popup-body {
+    padding: 16px 18px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.buff-popup-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: #0f3460;
+    border-left: 4px solid #555;
+    transition: 0.2s;
+}
+.buff-popup-item:hover { background: #1a4a7a; }
+.buff-popup-icon {
+    font-size: 1.4em;
+    min-width: 30px;
+    text-align: center;
+    line-height: 1.4;
+}
+.buff-popup-text {
+    flex: 1;
+}
+.buff-popup-text .title {
+    font-weight: bold;
+    font-size: 0.95em;
+    margin-bottom: 3px;
+}
+.buff-popup-text .desc {
+    color: #ccc;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+.buff-popup-empty {
+    color: #888;
+    text-align: center;
+    padding: 20px;
+    font-size: 0.9em;
+}
