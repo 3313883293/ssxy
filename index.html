@@ -762,10 +762,10 @@
 
     // ==================== 开始战斗 ====================
     function startBattle(level) {
+        battleLog = [];
         battleState.reset();
         battleState.currentLevel = level;
         globalId = 0;
-
         const playerChars = [];
         let pos = 0;
         selectedSlots.forEach((role) => {
@@ -816,6 +816,7 @@
         const playerCount = selectedSlots.filter(r => r !== null).length;
         if (playerCount === 0) { alert('请先在选角界面选择出战角色！'); return; }
 
+        battleLog = [];
         battleState.reset();
         battleState.currentLevel = -1;
         globalId = 0;
