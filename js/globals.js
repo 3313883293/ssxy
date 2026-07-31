@@ -24,7 +24,7 @@ function log(msg) {
 }
 
 // ==================== 选角状态 ====================
-const AVAILABLE_CHARS = ['模板一', '鲁盼旋'];
+const AVAILABLE_CHARS = ['模板一', '模板二', '模板三', '鲁盼旋'];
 let selectedSlots = [];
 let pendingSlotIndex = -1;
 let pendingRole = null;

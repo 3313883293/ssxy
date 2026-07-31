@@ -3,10 +3,28 @@
 function createTemplateOne(team, position) {
     const skills = [
         new Skill('技能一·突刺', 200, 300, 100, 2, 2),
-        new Skill('技能二·重斩', 400, 600, 300, 2, 3),
-        new Skill('技能三·终结', 800, 800, 400, 3, 3)
+        new Skill('技能二·重斩', 400, 600, 200, 2, 3),
+        new Skill('技能三·终结', 600, 600, 400, 3, 3)
     ];
-    return new Character('模板一', 2000, 200, [3,7], 1000, 300, skills, team, position);
+    return new Character('模板一', 2000, 200, [2,6], 1000, 300, skills, team, position);
+}
+
+function createTemplateTwo(team, position) {
+    const skills = [
+        new Skill('技能一·速射', 300, 300, 600, 1, 5),
+        new Skill('技能二·散射', 400, 200, 300, 4, 4),
+        new Skill('技能三·狙击', 500, 500, 1000, 1, 6)
+    ];
+    return new Character('模板二', 2000, 100, [4,7], 1000, 300, skills, team, position);
+}
+
+function createTemplateThree(team, position) {
+    const skills = [
+        new Skill('技能一·铁壁', 100, 50, 100, 3, 3),
+        new Skill('技能二·重拳', 400, 600, 400, 1, 1),
+        new Skill('技能三·山崩', 700, 1000, 800, 1, 1)
+    ];
+    return new Character('模板三', 2000, 300, [1,4], 1000, 300, skills, team, position);
 }
 
 function createPolice(team, position, initialSP = null) {
@@ -14,7 +32,7 @@ function createPolice(team, position, initialSP = null) {
         new Skill('持盾格挡', 0, 100, 200, 1, 1, { type: 'def', value: 100, duration: 'nextHit' }),
         new Skill('持盾猛击', 200, 500, 500, 1, 1, { type: 'def', value: -200, duration: 'nextHit' })
     ];
-    const char = new Character('持盾警察', 2000, 300, [2,4], 200, 50, skills, team, position);
+    const char = new Character('持盾警察', 2000, 300, [1,3], 200, 50, skills, team, position);
     if (initialSP !== null) char.sp = initialSP;
     return char;
 }
@@ -24,7 +42,7 @@ function createStickPolice(team, position, initialSP = null) {
         new Skill('棍击', 0, 200, 100, 2, 2),
         new Skill('一秒18棍', 200, 400, 50, 18, 2)
     ];
-    const char = new Character('持棍警察', 2000, 200, [3,6], 200, 50, skills, team, position);
+    const char = new Character('持棍警察', 2000, 200, [2,5], 200, 50, skills, team, position);
     if (initialSP !== null) char.sp = initialSP;
     return char;
 }
@@ -33,7 +51,7 @@ function createGunPolice(team, position, initialSP = null) {
     const skills = [
         new Skill('开火', 200, 400, 1200, 1, 4)
     ];
-    const char = new Character('持枪警察', 2000, 100, [4,8], 200, 50, skills, team, position);
+    const char = new Character('持枪警察', 2000, 100, [3,7], 200, 50, skills, team, position);
     if (initialSP !== null) char.sp = initialSP;
     return char;
 }
@@ -41,11 +59,11 @@ function createGunPolice(team, position, initialSP = null) {
 // ==================== 鲁盼旋 ====================
 function createLuPanxuan(team, position) {
     const skills = [
-        new Skill('斩祟·亮剑',       100,  200,  50,  3,  4, null, { type: 'burn', stacks: 1 }),
-        new Skill('剑气迸进',         700,  500, 500,  1,  6, null, { type: 'ignoreDef', value: 200 }),
-        new Skill('十二连·剑斩邪祟', 1200,  300, 100, 12,  3, null, { type: 'evilDrain', bonus: 50 })
+        new Skill('斩祟·亮剑',       300,  100,  100,  3,  4, null, { type: 'burn', stacks: 1 }),
+        new Skill('剑气迸进',         500,  500, 600,  1,  6, null, { type: 'ignoreDef', value: 200 }),
+        new Skill('十二连·剑斩邪祟', 800,  300, 50, 12,  3, null, { type: 'evilDrain', bonus: 50 })
     ];
-    const char = new Character('鲁盼旋', 2000, 200, [5,7], 1200, 400, skills, team, position);
+    const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
     // ——— 被动零：惩恶之火 — 友方受伤时伤害来源获得 1 层【恶】 ———
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
         if (actual > 0 && target.team === 'player') {
@@ -151,6 +169,8 @@ function createScarecrowRegen(team, position) {
 // ==================== 工厂入口 ====================
 function createRoleInstance(roleName, team, position) {
     if (roleName === '模板一') return createTemplateOne(team, position);
+    if (roleName === '模板二') return createTemplateTwo(team, position);
+    if (roleName === '模板三') return createTemplateThree(team, position);
     if (roleName === '鲁盼旋') return createLuPanxuan(team, position);
     if (roleName === '纸糊稻草人') return createScarecrowPaper(team, position);
     if (roleName === '铁皮稻草人') return createScarecrowIron(team, position);
