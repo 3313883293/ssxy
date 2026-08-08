@@ -7,7 +7,7 @@ class Skill {
         this.bonusDamage = bonusDamage;
         this.coinCount = coinCount;
         this.attackRange = attackRange;
-        this.buff = buff;                        // { type:'def', value, duration:'nextHit' }
+        this.buff = buff;                        // { type:'def', value, duration:'nextHit' } 或 [{...}, {...}]
         this.special = special;                  // { type:'ignoreDef', value:200 } | { type:'burn', stacks:1 } | { type:'evilDrain', bonus:50 }
     }
 }

@@ -11,7 +11,49 @@
     <div id="pageTitle" class="page active">
         <h1>某科学的书生学院</h1>
         <div class="sub">回合制策略对决</div>
-        <button class="btn-main" onclick="showPage('pageSelectChar')">开始游戏</button>
+        <button class="btn-main" onclick="showPage('pageLevel')">开始游戏</button>
+    </div>
+
+    <div id="pageLevel" class="page">
+        <h2>选择关卡</h2>
+        <div class="level-card" onclick="selectLevel(0)">
+            <h3>关卡0 · 测试场</h3>
+            <div class="enemy-preview">敌方配置：纸糊稻草人×1 铁皮稻草人×1 标准稻草人×1</div>
+        </div>
+        <div class="level-card" onclick="selectLevel(1)" style="margin-top:12px;">
+            <h3>第一关</h3>
+            <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1</div>
+        </div>
+        <div class="level-card" onclick="selectLevel(2)" style="margin-top:12px; border-color:#e74c3c;">
+            <h3 style="color:#e74c3c;">第二关</h3>
+            <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1＋开车警察待命</div>
+        </div>
+        <div class="level-card" onclick="selectLevel(3)" style="margin-top:12px; border-color:#8e44ad;">
+            <h3 style="color:#8e44ad;">第三关</h3>
+            <div class="enemy-preview">敌方配置：李雅礼×1 持枪警察×2＋开车警察待命</div>
+        </div>
+        <div class="level-card" onclick="selectLevel(4)" style="margin-top:12px; border-color:#c0392b;">
+            <h3 style="color:#c0392b;">☠️ 第四关 · Boss</h3>
+            <div class="enemy-preview">敌方配置：云长郡×1（亡灵怨恨）</div>
+        </div>
+        <div class="level-card" onclick="selectLevel(-1)" style="margin-top:12px; border-color:#f9ca24;">
+            <h3 style="color:#f9ca24;">🎯 自选敌人测试</h3>
+            <div class="enemy-preview">自由搭配敌人阵容，测试技能效果</div>
+        </div>
+        <button class="btn-main" style="background:#555; margin-top:15px;" onclick="showPage('pageTitle')">返回</button>
+    </div>
+
+    <div id="pageLevelIntro" class="page">
+        <h2 id="introTitle">关卡介绍</h2>
+        <div id="introContent" class="level-intro"></div>
+        <div id="introDetailPanel" class="role-detail" style="display:none;">
+            <div class="role-detail-header"></div>
+            <div class="role-detail-body"></div>
+        </div>
+        <div class="control-buttons">
+            <button class="btn-main" onclick="confirmLevel()">✅ 确认，选择出战角色</button>
+            <button class="btn-main" style="background:#555;" onclick="showPage('pageLevel')">返回关卡选择</button>
+        </div>
     </div>
 
     <div id="pageSelectChar" class="page">
@@ -25,25 +67,8 @@
         </div>
         <div class="control-buttons">
             <button class="btn-main" onclick="startLevelSelect()">确认出战</button>
-            <button class="btn-main" style="background:#555;" onclick="showPage('pageTitle')">返回</button>
+            <button class="btn-main" style="background:#555;" onclick="showPage('pageLevel')">返回</button>
         </div>
-    </div>
-
-    <div id="pageLevel" class="page">
-        <h2>选择关卡</h2>
-        <div class="level-card" onclick="startBattle(0)">
-            <h3>关卡0 · 测试场</h3>
-            <div class="enemy-preview">敌方配置：纸糊稻草人×1 铁皮稻草人×1 标准稻草人×1</div>
-        </div>
-        <div class="level-card" onclick="startBattle(1)" style="margin-top:12px;">
-            <h3>第一关</h3>
-            <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1</div>
-        </div>
-        <div class="level-card" onclick="showPage('pageSelectEnemy'); initEnemySelection();" style="margin-top:12px; border-color:#f9ca24;">
-            <h3 style="color:#f9ca24;">🎯 自选敌人测试</h3>
-            <div class="enemy-preview">自由搭配稻草人阵容，测试技能效果</div>
-        </div>
-        <button class="btn-main" style="background:#555; margin-top:15px;" onclick="showPage('pageSelectChar')">返回</button>
     </div>
 
     <div id="pageSelectEnemy" class="page">
@@ -51,9 +76,13 @@
         <p style="color:#aaa;">点击空格选敌，点击已选角色移除</p>
         <div class="char-slots" id="enemySlots"></div>
         <div class="char-roster" id="enemyRoster"></div>
+        <div id="enemyDetailPanel" class="role-detail" style="display:none;">
+            <div class="role-detail-header" id="enemyDetailHeader"></div>
+            <div class="role-detail-body" id="enemyDetailBody"></div>
+        </div>
         <div class="control-buttons">
             <button class="btn-main" onclick="startCustomBattle()">⚔️ 开始战斗</button>
-            <button class="btn-main" style="background:#555;" onclick="showPage('pageLevel')">返回</button>
+            <button class="btn-main" style="background:#555;" onclick="showPage('pageSelectChar')">返回</button>
         </div>
     </div>
 
@@ -72,15 +101,6 @@
             <div class="log" id="logPanel"><p>战斗开始！</p></div>
             <button class="next-btn" id="nextRoundBtn" style="display:none;">▶ 开始回合</button>
         </div>
-        <div id="buffPopupOverlay" class="buff-popup-overlay" style="display:none;" onclick="closeBuffPopup()">
-            <div class="buff-popup" onclick="event.stopPropagation()">
-                <div class="buff-popup-header">
-                    <span id="buffPopupTitle">Buff 详情</span>
-                    <span class="buff-popup-close" onclick="closeBuffPopup()">✕</span>
-                </div>
-                <div id="buffPopupBody" class="buff-popup-body"></div>
-            </div>
-        </div>
     </div>
 
     <div id="pageResult" class="page">
@@ -91,8 +111,30 @@
             <button class="btn-main" onclick="restartBattle()" style="background:#3498db;">🔄 再来一局</button>
         </div>
     </div>
+
+    <!-- 全局弹窗（放在所有 .page 之外，战斗内外均可弹出） -->
+    <div id="buffPopupOverlay" class="buff-popup-overlay" style="display:none;" onclick="closeBuffPopup()">
+        <div class="buff-popup" onclick="event.stopPropagation()">
+            <div class="buff-popup-header">
+                <span id="buffPopupTitle">Buff 详情</span>
+                <span class="buff-popup-close" onclick="closeBuffPopup()">✕</span>
+            </div>
+            <div id="buffPopupBody" class="buff-popup-body"></div>
+        </div>
+    </div>
+    <div id="glossaryPopupOverlay" class="buff-popup-overlay" style="display:none;" onclick="closeGlossary()">
+        <div class="buff-popup" onclick="event.stopPropagation()">
+            <div class="buff-popup-header">
+                <span id="glossaryPopupTitle">📖 词条</span>
+                <span class="buff-popup-close" onclick="closeGlossary()">✕</span>
+            </div>
+            <div id="glossaryPopupBody" class="buff-popup-body"></div>
+        </div>
+    </div>
 </div>
 
+<script src="js/audio.js"></script>
+<script src="js/glossary.js"></script>
 <script src="js/Skills.js"></script>
 <script src="js/Characters.js"></script>
 <script src="js/Roles.js"></script>

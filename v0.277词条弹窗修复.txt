@@ -1,0 +1,6 @@
+v0.277 更新内容：修复词条弹窗在局外点不开
+
+- 原因：#glossaryPopupOverlay（词条解释弹窗）的 DOM 嵌在 #pageBattle 战斗页内部，局外（关卡介绍、选角详情）时战斗页处于 display:none，弹窗被父级隐藏
+- 修复：将 glossaryPopupOverlay 与 buffPopupOverlay 从 #pageBattle 内移出，放到 .container 末尾（所有 .page 之外），成为全局弹窗（position:fixed + z-index:999 不受页面切换影响）
+- 附带消除 buffPopupOverlay 的同类隐患（此前仅在战斗内打开故未暴露）
+- 验证：playwright 自动化测试全通过——关卡介绍页点词条弹出 ✅、选角详情页点词条弹出 ✅、战斗内点词条回归正常 ✅、遮罩点击关闭 ✅

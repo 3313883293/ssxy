@@ -1,0 +1,49 @@
+v0.291 更新内容：动画整体调慢调夸张，十二连改为角色闪过去砍十二剑
+
+按用户要求：「动画特效可以夸张一点，动画可以慢。」「比如十二连可以改成角色闪过去砍十二剑」
+
+## 1. 十二连·剑斩邪祟：角色闪过去砍十二剑再闪回
+
+原 v0.290 的「原地划剑痕」升级为「人闪过去砍」：
+- 释放瞬间角色卡片 0.15s 闪现到目标身旁（ease-in，zIndex 50 盖在目标之上，贴目标一侧 30% 宽偏移）
+- 到位后十二道剑痕（40~70px 长、更粗更亮、间隔拉长到 100ms）在目标身上依次劈出
+- 砍完（约 1.45s）角色 0.15s ease-out 闪回原位，清 transition/zIndex
+- 技术：SkillSystem 新增 `_flashToTarget`（JS transform + transition 实现，不动 DOM 结构，renderCharacters 重渲染不受影响）；slash 型技能跳过 lunge 突击类
+- 对应渲染延迟：slash 型技能 window._actionAnimDelay = 1700ms（重渲染等闪回完成），普通技能 800ms
+
+## 2. 技能专属动画全面调慢调夸张（SKILL_ANIM_CONFIG）
+
+所有技能动画时长加长、特效加码（v0.289 是快而简，现在慢而炫）：
+- 斩祟·亮剑：金线 dur 0.6s、🔥 粒子 9 个、spread 65
+- 剑气迸进：蓝束 0.65s + 冲击波（#74b9ff，70px/0.5s）
+- 十二连：slash dur 1.2s、✨ 粒子 8 个
+- 持盾格挡：光环 0.85s、115px
+- 持盾猛击：重击线 thick 8、0.55s + 冲击波 110px/0.7s
+- 一秒18棍：细线 1.6s 连续抽打
+- 开火：0.45s + 冲击波 70px/0.55s
+- 加油：光环 1.0s、110px、粒子 9
+- 刹车：光环 0.8s、120px、粒子 8
+- 开创：dur 0.9s + 速度线 14 条
+- 象征抵抗：0.85s
+- 催眠气体：雾气 1.5s、150px、💤 粒子 7
+- 手枪威慑：0.45s
+
+## 3. 卡片行动动画夸张化（style.css）
+
+- 攻击前冲 lunge：±55px（原 ±30px）、0.6s（原 0.35s）、rotate ±1.5deg、brightness 3、drop-shadow 25px 白色残影
+- 受击 hitShake：±10px（原 ±7px）、0.5s（原 0.3s）、brightness 2.6/1.8 红白闪烁
+- 技能光效：.skill-line 白芯渐变（transparent→color→#fff）+ 双层 box-shadow 发光；.skill-circle 加白色外层发光；.skill-slash 双层 box-shadow（14px + 30px）+ brightness 3
+
+## 4. 配套时序修正
+
+- 动画类移除延迟 ≥ 动画时长：attacker-animation 400→700ms（匹配 lunge 0.6s）、hit-animation 350→600ms（匹配 hitShake 0.5s）——否则动画被截断
+- 重渲染延迟：battleActions.js 两处硬编码 450ms 改为 `window._actionAnimDelay || 800`（executeSkill 按技能动画类型同步设定）
+
+## 5. 验证与修复
+
+playwright 全量回归 55 项断言全通过：
+- verify-idle 7 项（静止/攻击前冲/恢复/受击震动/恢复/入场类移除/入场后静止）
+- verify-anim 18 项（斩祟/回收/格挡光环/剑气/开火/十二连闪移+剑痕/雾气/降级）
+- verify-sync 8 项、verify-v288 13 项（意图预判）、verify-speeddiff 9 项（速度区间）
+
+回归中发现并修复验证脚本时序问题（非游戏 bug）：第二关/第四关敌方先手回合的自动攻击（enemyTurn 延时 900ms）会撞进动画检查窗口，造成偶发断言失败；验证脚本改为 nextRoundBtn 后先等敌方先手回合结束（2.5s）再测，并给双方卡片加 hp 保护。

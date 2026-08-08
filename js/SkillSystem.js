@@ -1,4 +1,76 @@
 // SkillSystem.js - 技能系统（硬币投掷、伤害计算、特效、时点广播）
+
+// v0.289：技能专属动画配置表（简约光效，每个技能量身定制）
+// v0.291：按用户要求整体调慢、调夸张（时长约 1.7 倍、线条加粗、粒子增多、光效加大）
+const SKILL_ANIM_CONFIG = {
+    // —— 鲁盼旋 ——
+    '斩祟·亮剑': {
+        // v0.300 改为后撤 + 剑痕凭空出现（伤害同步）：动画由 _singleSlash 统一管理
+        type: 'slashSingle', color: '#f9ca24', thick: 5, dur: 0.6,
+        particles: { count: 9, icon: '🔥', spread: 65 }
+    },
+    '剑气迸进': {
+        // v0.300 改为剑气弹道向前穿过目标（伤害同步）：动画由 _swordWave 统一管理
+        // v0.306 剑气改红色（用户指定）：主刃 #e74c3c + 冲击波配套浅红 #ff7979
+        type: 'swordWave', color: '#e74c3c', thick: 4, dur: 0.65,
+        impact: { color: '#ff7979', size: 70, dur: 0.5 }
+    },
+    '十二连·剑斩邪祟': {
+        type: 'slash', count: 12, color: '#f9ca24', thick: 5, dur: 1.2,
+        particles: { count: 8, icon: '✨', spread: 55 }
+    },
+    // —— 持盾警察 ——
+    '持盾格挡': {
+        type: 'aura', color: '#4fc3f7', dur: 0.85, size: 115, border: '4px solid #4fc3f7',
+        text: '🛡️'
+    },
+    '持盾猛击': {
+        type: 'strike', color: '#bdc3c7', thick: 8, dur: 0.55,
+        impact: { color: '#ecf0f1', size: 110, dur: 0.7 }
+    },
+    // —— 持棍警察 ——
+    '棍击': {
+        type: 'strike', color: '#95a5a6', thick: 4, dur: 0.5
+    },
+    '一秒18棍': {
+        type: 'multi', count: 18, color: '#bdc3c7', thick: 3, dur: 1.6
+    },
+    // —— 持枪警察 ——
+    '开火': {
+        type: 'strike', color: '#ff4757', thick: 3.5, dur: 0.45,
+        muzzle: true, impact: { color: '#ff6b6b', size: 70, dur: 0.55 }
+    },
+    // —— 开车警察 ——
+    '加油': {
+        type: 'aura', color: '#2ecc71', dur: 1.0, size: 110, border: '4px solid #2ecc71',
+        particles: { count: 9, icon: '⚡', spread: 70, upward: true }
+    },
+    '刹车': {
+        type: 'aura', color: '#e74c3c', dur: 0.8, size: 120, border: '4px solid #e74c3c',
+        particles: { count: 8, icon: '💥', spread: 60 }
+    },
+    '开创': {
+        // v0.307 改为警车加速冲过目标（伤害越高加速度越高）：动画由 _carRush 统一管理
+        type: 'carRush', color: '#00d2ff', thick: 6, dur: 0.9,
+        streaks: { count: 14, color: '#00d2ff', len: 70 },
+        impact: { color: '#00d2ff', size: 90, dur: 0.5 }
+    },
+    // —— 李雅礼 ——
+    '象征抵抗': {
+        type: 'snap', color: '#f39c12', thick: 4, dur: 0.85
+    },
+    // —— 云长郡 ——
+    '催眠气体释放': {
+        type: 'gas', color: '#9b59b6', dur: 1.5, size: 150,
+        particles: { count: 7, icon: '💤', spread: 60 }
+    },
+    '手枪威慑': {
+        type: 'strike', color: '#ff6b6b', thick: 3, dur: 0.45,
+        muzzle: true
+    },
+};
+const SKILL_ANIM_DEFAULT = { type: 'strike', color: '#95a5a6', thick: 2, dur: 0.25 };
+
 class SkillSystem {
     static flipCoin(probability = 0.5) {
         return Math.random() < probability;
@@ -35,18 +107,61 @@ class SkillSystem {
         actor.sp -= skill.spCost;
         actor.actedThisTurn = true;
         logFn(`${actor.name}(位置${actor.position}) 使用【${skill.name}】，消耗${skill.spCost}算力`);
+        if (window.refreshCardState) refreshCardState(actor);   // 算力条同帧扣减（含 buff/防御标签）
 
-        // 攻击者闪光
+        // 攻击者前冲（朝目标方向，带闪光）；鲁盼旋三技能各有专属演出（v0.294~v0.300）
+        const animCfg = SKILL_ANIM_CONFIG[skill.name];
         if (actor.cardElement) {
-            actor.cardElement.classList.add('attacker-animation');
-            setTimeout(() => actor.cardElement.classList.remove('attacker-animation'), 300);
+            if (animCfg && animCfg.type === 'slash') {
+                // 穿过式三段（v0.299）：向前穿过所有目标 → 剑痕浮现+目标受伤 → 闪回（battleActions 据此延长重渲染等待）
+                SkillSystem._slashSequence(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 1400;
+            } else if (animCfg && animCfg.type === 'slashSingle') {
+                // 亮剑（v0.300）：微微后撤 → 剑痕凭空出现+目标受伤 → 归位剑痕消失
+                SkillSystem._singleSlash(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 1100;
+            } else if (animCfg && animCfg.type === 'swordWave') {
+                // 剑气（v0.300）：斩出剑气弹道向前穿过目标 → 穿过时造成伤害 → 剑气消失
+                SkillSystem._swordWave(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 800;
+            } else if (animCfg && animCfg.type === 'carRush') {
+                // 开创（v0.307）：警车加速冲过目标（伤害越高加速度越高）→ 撞击受伤同步 → 停在目标对侧
+                SkillSystem._carRush(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 1100;
+            } else {
+                actor.cardElement.classList.add('attacker-animation');
+                if (targets[0] && actor.position > targets[0].position) {
+                    actor.cardElement.classList.add('lunge-left');
+                }
+                setTimeout(() => actor.cardElement.classList.remove('attacker-animation', 'lunge-left'), 700);   // v0.291：lunge 0.6s，移除须晚于动画结束
+                window._actionAnimDelay = 800;
+            }
         }
 
-        // 技能自带 buff（持盾警察用）
-        if (skill.buff) {
-            actor.addBuff({ ...skill.buff });
-            logFn(`  ${actor.name} 获得防御${skill.buff.value > 0 ? '+' : ''}${skill.buff.value} buff`);
-        }
+        // 技能自带 buff（持盾警察用；开车警察为数组，可挂多个）
+        const skillBuffs = Array.isArray(skill.buff) ? skill.buff : (skill.buff ? [skill.buff] : []);
+        skillBuffs.forEach(b => {
+            // 永久型：直接改基础数值（开车警察加油/刹车）
+            if (b.duration === 'permanent') {
+                if (b.type === 'def') actor.def += b.value;
+                // 加油/刹车只改变最小速度（速度区间下限），实际速度由每回合重随机生成（用户指定设计）
+                if (b.type === 'speed') {
+                    actor.speedMin = Math.max(1, actor.speedMin + b.value);
+                    actor.rerollSpeed();   // 下限变化后重掷实际速度，保持落在新区间内
+                }
+                logFn(`  ${actor.name} ${b.value > 0 ? '+' : ''}${b.value} ${b.type === 'speed' ? '速度' : '防御'}（永久）`);
+                return;
+            }
+            actor.addBuff({ ...b });
+            logFn(`  ${actor.name} ${b.value > 0 ? '+' : ''}${b.value} ${b.type === 'speed' ? '速度' : '防御'}(持续${b.duration === 'nextHit' ? '至下次受击' : b.duration + '回合'})`);
+        });
+        if (window.refreshCardState) refreshCardState(actor);   // 防御/速度/buff 标签与动画同帧刷新（加油/刹车/持盾格挡）
+
+        // v0.308：技能音效（Web Audio 合成，按 SKILL_ANIM_CONFIG type 映射专属音）
+        if (typeof Sfx !== 'undefined') Sfx.playSkill(skill);
+
+        // v0.289：技能自身光环动画（持盾格挡🛡️/加油⚡/刹车💥），与属性变化同帧
+        SkillSystem.playSkillAnimation(actor, skill, allCharsDiv);
 
         // 特殊：无视防御量
         const baseIgnore = (skill.special && skill.special.type === 'ignoreDef') ? skill.special.value : 0;
@@ -58,8 +173,14 @@ class SkillSystem {
             const rollResult = SkillSystem.rollCoins(coins);
             const effectiveCoins = rollResult.heads;
             let dmg = 0;
+            // 开创：与目标每有一点速度差，每硬币加成伤害+200（用局部变量，不改技能本体）
+            // 速度差按双方实际速度（每回合在速度区间内重随机，见 Character.rerollSpeed）计算（用户确认）
+            let effBonus = skill.bonusDamage;
+            if (skill.special && skill.special.type === 'speedDiff') {
+                effBonus += Math.abs(actor.speed - target.speed) * skill.special.bonus;
+            }
             if (coins > 0) {
-                dmg = skill.baseDamage + effectiveCoins * skill.bonusDamage;
+                dmg = skill.baseDamage + effectiveCoins * effBonus;
                 // 鲁盼旋：每有2层愤怒使技能伤害+50
                 if (actor.name === '鲁盼旋') {
                     const rageStacks = actor.getBuffStack('rage');
@@ -84,11 +205,15 @@ class SkillSystem {
             }
 
             const actual = target.takeDamage(dmg, actor);
+            if (window.refreshCardState) refreshCardState(target);   // 血条/防御/消耗掉的防御 buff 与受击动画同帧
 
             if (storedDef !== null) target.def = storedDef;
 
             logFn(`  → 对${target.name}(位置${target.position}) 分配${coins}硬币，投掷结果：正${effectiveCoins}/${coins}，造成${actual}伤害 (HP:${target.hp})`);
-            if (!target.alive) logFn(`  💥 ${target.name} 倒下！`);
+            if (!target.alive) {
+                logFn(`  💥 ${target.name} 倒下！`);
+                target.handleDeath();   // 倒戈/待命补位（放在伤害与倒下日志之后）
+            }
 
             // ——— 时点广播：造成伤害（用于施加【恶】） ———
             Character.invokePassives('onDamageDealt', battleState, actor, target, actual, logFn);
@@ -106,16 +231,40 @@ class SkillSystem {
             // ——— 技能特殊效果：一技能施加燃烧层数 ———
             if (skill.special && skill.special.type === 'burn') {
                 target.addBuffStack('burn', skill.special.stacks || 1, 1);
-                logFn(`  🔥 ${target.name} 获得${skill.special.stacks || 1}层【燃烧】（技能效果）`);
+                logFn(`  🔥 ${target.name} 获得${skill.special.stacks || 1}层「燃烧」（技能效果）`);
+            }
+
+            // ——— 特殊效果：催眠（下一回合施加【暂时昏迷】，使目标无法行动一回合） ———
+            if (skill.special && skill.special.type === 'stun') {
+                target.addBuffStack('stunPending', 1, 1);
+                logFn(`  😵 ${target.name} 被催眠气体笼罩（下一回合陷入「暂时昏迷」）`);
             }
 
             // ——— 三技能：清零目标恶 ———
             if (skill.special && skill.special.type === 'evilDrain') {
                 const ev = target.getBuffStack('e');
-                if (ev > 0) { target.clearBuff('e'); logFn(`  ✨ ${target.name} 的${ev}层【恶】被清零`); }
+                if (ev > 0) { target.clearBuff('e'); logFn(`  ✨ ${target.name} 的${ev}层「恶」被清零`); }
             }
 
-            SkillSystem.showDamageNumber(target, actual, { heads: effectiveCoins, total: coins }, allCharsDiv);
+            // v0.289：技能对目标专属动画（斩击线/弹道/冲击波/雾气等），与伤害数字同帧
+            SkillSystem.playSkillTargetAnimation(actor, target, skill, allCharsDiv);
+
+            // 鲁盼旋专属演出型技能（slash 十二连 / slashSingle 亮剑 / swordWave 剑气）+ 开创（carRush）：
+            // 受伤反馈（数字/震动/倒下爆发）延迟到各自动画的关键时刻播放（v0.299 十二连、v0.300 亮剑/剑气、v0.307 开创），
+            // 保证「造成伤害」与「剑痕/剑气命中/撞击」视觉同步
+            const slashCfg = SKILL_ANIM_CONFIG[skill.name];
+            const delayedHit = slashCfg && (slashCfg.type === 'slash' || slashCfg.type === 'slashSingle' || slashCfg.type === 'swordWave' || slashCfg.type === 'carRush');
+            if (delayedHit) {
+                if (slashCfg.type === 'carRush') window._slashCarDamage = actual;   // 开创：实际伤害驱动加速度（伤害越高加速度越高）
+                (window._slashHitFeedbacks = window._slashHitFeedbacks || []).push(
+                    () => SkillSystem.showDamageNumber(target, actual, { heads: effectiveCoins, total: coins }, allCharsDiv)
+                );
+            } else {
+                SkillSystem.showDamageNumber(target, actual, { heads: effectiveCoins, total: coins }, allCharsDiv);
+            }
+
+            // 被动/特殊效果（恶、燃烧、催眠、愤怒等）产生的 buff 标签同帧刷新，不等 450ms 重渲染
+            if (window.refreshCardState) { refreshCardState(target); refreshCardState(actor); }
         });
     }
 
@@ -130,7 +279,13 @@ class SkillSystem {
 
         const dmgDiv = document.createElement('div');
         dmgDiv.className = 'damage-number';
-        dmgDiv.textContent = `-${damage}`;
+        if (damage === 0) {
+            dmgDiv.classList.add('blocked');
+            dmgDiv.textContent = '格挡';
+        } else {
+            dmgDiv.textContent = `-${damage}`;
+            if (damage >= 800) dmgDiv.classList.add('big');   // 高伤大字
+        }
         dmgDiv.style.left = x + 'px';
         dmgDiv.style.top = y + 'px';
         arena.appendChild(dmgDiv);
@@ -147,6 +302,469 @@ class SkillSystem {
         }
 
         card.classList.add('hit-animation');
-        setTimeout(() => card.classList.remove('hit-animation'), 200);
+        setTimeout(() => card.classList.remove('hit-animation'), 600);   // v0.291：hitShake 0.5s，移除须晚于动画结束
+
+        // v0.308：受击音效（格挡→金属叮，受伤→打击咚；死亡附加爆炸声）
+        // 演出型技能（slash/slashSingle/swordWave/carRush）的 showDamageNumber 被延迟到命中时刻——
+        // 受击音随之同步，撞击/剑痕浮现瞬间出声
+        if (typeof Sfx !== 'undefined') {
+            if (!target.alive) Sfx.play('death');
+            else if (damage === 0) Sfx.play('blocked');
+            else Sfx.play('hit');
+        }
+
+        // 死亡爆发：单位倒下瞬间爆出 💥（不依赖卡片 DOM 存活）
+        if (!target.alive) {
+            const burst = document.createElement('div');
+            burst.className = 'death-burst';
+            burst.textContent = '💥';
+            burst.style.left = x + 'px';
+            burst.style.top = y + 'px';
+            arena.appendChild(burst);
+            setTimeout(() => burst.remove(), 850);
+        }
+    }
+
+    // ==================== v0.289：技能专属动画 ====================
+
+    // 自身动画（光环、速度线等）
+    static playSkillAnimation(actor, skill, allCharsDiv) {
+        const config = SKILL_ANIM_CONFIG[skill.name];
+        if (!config) return;
+        const arena = allCharsDiv.parentElement;
+        if (!actor.cardElement) return;
+
+        if (config.type === 'aura') {
+            SkillSystem._createAura(actor.cardElement, arena, config);
+            if (config.text) {
+                SkillSystem._createParticles(actor.cardElement, arena, { count: 1, icon: config.text, spread: 20, upward: true });
+            }
+            if (config.particles) {
+                SkillSystem._createParticles(actor.cardElement, arena, config.particles);
+            }
+        }
+        if (config.type === 'carRush') return;   // 开创（v0.307）：速度线由 _carRush 在撞击目标时刻统一触发
+        if (config.streaks) {
+            SkillSystem._createStreaks(actor.cardElement, arena, config.streaks);
+        }
+    }
+
+    // 对目标动画（斩击线/弹道/冲击波/雾气/粒子等）
+    static playSkillTargetAnimation(actor, target, skill, allCharsDiv) {
+        const config = SKILL_ANIM_CONFIG[skill.name];
+        if (!config) return;   // 未知技能不播放动画（不含降级，模板角色按需单独配置）
+        // 专属演出型（十二连/亮剑/剑气/开创）：目标侧特效由各自流程统一管理，避免重复出招
+        if (config.type === 'slash' || config.type === 'slashSingle' || config.type === 'swordWave' || config.type === 'carRush') return;
+        const arena = allCharsDiv.parentElement;
+        if (!target.cardElement || !actor.cardElement) return;
+
+        if (config.type === 'strike' || config.type === 'beam' || config.type === 'snap') {
+            SkillSystem._createStrikeLine(actor.cardElement, target.cardElement, arena, config);
+        }
+        if (config.type === 'multi') {
+            const step = config.dur * 1000 / config.count;
+            for (let i = 0; i < config.count; i++) {
+                setTimeout(() => {
+                    if (!target.cardElement || !actor.cardElement) return;
+                    SkillSystem._createStrikeLine(actor.cardElement, target.cardElement, arena, { ...config, type: 'multi', dur: 0.15 });
+                }, i * step);
+            }
+        }
+        // 注意：slash 型（十二连）不在此处出刀——刀光由 executeSkill 的 _slashSequence 按随机方位闪现统一管理（v0.294）
+        if (config.type === 'gas') {
+            SkillSystem._createGasCloud(target.cardElement, arena, config);
+        }
+        if (config.muzzle && actor.cardElement) {
+            SkillSystem._createMuzzleFlash(actor.cardElement, arena, config.color);
+        }
+        if (config.impact) {
+            SkillSystem._createBurst(target.cardElement, arena, config.impact);
+        }
+        if (config.particles) {
+            SkillSystem._createParticles(target.cardElement, arena, config.particles);
+        }
+    }
+
+    // —— 辅助创建函数 ——
+
+    static _getCardCenter(card, arena) {
+        const r = card.getBoundingClientRect();
+        const a = arena.getBoundingClientRect();
+        return { x: r.left + r.width / 2 - a.left, y: r.top + r.height / 2 - a.top };
+    }
+
+    // 发光线段（actor → target）
+    static _createStrikeLine(actorCard, targetCard, arena, config) {
+        const a = SkillSystem._getCardCenter(actorCard, arena);
+        const b = SkillSystem._getCardCenter(targetCard, arena);
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        const cls = config.type === 'beam' ? 'beam' : (config.type === 'multi' ? 'multi' : (config.type === 'snap' ? 'snap' : 'strike'));
+
+        const line = document.createElement('div');
+        line.className = 'skill-line ' + cls;
+        line.style.cssText = `left:${a.x}px;top:${a.y}px;width:${length}px;--thick:${config.thick || 2}px;--color:${config.color || '#fff'};--angle:${angle}deg;--dur:${config.dur || 0.35}s;--delay:${config.delay || 0}s`;
+        arena.appendChild(line);
+        setTimeout(() => line.remove(), (config.dur || 0.35) * 1000 + 150);
+    }
+
+    // 穿过式三段（v0.299 十二连·剑斩邪祟）：共十二剑，多目标时按硬币分配（均分+余数给前几个）。
+    // 阶段1：角色直线向前穿过所有目标（只移动不出刀）；阶段2：剑痕一次性浮现 + 目标受伤（延迟反馈同步播放）；
+    // 阶段3：角色闪回原位、剑痕统一淡出。
+    static _slashSequence(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['十二连·剑斩邪祟'] || {};
+        const actorCard = actor.cardElement;
+        if (!actorCard) return;
+        const arena = allCharsDiv.parentElement;
+        const marks = [];
+
+        // 剑序：总 12 剑，按硬币分配方式（均分 + 余数给前几个）分到各目标
+        const total = 12;
+        const n = targets.length || 1;
+        const per = Math.floor(total / n), rem = total % n;
+        const swords = [];
+        targets.forEach((t, i) => {
+            const c = per + (i < rem ? 1 : 0);
+            for (let j = 0; j < c; j++) swords.push({ target: t, angle: Math.random() * 360 });   // 随机方位
+        });
+
+        // 注意：角色原位 rect 须在移动前缓存（getBoundingClientRect 含 transform，
+        // 移动后重测会以偏移位置为基准，位移越算越偏——v0.294 教训）
+        const baseRect = actorCard.getBoundingClientRect();
+
+        // 阶段1：向前穿过所有目标——从原位直线冲到目标群对侧（zIndex 50 盖在目标上形成"穿过"感）
+        const rects = targets.map(t => t.cardElement ? t.cardElement.getBoundingClientRect() : null).filter(Boolean);
+        if (rects.length) {
+            const cx = rects.reduce((s, r) => s + r.left + r.width / 2, 0) / rects.length;
+            const cy = rects.reduce((s, r) => s + r.top + r.height / 2, 0) / rects.length;
+            const dir = cx >= baseRect.left + baseRect.width / 2 ? 1 : -1;   // 朝目标方向冲
+            const farX = dir > 0 ? Math.max(...rects.map(r => r.right)) : Math.min(...rects.map(r => r.left));
+            const passX = farX + dir * 140;   // 穿过目标群后停在对面
+            actorCard.style.transition = 'transform 0.28s ease-in';
+            actorCard.style.zIndex = 50;
+            actorCard.style.transform = `translate(${passX - (baseRect.left + baseRect.width / 2)}px, ${cy - (baseRect.top + baseRect.height / 2)}px)`;
+        }
+
+        // 阶段2：剑痕一次性浮现（12 道同时划出）+ 目标受伤反馈（延迟到此刻播放，与剑痕同步）
+        const strikeAt = 360;
+        setTimeout(() => {
+            swords.forEach(s => {
+                if (s.target.cardElement) SkillSystem._createBlade(s.target.cardElement, arena, s.angle, cfg, marks);
+            });
+            const fb = window._slashHitFeedbacks || [];
+            window._slashHitFeedbacks = [];
+            fb.forEach(f => f());
+        }, strikeAt);
+
+        // 阶段3：留痕后角色闪回原位 + 剑痕统一淡出移除
+        const finishAt = strikeAt + 620;   // 刀光划出 0.35s + 停留留痕
+        setTimeout(() => {
+            marks.forEach(m => { if (m.isConnected) m.classList.add('fade'); });
+            setTimeout(() => marks.forEach(m => m.remove()), 320);
+            if (!actorCard.isConnected) return;
+            actorCard.style.transition = 'transform 0.15s ease-out';
+            actorCard.style.transform = 'translate(0, 0)';
+            setTimeout(() => {
+                actorCard.style.transition = '';
+                actorCard.style.zIndex = '';
+            }, 220);
+        }, finishAt);
+    }
+
+    // 直线斩击光带（v0.297 废墟图书馆/边狱巴士式斩击线）：SVG 直线双层 stroke（金色刀光带 + 白芯亮刃口），
+    // stroke-dash 从线一端划到另一端（刀光斩过轨迹）；目标卡片上随机落点，方向 = 角色闪现方位角；劈出后停留留痕。
+    // （v0.296 弧形光带被用户否决「别用圆做圆弧」——斩击光痕是直线斜劈，不是弧线）
+    static _createBlade(targetCard, arena, angleDeg, config, marks, instant = false) {
+        if (!targetCard.isConnected) return;
+        const r = targetCard.getBoundingClientRect();
+        const a = arena.getBoundingClientRect();
+        const left0 = r.left - a.left, top0 = r.top - a.top;
+        const len = 50 + Math.random() * 24;              // 50~74px 光带长
+        const x = left0 + r.width * (0.05 + Math.random() * 0.68);   // 卡片范围内随机落点
+        const y = top0 + r.height * (0.08 + Math.random() * 0.62);
+        const angle = Math.round(angleDeg % 360);
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('width', len);
+        svg.setAttribute('height', len);
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.classList.add('skill-slash');
+        if (instant) svg.classList.add('instant');        // 亮剑「凭空出现」：不划出，直接完整显示（v0.300）
+        svg.style.cssText = `left:${x}px;top:${y}px;--angle:${angle}deg;--color:${config.color || '#f9ca24'};--opacity:${(0.7 + Math.random() * 0.3).toFixed(2)}`;
+        const d = 'M 8 50 L 92 50';                       // 水平斩击线（viewBox 100，长 84），旋转到随机方位
+        const gold = document.createElementNS(NS, 'path');
+        gold.setAttribute('d', d);
+        gold.setAttribute('stroke', config.color || '#f9ca24');
+        gold.setAttribute('stroke-width', '8');            // 金色刀光带
+        gold.setAttribute('stroke-linecap', 'round');
+        gold.setAttribute('fill', 'none');
+        gold.setAttribute('stroke-dasharray', '84');
+        gold.setAttribute('stroke-dashoffset', instant ? '0' : '84');   // 初始全隐藏，动画从一端划出
+        const edge = document.createElementNS(NS, 'path');
+        edge.setAttribute('d', d);
+        edge.setAttribute('stroke', '#fff');
+        edge.setAttribute('stroke-width', '4');            // 白芯亮刃口叠在金色带上
+        edge.setAttribute('stroke-linecap', 'round');
+        edge.setAttribute('fill', 'none');
+        edge.setAttribute('stroke-dasharray', '84');
+        edge.setAttribute('stroke-dashoffset', instant ? '0' : '84');
+        svg.appendChild(gold);
+        svg.appendChild(edge);
+        arena.appendChild(svg);
+        marks.push(svg);
+    }
+
+    // 亮剑·斩祟（v0.300）：角色微微后撤 → 剑痕在目标身上凭空出现（伤害反馈同步）→ 归位、剑痕消失
+    static _singleSlash(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['斩祟·亮剑'] || {};
+        const actorCard = actor.cardElement;
+        if (!actorCard) return;
+        const arena = allCharsDiv.parentElement;
+        const marks = [];
+        const baseRect = actorCard.getBoundingClientRect();   // 移动前缓存原位（transform 漂移教训）
+
+        // 阶段1：微微后撤（远离目标方向 42px，0.2s ease-out）
+        let dir = 1;
+        const t0 = targets[0];
+        if (t0 && t0.cardElement) {
+            const tRect = t0.cardElement.getBoundingClientRect();
+            dir = (tRect.left + tRect.width / 2 >= baseRect.left + baseRect.width / 2) ? -1 : 1;
+        }
+        actorCard.style.transition = 'transform 0.2s ease-out';
+        actorCard.style.transform = `translate(${dir * 42}px, 0)`;
+
+        // 阶段2：剑痕凭空出现（每目标一道）+ 目标受伤反馈同步 + 🔥 粒子
+        const strikeAt = 240;
+        setTimeout(() => {
+            targets.forEach(t => {
+                if (t.cardElement) SkillSystem._createBlade(t.cardElement, arena, 20 + Math.random() * 140, cfg, marks, true);
+            });
+            const fb = window._slashHitFeedbacks || [];
+            window._slashHitFeedbacks = [];
+            fb.forEach(f => f());
+            targets.forEach(t => {
+                if (t.cardElement && cfg.particles) SkillSystem._createParticles(t.cardElement, arena, cfg.particles);
+            });
+        }, strikeAt);
+
+        // 阶段3：角色归位 + 剑痕统一淡出移除
+        const finishAt = strikeAt + 500;
+        setTimeout(() => {
+            marks.forEach(m => { if (m.isConnected) m.classList.add('fade'); });
+            setTimeout(() => marks.forEach(m => m.remove()), 320);
+            if (!actorCard.isConnected) return;
+            actorCard.style.transition = 'transform 0.2s ease-out';
+            actorCard.style.transform = 'translate(0, 0)';
+            setTimeout(() => { actorCard.style.transition = ''; }, 220);
+        }, finishAt);
+    }
+
+    // 剑气迸进（v0.302）：从角色前方斩出一道圆弧形剑气（月牙光刃，曲率小），沿直线高加速冲出
+    // （加速度很高：起步慢、急速命中），穿过目标瞬间造成伤害（反馈同步），到达目标对侧后消失
+    static _swordWave(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['剑气迸进'] || {};
+        const actorCard = actor.cardElement;
+        if (!actorCard || !targets[0] || !targets[0].cardElement) return;
+        const arena = allCharsDiv.parentElement;
+        const tRect = targets[0].cardElement.getBoundingClientRect();
+        const aRect = actorCard.getBoundingClientRect();
+        const arenaRect = arena.getBoundingClientRect();
+        const dir = (tRect.left + tRect.width / 2 >= aRect.left + aRect.width / 2) ? 1 : -1;
+
+        // 剑气：圆弧形光刃（SVG 双层 stroke，蓝刃白芯）——用户指定「剑气本身为圆弧，曲率小」：
+        // 月牙形，两端尖、弧背凸向飞行方向（v0.302；v0.300 为竖直线光刃、v0.301 弹道弧被否——弹道改回直线）
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        // v0.305 剑气放大：110×80 → 140×100（弧线等比放大）；线宽 10/4 → 12/5 保持观感比例
+        svg.setAttribute('width', '140');
+        svg.setAttribute('height', '100');
+        svg.setAttribute('viewBox', '0 0 140 100');
+        svg.classList.add('sword-wave');
+        const startX = (dir > 0 ? aRect.right : aRect.left) - arenaRect.left;   // 角色卡边缘起手
+        // 垂直中心与角色卡片高度中心对齐（v0.305 用户指定）：top = 角色中心 - 剑气高/2
+        const cy = (aRect.top + aRect.height / 2) - arenaRect.top;
+        svg.style.cssText = `left:${startX}px;top:${cy - 50}px;--color:${cfg.color || '#3498db'}`;
+        // 二次贝塞尔月牙：左上 → 控制点偏右 → 左下（弧背凸向右 = 飞行方向）
+        // v0.305 曲率再小：控制点 x 36 → 30，凸出 12px → 9px（放大后视觉占比更平）
+        const d = 'M 12 12 Q 30 50 12 88';
+        const blue = document.createElementNS(NS, 'path');
+        blue.setAttribute('d', d);
+        blue.setAttribute('stroke', cfg.color || '#3498db');
+        blue.setAttribute('stroke-width', '12');           // 蓝色光刃
+        blue.setAttribute('stroke-linecap', 'round');
+        blue.setAttribute('fill', 'none');
+        const white = document.createElementNS(NS, 'path');
+        white.setAttribute('d', d);
+        white.setAttribute('stroke', '#fff');
+        white.setAttribute('stroke-width', '5');           // 白芯
+        white.setAttribute('stroke-linecap', 'round');
+        white.setAttribute('fill', 'none');
+        svg.appendChild(blue);
+        svg.appendChild(white);
+        arena.appendChild(svg);
+
+        // 运动学驱动（v0.301 起，setInterval 16ms 逐帧更新；rAF 在 headless 下不保证执行）：
+        // x(t) = v0·t + ½a·t² —— 加速度很高（初速 = 平均速度 1/3，末速 ≈ 平均速度 5/3），起步慢、急速命中
+        // 弹道为直线（y 恒定，v0.302 用户澄清：圆弧是剑气形状不是弹道）
+        const T = 380;   // 总飞行时长
+        const L = (dir > 0 ? tRect.right : tRect.left) + dir * 40 - arenaRect.left - startX;   // 总行程（含冲过头 40px）
+        const v0 = L / (T * 3);
+        const acc = 2 * (L - v0 * T) / (T * T);
+        // 穿过目标时刻（运动学反解 v0·t + ½a·t² = 目标中心距离）：命中在飞行中后段，恰是速度最快时
+        const dHit = dir > 0
+            ? (tRect.left + tRect.width / 2) - arenaRect.left - startX
+            : startX - (tRect.left + tRect.width / 2);
+        const tHit = (-v0 + Math.sqrt(v0 * v0 + 2 * acc * dHit)) / acc;
+        setTimeout(() => {
+            const fb = window._slashHitFeedbacks || [];
+            window._slashHitFeedbacks = [];
+            fb.forEach(f => f());
+            if (cfg.impact) SkillSystem._createBurst(targets[0].cardElement, arena, cfg.impact);
+        }, tHit);
+
+        const mirror = dir < 0 ? ' scale(-1, 1)' : '';   // 朝左飞时翻转形状（弧背朝飞行方向）
+        const t0 = Date.now();
+        const timer = setInterval(() => {
+            const t = Date.now() - t0;
+            if (t >= T) {
+                clearInterval(timer);
+                svg.classList.add('fade');
+                setTimeout(() => svg.remove(), 260);
+                return;
+            }
+            const x = v0 * t + 0.5 * acc * t * t;
+            svg.style.transform = `translate(${x.toFixed(1)}px, 0)${mirror}`;
+        }, 16);
+    }
+
+    // 开创（v0.307）：警车加速冲过目标——加速度与实际伤害正相关（伤害越高加速度越高），
+    // 穿过目标瞬间撞击受伤反馈同步（速度线从车尾甩出 + 蓝色冲击波），停在目标对侧（用户指定，不回原位）
+    static _carRush(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['开创'] || {};
+        const actorCard = actor.cardElement;
+        if (!actorCard || !targets[0] || !targets[0].cardElement) return;
+        const arena = allCharsDiv.parentElement;
+        const baseRect = actorCard.getBoundingClientRect();   // 移动前缓存原位（transform 漂移教训）
+        const tRect = targets[0].cardElement.getBoundingClientRect();
+        const arenaRect = arena.getBoundingClientRect();
+        const dir = (tRect.left + tRect.width / 2 >= baseRect.left + baseRect.width / 2) ? 1 : -1;
+        const baseLeft = baseRect.left - arenaRect.left;
+        // 冲过目标群停在目标对侧 140px（单硬币技能，目标 = targets[0]）
+        const passX = (dir > 0 ? tRect.right : tRect.left) + dir * 140 - arenaRect.left;
+        const L = passX - baseLeft;                       // 带符号行程
+        const dist = Math.abs(L);
+        actorCard.style.zIndex = 50;                      // 盖在目标上形成穿过感
+        actorCard.style.transition = 'none';
+
+        // 第一个 tick 时伤害循环已同步结算完成（executeSkill 同步调用栈），读实际伤害定加速度：
+        // acc = 伤害×5 + 1800（px/s²）——伤害越高加速度越高；0 伤害（格挡）也保持 0.75s 内的慢速冲过
+        // 时长 T = sqrt(2·dist/acc)（约 0.27~0.75s）
+        const t0 = Date.now();
+        let started = false, acc = 0, T = 0, tHit = 0;
+        const timer = setInterval(() => {
+            const t = (Date.now() - t0) / 1000;   // 秒（acc/T/tHit 均为秒单位，勿混用毫秒——v0.307 单位 bug 教训）
+            if (!started) {
+                started = true;
+                const dmg = window._slashCarDamage || 0;
+                acc = dmg * 5 + 1800;
+                T = Math.sqrt(2 * dist / acc);
+                // 穿过目标中心时刻（运动学反解 ½·a·t² = 目标中心距离）：撞击瞬间受伤反馈 + 速度线 + 冲击波
+                const dHit = dir > 0
+                    ? (tRect.left + tRect.width / 2) - arenaRect.left - baseLeft
+                    : baseLeft - (tRect.left + tRect.width / 2);
+                tHit = (dHit > 0 && dHit < dist) ? Math.sqrt(2 * dHit / acc) : T;
+                setTimeout(() => {
+                    const fb = window._slashHitFeedbacks || [];
+                    window._slashHitFeedbacks = [];
+                    fb.forEach(f => f());
+                    if (cfg.streaks) SkillSystem._createStreaks(actorCard, arena, cfg.streaks);
+                    if (cfg.impact) SkillSystem._createBurst(targets[0].cardElement, arena, cfg.impact);
+                }, tHit * 1000);   // tHit 为秒单位，setTimeout 需毫秒（v0.307 单位 bug 教训）
+            }
+            if (t >= T) {
+                clearInterval(timer);
+                actorCard.style.transform = `translate(${L.toFixed(1)}px, 0)`;   // 停在目标对侧（用户指定）
+                return;
+            }
+            const x = 0.5 * acc * t * t * Math.sign(L);   // 初速 0、加速度很高：起步慢 → 爆发冲出
+            actorCard.style.transform = `translate(${x.toFixed(1)}px, 0)`;
+        }, 16);
+    }
+
+    // 冲击波（target 处扩散）
+    static _createBurst(targetCard, arena, config) {
+        const p = SkillSystem._getCardCenter(targetCard, arena);
+        const circle = document.createElement('div');
+        circle.className = 'skill-circle burst';
+        circle.style.cssText = `left:${p.x}px;top:${p.y}px;--size:${config.size || 60}px;--color:${config.color || '#fff'};--border:2px solid ${config.color || '#fff'};--glow:${Math.floor((config.size || 60) / 5)}px;--dur:${config.dur || 0.5}s`;
+        arena.appendChild(circle);
+        setTimeout(() => circle.remove(), (config.dur || 0.5) * 1000 + 100);
+    }
+
+    // 光环（actor 自身）
+    static _createAura(actorCard, arena, config) {
+        const p = SkillSystem._getCardCenter(actorCard, arena);
+        const circle = document.createElement('div');
+        circle.className = 'skill-circle aura';
+        circle.style.cssText = `left:${p.x}px;top:${p.y}px;--size:${config.size || 80}px;--color:${config.color};--border:${config.border || '3px solid ' + config.color};--glow:15px;--dur:${config.dur || 0.6}s`;
+        arena.appendChild(circle);
+        setTimeout(() => circle.remove(), (config.dur || 0.6) * 1000 + 100);
+    }
+
+    // 雾气（target 处缓慢扩散 + blur）
+    static _createGasCloud(targetCard, arena, config) {
+        const p = SkillSystem._getCardCenter(targetCard, arena);
+        const circle = document.createElement('div');
+        circle.className = 'skill-circle gas';
+        circle.style.cssText = `left:${p.x}px;top:${p.y}px;--size:${config.size || 100}px;--color:${config.color};--border:none;--fill:${config.color}22;--glow:20px;--dur:${config.dur || 0.8}s`;
+        arena.appendChild(circle);
+        setTimeout(() => circle.remove(), (config.dur || 0.8) * 1000 + 200);
+    }
+
+    // 枪口闪光
+    static _createMuzzleFlash(actorCard, arena, color) {
+        const p = SkillSystem._getCardCenter(actorCard, arena);
+        const dot = document.createElement('div');
+        dot.className = 'skill-dot';
+        dot.style.cssText = `left:${p.x}px;top:${p.y}px;--size:14px;--color:${color || '#fff'};--glow:10px;--dur:0.2s`;
+        arena.appendChild(dot);
+        setTimeout(() => dot.remove(), 300);
+    }
+
+    // 粒子飘散（emoji 小字随机方向飞散）
+    static _createParticles(centerCard, arena, config) {
+        const r = centerCard.getBoundingClientRect();
+        const a = arena.getBoundingClientRect();
+        const cx = r.left + r.width / 2 - a.left;
+        const cy = r.top + r.height * 0.35 - a.top;   // 卡片上部偏中
+        for (let i = 0; i < config.count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = (config.spread || 40) * (0.6 + Math.random() * 0.4);
+            const dx = Math.cos(angle) * dist;
+            const dy = config.upward ? -(Math.abs(Math.sin(angle)) * dist + dist * 0.2) : Math.sin(angle) * dist;
+            const p = document.createElement('div');
+            p.className = 'skill-particle';
+            p.textContent = config.icon || '✨';
+            p.style.cssText = `left:${cx}px;top:${cy}px;--dx:${dx}px;--dy:${dy}px;--dur:${0.45 + Math.random() * 0.3}s`;
+            arena.appendChild(p);
+            setTimeout(() => p.remove(), 800);
+        }
+    }
+
+    // 速度线（开创冲刺用，actor 身后横向飞掠）
+    static _createStreaks(actorCard, arena, config) {
+        const r = actorCard.getBoundingClientRect();
+        const a = arena.getBoundingClientRect();
+        const cy = r.top + r.height / 2 - a.top;
+        for (let i = 0; i < (config.count || 6); i++) {
+            const x = r.left - a.left + Math.random() * r.width;
+            const yOff = (Math.random() - 0.5) * r.height * 0.7;
+            const streak = document.createElement('div');
+            streak.className = 'skill-streak';
+            streak.style.cssText = `left:${x}px;top:${cy + yOff}px;--len:${config.len || 40}px;--color:${config.color};--dur:${0.3 + Math.random() * 0.25}s`;
+            arena.appendChild(streak);
+            setTimeout(() => streak.remove(), 600);
+        }
     }
 }

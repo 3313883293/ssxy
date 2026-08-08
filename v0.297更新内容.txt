@@ -1,0 +1,18 @@
+v0.297 更新内容：刀光改为直线斩击光带（废弃圆弧方案）
+
+用户反馈「你还是别鼓捣你那个用圆做出来的圆弧了」——明确否决圆弧形态。废墟图书馆/边狱巴士的斩击光痕是**直线斜劈的亮光带**，不是弧线。v0.294 border 圆环（粗弯钩）、v0.295 mask 月牙（渲染不可见）、v0.296 SVG 弧线（被否决）三个圆弧方案全部废弃。
+
+## 改动（SkillSystem.js 的 _createBlade + style.css）
+
+**直线斩击光带**（SVG 直线双层 stroke）：
+- 每刀一个 SVG（50~74px），内含**双层直线 path**（M 8 50 L 92 50 水平线，旋转到随机方位角）：
+  - 底层金色粗线（stroke-width 8）= 刀光带
+  - 上层白色细线（stroke-width 4）= 白芯亮刃口
+- 挥斩感核心：`stroke-dasharray 84` + `stroke-dashoffset 84 → 0` 动画（0.35s）——**直线从一端划到另一端**，就是刀光斩过的轨迹
+- 整线按随机方位角旋转扫动（-24°→方位角）+ 生长 + brightness 亮闪（animBladeSwing）
+- 发光 drop-shadow 双层、svg overflow: visible、劈出后停留留痕、砍完统一 .fade 淡出——时序不变
+
+## 验证
+
+- diag-v296（复用）：svg + 双层 path（金/白）+ 直线 dash 划出动画 + 4.2s 全回收闪回 ✓
+- verify-anim 全量通过（含十二连四项时序断言）

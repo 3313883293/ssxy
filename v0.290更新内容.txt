@@ -1,0 +1,25 @@
+v0.290 更新内容：移除待机动画，十二连改成真·十二道剑痕
+
+按用户要求：「你做了不如不做。只用在攻击时加入角色卡片的突击/移动。十二连的动画可以真做成十二道剑痕。」
+
+## 1. 角色卡片待机动画已全部移除
+
+v0.289 的角色个性化待机动画（鲁盼旋浮动、警察四型微晃/摇摆/起伏/抖动、李雅礼微息、云长郡阴气漂浮、稻草人摇摆、模板浮动）**全部删除**：
+- style.css 删除 9 组 idle keyframes 与 9 条 `.character-card[data-name=…]` 待机规则
+- 卡片平时完全静止，仅以下动作时移动：
+  - 攻击：前冲突击（lungeRight/lungeLeft ±30px + 白光，0.35s）
+  - 受击：震动红闪（hitShake，0.3s）
+  - 入场：从场外滑入（benchEntryRight/Left，0.45s，播完移除类）
+- 入场类 setTimeout 移除逻辑保留（播完清理，无副作用）
+
+## 2. 十二连·剑斩邪祟：真·十二道剑痕
+
+原 v0.289 的「12 道连线交替闪烁」改为真正的剑痕效果：
+- 在**目标卡片上**依次划出十二道斜向剑痕（劈砍痕迹）
+- 每道剑痕：26~40px 长金色发光短线（#f9ca24），渐变头白尾，随机落点（卡片范围 8%~76% 宽、12%~72% 高），随机角度 -55°~55°，深浅随机（opacity 0.6~1.0）
+- 劈出效果：0.2s 内 scaleX 0→1 生长 + 高亮闪光 → 淡出回收
+- 十二道间隔约 58ms 依次划出（总 ~0.7s），同时可见约 7~8 道交错，像连斩落痕
+- 技术：SKILL_ANIM_CONFIG 十二连 type 改为 'slash'；SkillSystem 新增 _createSlashMarks；CSS 新增 .skill-slash + @keyframes animSlash（transform-origin:left center，中间帧不写 opacity 让随机深浅生效）
+- 一秒18棍保留原多段连线闪烁（multi）不变
+
+验证：playwright 55 项断言全通过（verify-idle 7 改造 + verify-anim 17 含剑痕 2 + verify-sync 9 + verify-v288 13 + verify-speeddiff 9）

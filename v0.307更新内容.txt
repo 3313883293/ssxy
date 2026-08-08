@@ -1,0 +1,34 @@
+v0.307 更新内容：开创改为加速冲过目标，伤害越高加速度越高
+
+用户需求：「给开创改为加速冲过目标，伤害越高加速度越高」
+用户确认：冲完后停在目标对侧（不回原位）
+
+## 改动（SkillSystem.js：SKILL_ANIM_CONFIG 开创 + executeSkill + delayedHit + playSkillAnimation + playSkillTargetAnimation + 新增 _carRush）
+
+- 开创动画类型 `aura` → **`carRush`**（警车加速冲过）：`color #00d2ff`、速度线 14 条、蓝色冲击波
+- **新增 `SkillSystem._carRush(actor, targets, allCharsDiv)`**：
+  - 纯加速运动学 x(t) = ½·a·t²（初速 0），setInterval 16ms 逐帧驱动
+  - **加速度与实际伤害正相关：acc = 实际伤害×5 + 1800（px/s²）**——伤害越高加速度越高；
+    0 伤害（格挡）也保持约 0.75s 内的慢速冲过
+  - 总时长 T = sqrt(2·dist/acc)（约 0.27~0.75s）
+  - 穿过目标中心时刻运动学反解 tHit = sqrt(2·dHit/acc)：撞击瞬间受伤反馈 + 速度线从车尾甩出 + 蓝色冲击波
+  - 冲过目标停在**目标对侧 140px**（用户指定，不回原位）；zIndex 50 盖在目标上形成穿过感
+  - baseRect 移动前缓存（transform 漂移教训）
+- executeSkill：carRush 分支设 `window._actionAnimDelay = 1100`（开创专用演出时长）
+- delayedHit 扩展：carRush 也走 `_slashHitFeedbacks` 延迟同步（撞击瞬间弹伤害数字），
+  并额外存 `window._slashCarDamage = actual`（executeSkill 同步调用栈内动画分支先于伤害循环，_carRush 首个 tick 时伤害已算完）
+- playSkillAnimation / playSkillTargetAnimation：carRush 跳过（速度线由 _carRush 撞击时刻统一触发）
+
+## 验证
+
+- verify-anim 新增第 12 节：开车警察待命区补位（queueBenchEntry → renderCharacters，真实替补流程）
+  - 高伤（1 正面 + 速度差 8 → dmg 2400）：150ms 位移 166px ✓、撞击伤害同步 ✓、速度线 14 条 ✓、停在目标对侧 800px ✓
+  - 低伤（0 正面 → dmg 400）：150ms 位移 29px < 高伤 166px ✓（伤害越高加速度越高）
+- verify-anim 全量 33 项 + verify-idle 7 项全部通过
+
+## 调试备忘（单位 bug 教训）
+
+- _carRush 混用单位：tick 里 t 是毫秒，acc/T/tHit 按秒算——首个 tick `16 >= 0.354` 直接判终点，
+  车一步到位；tHit=0.258 秒直接传 setTimeout（需毫秒），撞击提前到 0ms、速度线 600ms 就被回收
+  → 修复：t 改为 `(Date.now() - t0) / 1000`，setTimeout 用 `tHit * 1000`
+- 开车警察在 `battleState.benchEnemy`（待命区），不在 enemyTeam——验证需先 `queueBenchEntry('enemy')` 补位

@@ -1,0 +1,27 @@
+v0.296 更新内容：十二连刀光改为弧形光带（参考废墟图书馆/边狱巴士的斩击技能动画）
+
+用户反馈「十二连的剑痕怎么直接没了」——v0.295 用 CSS mask 偏心圆挖空做的月牙在真实浏览器渲染不可见（computed style 正常但实际像素全无，mask 百分比半径在浏览器间解析不可靠），已废弃该方案。
+
+用户建议参考《废墟图书馆》（Library of Ruina）与《边狱巴士》（Limbus Company）的斩击技能动画——这两家的斩击核心视觉是**一道亮弧光带从一端划到另一端**，像刀光在空气中划过的轨迹。
+
+## 改动（SkillSystem.js 的 _createBlade + style.css）
+
+**SVG 弧形光带**（替代 mask 月牙）：
+- 每刀是一个 SVG（46~68px 视口），内含**双层 path 弧线**（viewBox 100，大圆弧 M 15 85 A 50 50 0 0 0 85 15）：
+  - 底层金色粗线（stroke-width 8）= 刀光带
+  - 上层白色细线（stroke-width 3.5）= 白芯亮刃口
+- 挥斩感核心：`stroke-dasharray 143` + `stroke-dashoffset 143 → 0` 动画（0.35s）——**弧线从弧的一端逐渐划到另一端**，就是刀光斩过的轨迹（废墟图书馆/边狱巴士式）
+- 整弧同时按随机方位角旋转扫动（-24°→方位角）+ 生长 + brightness 亮闪（animBladeSwing，0.35s）
+- 发光用 filter drop-shadow 双层（金色近光 + 白光晕），svg overflow: visible 保证光晕不被视口裁掉
+- 劈出后停留留痕（opacity 随机深浅，v0.293 保留）、砍完统一 .fade 淡出回收——时序不变
+
+## 验证
+
+- diag-v296：svg + 双层 path（金/白）+ dash 划出动画进行中 + overflow visible + 4.2s 全回收闪回 ✓
+- verify-anim 全量通过（含十二连四项时序断言 8a-8d）
+- verify-idle 全量通过
+
+## 教训（已记入记忆）
+
+- CSS mask 偏心圆月牙（radial-gradient 百分比半径）在真实浏览器渲染不可靠，computed style 正常但像素全无——**刀光类形状特效优先用 SVG path 实现**，矢量渲染绝对可控
+- stroke-dashoffset 动画是实现「挥斩轨迹感」的最简方案

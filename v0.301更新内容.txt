@@ -1,0 +1,18 @@
+v0.301 更新内容：剑气弹道改为「小曲率圆弧 + 高加速度」飞行
+
+用户需求：「剑气要不改成曲率小一点的圆弧？同时斩出到命中过程改为加速度很高的加速运动」
+
+## 改动（SkillSystem.js：_swordWave 重写 + style.css）
+
+**圆弧弹道 + 高加速（v0.301）**：放弃 CSS left transition 匀速直线，改为 JS 运动学逐帧驱动（setInterval 16ms；rAF 在 headless 下不保证执行，setTimeout/setInterval 稳定）：
+- **水平方向 x(t) = v0·t + ½a·t²**——加速度很高：初速 = 平均速度的 1/3（起步慢），末速 ≈ 平均速度的 5/3（急速命中）
+- **垂直方向 y(t) = h·4(t/T)(1−t/T)**——小曲率拱形弧（h=14px），起终点落回水平线
+- **姿态 θ 从 −12° 线性转到 +12°**（贴弧线切线方向）
+- **命中时刻运动学反解**（v0·t + ½a·t² = 目标中心距离）：t_hit ≈ 0.8·T——命中恰在速度最快时，受伤反馈（_slashHitFeedbacks + 蓝色冲击波）与该时刻严格同步
+- 到达目标对侧（T=380ms）后剑气淡出回收（260ms）
+- style.css：.sword-wave 去掉 `transition: left 0.38s linear`（不再用 left 过渡），改 `will-change: transform`（JS 逐帧 transform 驱动）
+
+## 验证
+
+- verify-anim 第 5 节重写：创建（起点 left + 色 #3498db）→ 100ms 时 transform x 位移 32.4px（加速飞行中）→ 800ms 消失回收 + 伤害数字已弹（命中同步），全量通过
+- verify-idle 全量通过

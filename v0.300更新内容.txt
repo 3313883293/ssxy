@@ -1,0 +1,30 @@
+v0.300 更新内容：剑气迸进改为「剑气弹道穿过目标」、斩祟·亮剑改为「后撤 + 剑痕凭空出现」
+
+用户需求：「剑气迸发改为向前斩出一道剑气，剑气前进穿过目标并消失同时造成伤害；亮剑改为角色微微后撤，剑痕在目标身上凭空出现同时造成伤害，角色归位剑痕消失。」
+
+## 改动（SkillSystem.js：新增 _singleSlash / _swordWave + executeSkill 分支 + style.css 新规则）
+
+**斩祟·亮剑（_singleSlash，type: 'slashSingle'）**：
+1. **阶段1**：角色微微后撤（远离目标方向 42px，0.2s ease-out，baseRect 缓存防 transform 漂移）
+2. **阶段2（240ms）**：剑痕在目标身上**凭空出现**（_createBlade 新增 instant 参数：dashoffset 直接 0 + .instant 类去掉划出动画，只快速亮闪现形 0.18s），同时目标受伤反馈同步触发（_slashHitFeedbacks）+ 🔥 粒子
+3. **阶段3（740ms）**：角色归位 + 剑痕统一淡出（320ms）回收
+- _actionAnimDelay 1100
+
+**剑气迸进（_swordWave，type: 'swordWave'）**：
+1. 角色前方斩出一道**竖向剑气弹道**（SVG 双层直线 stroke：蓝刃 10 + 白芯 4，drop-shadow 发光），起点 = 角色卡边缘（方向按目标与角色相对位置）
+2. **飞行**：left 从起点过渡到目标对侧 + dir*40（0.38s linear CSS transition；用 setTimeout 20ms 触发而非 rAF——headless 下 rAF 不保证执行）
+3. **穿过目标时刻（190ms）**：目标受伤反馈同步触发 + 蓝色冲击波（impact burst）
+4. **到达对侧（430ms）**：剑气淡出回收
+- _actionAnimDelay 800
+
+**支撑改动**：
+- _createBlade 加 `instant = false` 参数（亮剑剑痕凭空出现用）
+- executeSkill 三分支：slash（十二连）/ slashSingle（亮剑）/ swordWave（剑气），delayedHit 判断扩展三个类型（伤害反馈统一延迟到动画关键时刻）
+- playSkillTargetAnimation 开头跳过三个演出型（特效由各自流程统一管理，避免重复出招）
+- style.css：`.sword-wave`（absolute / transition left 0.38s linear / 双层 drop-shadow 发光）、`.sword-wave.fade`、`.skill-slash.instant`（animation-duration 0.18s）、`.skill-slash.instant path`（animation: none）
+
+## 验证
+
+- verify-anim 重写第 1 节（亮剑：后撤 transform 非空 + 0 道痕 → 300ms 1 道 + 伤害数字同步 + 🔥 粒子 → 1.2s 归位 + 0 残留）与第 5 节（剑气：.sword-wave 创建 + 色 #3498db → 100ms left 增大飞行 → 800ms 消失回收 + 伤害数字已弹），全量通过
+- verify-idle 第 2 节改持棍警察测 lunge（v0.300 鲁盼旋三技能均不走 lunge），全量通过
+- diag-v294 多目标：12 道 4/4/4 分布、2600ms 回收归位，无回归

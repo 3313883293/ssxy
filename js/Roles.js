@@ -2,27 +2,27 @@
 
 function createTemplateOne(team, position) {
     const skills = [
-        new Skill('技能一·突刺', 200, 300, 100, 2, 2),
-        new Skill('技能二·重斩', 400, 600, 200, 2, 3),
-        new Skill('技能三·终结', 600, 600, 400, 3, 3)
+        new Skill('技能一', 200, 300, 100, 2, 2),
+        new Skill('技能二', 400, 600, 200, 2, 3),
+        new Skill('技能三', 600, 600, 400, 3, 3)
     ];
     return new Character('模板一', 2000, 200, [2,6], 1000, 300, skills, team, position);
 }
 
 function createTemplateTwo(team, position) {
     const skills = [
-        new Skill('技能一·速射', 300, 300, 600, 1, 5),
-        new Skill('技能二·散射', 400, 200, 300, 4, 4),
-        new Skill('技能三·狙击', 500, 500, 1000, 1, 6)
+        new Skill('技能一', 300, 300, 600, 1, 5),
+        new Skill('技能二', 400, 200, 300, 4, 4),
+        new Skill('技能三', 500, 500, 1000, 1, 6)
     ];
     return new Character('模板二', 2000, 100, [4,7], 1000, 300, skills, team, position);
 }
 
 function createTemplateThree(team, position) {
     const skills = [
-        new Skill('技能一·铁壁', 100, 50, 100, 3, 3),
-        new Skill('技能二·重拳', 400, 600, 400, 1, 1),
-        new Skill('技能三·山崩', 700, 1000, 800, 1, 1)
+        new Skill('技能一', 100, 50, 100, 3, 3),
+        new Skill('技能二', 400, 600, 400, 1, 1),
+        new Skill('技能三', 700, 1000, 800, 1, 1)
     ];
     return new Character('模板三', 2000, 300, [1,4], 1000, 300, skills, team, position);
 }
@@ -61,14 +61,14 @@ function createLuPanxuan(team, position) {
     const skills = [
         new Skill('斩祟·亮剑',       300,  100,  100,  3,  4, null, { type: 'burn', stacks: 1 }),
         new Skill('剑气迸进',         500,  500, 600,  1,  6, null, { type: 'ignoreDef', value: 200 }),
-        new Skill('十二连·剑斩邪祟', 800,  300, 50, 12,  3, null, { type: 'evilDrain', bonus: 50 })
+        new Skill('十二连·剑斩邪祟', 800,  300, 100, 12, 3, null, { type: 'evilDrain', bonus: 100 })   // v0.293：加成伤害与恶加伤 50→100
     ];
     const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
     // ——— 被动零：惩恶之火 — 友方受伤时伤害来源获得 1 层【恶】 ———
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
         if (actual > 0 && target.team === 'player') {
             attacker.addBuffStack('e', 1, 1);
-            log(`  🔥 ${attacker.name} 获得1层【恶】`);
+            log(`  🔥 ${attacker.name} 获得1层「恶」`);
         }
     });
 
@@ -90,7 +90,7 @@ function createLuPanxuan(team, position) {
             self.addBuffStack('rage', totalEvil, 1);
             const rageBuff = self.buffs.find(b => b.type === 'rage');
             if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
-            log(`💢 ${self.name}(位置${self.position}) 从场上${totalEvil}层【恶】获得${totalEvil}层【愤怒】（上限5层）`);
+            log(`💢 ${self.name}(位置${self.position}) 从场上${totalEvil}层「恶」获得${totalEvil}层「愤怒」（上限5层）`);
         }
     });
 
@@ -100,7 +100,7 @@ function createLuPanxuan(team, position) {
             self.addBuffStack('rage', 3, 1);
             const rageBuff = self.buffs.find(b => b.type === 'rage');
             if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
-            log(`  💢 ${self.name}(位置${self.position}) 获得3层【愤怒】（上限5层）`);
+            log(`  💢 ${self.name}(位置${self.position}) 获得3层「愤怒」（上限5层）`);
         }
     });
 
@@ -110,15 +110,74 @@ function createLuPanxuan(team, position) {
         if (self !== actor) return;  // 仅技能施放者自己触发
         if (target.alive) {
             target.addBuffLevel('burn', coins);
-            log(`  🔥 ${target.name} 获得${coins}级【燃烧】`);
+            log(`  🔥 ${target.name} 获得${coins}级「燃烧」`);
             if (target.getBuffStack('burn') <= 3 && self.getBuffStack('rage') > 0) {
                 self.reduceBuffStack('rage', 1);
                 target.addBuffStack('burn', 1, 1);
-                log(`  🔥 消耗1层【愤怒】，${target.name} 额外获得1层【燃烧】`);
+                log(`  🔥 消耗1层「愤怒」，${target.name} 额外获得1层「燃烧」`);
             }
         }
     });
 
+    return char;
+}
+
+// ==================== 云长郡（第四关 Boss） ====================
+function createYunChangjun(team, position) {
+    const skills = [
+        // 催眠气体释放：随机指定目标，使其暂时昏迷（下一回合无法行动）
+        new Skill('催眠气体释放', 700, 400, 400, 1, 4, null, { type: 'stun' }),
+        // 手枪威慑：指定所有目标
+        new Skill('手枪威慑', 100, 200, 200, 3, 6)
+    ];
+    const char = new Character('云长郡', 8000, 200, [2,6], 800, 300, skills, team, position);
+    char.hateReduction = true;   // 被动·部下亡灵之怨恨：受击减伤100%，场上每阵亡1角色-10%
+    return char;
+}
+
+// 召唤警察怨灵：原单位一半初始HP与算力（开车警察为25%HP）
+function createPoliceWraith(type, position) {
+    let c;
+    if (type === '持盾警察') c = createPolice('enemy', position, 100);
+    else if (type === '持棍警察') c = createStickPolice('enemy', position, 100);
+    else if (type === '持枪警察') c = createGunPolice('enemy', position, 100);
+    else c = createDrivingPolice('enemy', position, 250);
+    const ratio = type === '开车警察' ? 0.25 : 0.5;   // 怨灵车只有25%HP
+    c.maxHp = c.hp = Math.floor(c.hp * ratio);
+    return c;
+}
+
+// ==================== 李雅礼 ====================
+// 死亡后作为我方单位复活，位于我方最前方（倒戈机制）
+function createLiYali(team, position) {
+    const skills = [
+        new Skill('象征抵抗', 0, 200, 0, 1, 1)
+    ];
+    const char = new Character('李雅礼', 2000, 0, [1,7], 0, 0, skills, team, position);
+    char.defector = true;   // 死亡后倒戈加入玩家阵营
+    return char;
+}
+
+// ==================== 开车警察 ====================
+function createDrivingPolice(team, position, initialSP = null) {
+    const skills = [
+        // 加油：永久速度+2，防御-100（直接改基础数值）
+        new Skill('加油', 100, 200, 400, 1, 4, [
+            { type: 'def', value: -100, duration: 'permanent' },
+            { type: 'speed', value: 2, duration: 'permanent' }
+        ]),
+        // 刹车：永久速度-4，防御+200（直接改基础数值）
+        new Skill('刹车', 100, 300, 200, 1, 2, [
+            { type: 'def', value: 200, duration: 'permanent' },
+            { type: 'speed', value: -4, duration: 'permanent' }
+        ]),
+        // 开创：与目标每有一点速度差，每硬币加成伤害+200
+        new Skill('开创', 500, 400, 400, 1, 3, null, { type: 'speedDiff', bonus: 200 })
+    ];
+    const char = new Character('开车警察', 4000, 400, [3,7], 500, 200, skills, team, position);
+    if (initialSP !== null) char.sp = initialSP;
+    // AI 循环：两次加油 → 一次开创 → 一次刹车
+    char.aiCycle = ['加油', '加油', '开创', '刹车'];
     return char;
 }
 
@@ -177,5 +236,11 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '标准稻草人') return createScarecrowStandard(team, position);
     if (roleName === '灵敏稻草人') return createScarecrowFast(team, position);
     if (roleName === '再生稻草人') return createScarecrowRegen(team, position);
+    if (roleName === '持盾警察') return createPolice(team, position);
+    if (roleName === '持棍警察') return createStickPolice(team, position);
+    if (roleName === '持枪警察') return createGunPolice(team, position);
+    if (roleName === '开车警察') return createDrivingPolice(team, position);
+    if (roleName === '李雅礼') return createLiYali(team, position);
+    if (roleName === '云长郡') return createYunChangjun(team, position);
     return null;
 }

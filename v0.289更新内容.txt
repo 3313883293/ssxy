@@ -1,0 +1,77 @@
+v0.289 更新内容：每个技能专属动画（简约光效）
+
+设计理念：
+- 沿用 arena 覆盖层模式：动画元素挂到 .arena（position:relative），绝对定位，setTimeout 自动回收
+- 简约光效风格：纯色发光线条、几何光环、emoji 粒子点阵——与现有暗色 UI 统一
+- 每个技能量身定制：按技能名映射配置表，不改 Skill 构造函数
+
+技能动画清单：
+
+【鲁盼旋】
+- 斩祟·亮剑：金色弧光轨迹（#f9ca24，3px 粗带 glow）+ 击中爆发 🔥 粒子 ×5（0.35s）
+- 剑气迸进：极细蓝色穿透光束（#3498db，2px，高亮脉冲，0.25s）
+- 十二连·剑斩邪祟：12 道金色细线快速交替闪烁（0.75s）+ ✨ 粒子 ×4
+
+【持盾警察】
+- 持盾格挡：蓝色光环自身扩散（#4fc3f7，0.5s）+ 🛡️ 文字浮起
+- 持盾猛击：厚重银色砸击线（5px，0.3s）+ 目标处白色冲击波扩散
+
+【持棍警察】
+- 棍击：灰色细线快速闪过（#95a5a6，0.25s）
+- 一秒18棍：18 道灰色细线密集闪烁（1.0s）
+
+【持枪警察】
+- 开火：红色弹道线（#ff4757，0.2s）+ 枪口白色闪光 + 命中冲击波
+
+【开车警察】
+- 加油：绿色光环自身扩散（#2ecc71，0.6s）+ ⚡ 粒子 ×5 向上飘
+- 刹车：红色光环紧缩（#e74c3c，0.45s）+ 💥 粒子 ×4
+- 开创：青蓝冲刺轨迹（#00d2ff，0.5s）+ 车身周围速度线 ×8
+
+【李雅礼】
+- 象征抵抗：金色连线从中断开两半弹飞（#f39c12，0.5s）
+
+【云长郡】
+- 催眠气体释放：紫色雾气从目标处缓慢扩散（#9b59b6，0.8s，blur 2→10px）+ 💤 ×3 上浮
+- 手枪威慑：红色弹道线 + 枪口闪光
+
+CSS 新增 8 个 keyframes：
+- animStrikeFlash（斩击线）、animPierceBeam（穿透光束）、animSnapCrack（断裂）
+- animMultiStrike（多段闪烁）、animImpactBurst（冲击波扩散）
+- animAuraPulse（光环）、animGasCloud（雾气）、animParticle（粒子飘散）
+- animSpeedStreak（速度线）、animMuzzleFlash（枪口闪光）
+
+JS 新增（SkillSystem.js）：
+- SKILL_ANIM_CONFIG 配置表（14 技能 + 模板降级为空）
+- playSkillAnimation(actor, skill, allCharsDiv)：自身动画（光环/速度线）
+- playSkillTargetAnimation(actor, target, skill, allCharsDiv)：对目标动画（斩击/弹道/冲击波/雾气/粒子）
+- 辅助函数：_createStrikeLine、_createBurst、_createAura、_createGasCloud、_createMuzzleFlash、_createParticles、_createStreaks
+- 调用点：executeSkill 中 buff 应用后（自身动画）、伤害循环中 showDamageNumber 前（对目标动画）
+- 未知技能优雅降级：不创建 DOM，不报错
+
+技术细节：
+- 连线使用 getBoundingClientRect 计算两卡片中心坐标，div 绝对定位 + rotate 对齐方向
+- 圆形覆盖层（冲击波/光环/雾气）translate(-50%,-50%) 居中定位
+- 粒子使用 CSS 自定义属性（--dx/--dy）随机方向飘散
+- 速度线从车身位置水平飞掠（开创冲刺感）
+- 多段闪烁（十二连/一秒18棍）使用 setTimeout 分时创建，每段 0.15s 独立回收
+- 枪口闪光为白色小圆点快速爆亮（animMuzzleFlash，0.25s）
+
+角色卡片个性化待机动画（用户指定「按角色个性化」）：
+- 每张角色卡片带专属待机动画（infinite 循环），战斗画面从静止变为「活」的：
+  - 鲁盼旋：轻盈浮动 + 剑意微倾（2.8s）
+  - 持盾警察：稳重微晃（3.2s）
+  - 持棍警察：警戒摇摆（2.2s）
+  - 持枪警察：屏息瞄准缓慢起伏（3.6s）
+  - 开车警察：引擎怠速高频抖动（0.35s，怠速感）
+  - 李雅礼：沉稳微息（3.5s，近乎不动）
+  - 云长郡：阴气漂浮 + 左右飘移 + 紫影呼吸（3s，drop-shadow 脉动）
+  - 稻草人系列：随风摇摆（1.8s）
+  - 模板角色：基础浮动（3s）
+- 技术要点：
+  - 卡片按角色名挂 data-name，CSS 用 .character-card[data-name="X"] 选择器（0,2,0 特异性）
+  - 行动动画（前冲/受击/入场）选择器加 .character-card 前缀升到同特异性（0,2,0），且规则位于待机动画之后 → 行动动画期间覆盖待机，动画结束移除类后待机自动恢复（曾误放成待机在后导致待机永远压住行动动画，已修正）
+  - 入场动画类 .bench-enter 原为永久类会占住 animation 位，改为 setTimeout 0.5s 移除，让位给待机
+- 验证：playwright 9 项待机动画断言全通过（data-name 挂载、动画名正确、动画运行中、攻击覆盖/恢复、受击覆盖/恢复、入场类移除、引擎抖动恢复）
+
+验证：playwright 56 项断言全通过（verify-idle 9 + verify-anim 16 + verify-sync 9 + verify-speeddiff 9 + verify-v288 13）

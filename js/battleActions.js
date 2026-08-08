@@ -1,5 +1,27 @@
 // battleActions.js - 玩家回合操作 + 敌方AI
 
+// v0.288：预测 AI 单位本回合将使用的技能（AI 逻辑确定性：aiCycle 循环 / 算力降序），
+// 回合开始时展示给玩家，供决策参考；预测失败（无可用技能/无目标）返回 null
+function predictIntent(char) {
+    const targetPool = char.team === 'player' ? battleState.getAliveEnemies() : battleState.getAlivePlayers();
+    const inRangeOf = sk => targetPool.filter(p => Math.abs(char.position - p.position) <= sk.attackRange);
+    if (char.aiCycle) {
+        const cycleSkills = char.aiCycle.map(name => char.skills.find(s => s.name === name)).filter(Boolean);
+        for (let step = 0; step < cycleSkills.length; step++) {
+            const idx = (char.aiIndex + step) % cycleSkills.length;
+            const sk = cycleSkills[idx];
+            if (char.sp >= sk.spCost && inRangeOf(sk).length > 0) return sk.name;
+        }
+        return null;
+    }
+    const available = char.skills.filter(s => char.sp >= s.spCost);
+    const sorted = [...available].sort((a, b) => b.spCost - a.spCost);
+    for (const sk of sorted) {
+        if (inRangeOf(sk).length > 0) return sk.name;
+    }
+    return null;
+}
+
 function playerTurn(actor) {
     const canAnySkillHit = actor.skills.some(skill =>
         battleState.getAliveEnemies().some(enemy => Math.abs(actor.position - enemy.position) <= skill.attackRange)
@@ -60,24 +82,21 @@ function selectPlayerSkill(actor, skillIndex) {
     skillDetailDiv.classList.add('active');
     skillDetailDiv.innerHTML = `
         <strong>${skill.name}</strong><br>
-        消耗算力：${skill.spCost}　攻击距离：${skill.attackRange}<br>
-        伤害公式：${skill.baseDamage} + ${skill.bonusDamage} × 硬币(${skill.coinCount})<br>
-        ${skill.buff ? `<span style="color:#f9ca24">效果：防御${skill.buff.value > 0 ? '+' : ''}${skill.buff.value}（持续至下一次受击）</span>` : ''}
-        ${skill.special && skill.special.type === 'burn' ? `<span style="color:#f9ca24">命中：施加${skill.special.stacks}层【燃烧】</span>` : ''}
-        ${skill.special && skill.special.type === 'ignoreDef' ? `<span style="color:#f9ca24">特效：无视${skill.special.value}防御</span>` : ''}
-        ${skill.special && skill.special.type === 'evilDrain' ? `<span style="color:#f9ca24">特效：目标每层【恶】+${skill.special.bonus}伤害，清零【恶】</span>` : ''}
+        ${renderGlossaryText(`消耗算力：${skill.spCost}　攻击距离：${skill.attackRange}`)}<br>
+        ${renderGlossaryText(`伤害公式：${skill.baseDamage} + ${skill.bonusDamage} × 硬币(${skill.coinCount})`)}<br>
+        ${skillEffectLines(skill).map(l => `<span style="color:#f9ca24">${renderGlossaryText(l)}</span>`).join('<br>')}
     `;
     const targetHint = document.getElementById('targetHint');
     const enemiesInRange = battleState.getAliveEnemies().filter(e =>
         Math.abs(actor.position - e.position) <= skill.attackRange
     );
     if (enemiesInRange.length === 0) {
-        targetHint.textContent = '该技能范围内无可用目标！请重新选择技能。';
+        targetHint.innerHTML = renderGlossaryText('该技能攻击距离范围内无可用目标！请重新选择技能。');
         battleState.selectedSkill = null;
         skillDetailDiv.classList.remove('active');
         return;
     }
-    targetHint.textContent = '请点击攻击范围内的敌方角色（可多选），再按确认或取消。';
+    targetHint.innerHTML = renderGlossaryText(`请点击攻击距离范围内的敌方角色（最多${skill.coinCount}个，与硬币数一致），再按确认或取消。`);
     const allCards = allCharsDiv.querySelectorAll('.character-card');
     battleState.currentSelectedTargets = new Set();
     allCards.forEach(card => {
@@ -132,37 +151,69 @@ function executePlayerAction(actor, targets) {
     SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState, allCharsDiv, log);
     battleState.currentActor = null;
     battleState.selectedSkill = null;
-    renderCharacters();
-    processNextAction();
+    // 延迟重渲染：让前冲/受击/死亡动画完整播放（v0.285；v0.291 时长由 executeSkill 按技能动画设定）
+    const delay = window._actionAnimDelay || 800;
+    setTimeout(() => { renderCharacters(); processNextAction(); }, delay);
 }
 
 // ==================== 敌方 AI ====================
 function enemyTurn(actor) {
-    actionContent.innerHTML = '<p style="color:#aaa;">敌方行动中...</p>';
-    const availableSkills = actor.skills.filter(s => actor.sp >= s.spCost);
-    if (availableSkills.length === 0) {
-        log(`${actor.name} 算力不足，跳过`);
-        setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
-        return;
-    }
-    const sortedSkills = [...availableSkills].sort((a, b) => b.spCost - a.spCost);
+    clearIntent(actor);   // 轮到自己行动：收起回合开始的预测徽章（v0.288）
+    actor.intentSkill = null;
+    actionContent.innerHTML = `<p style="color:#aaa;">${actor.team === 'player' ? `${actor.name} 自动行动中...` : '敌方行动中...'}</p>`;
     let chosenSkill = null, targets = [];
-    for (let sk of sortedSkills) {
-        const candidates = battleState.getAlivePlayers().filter(p =>
-            Math.abs(actor.position - p.position) <= sk.attackRange
-        );
-        if (candidates.length > 0) { chosenSkill = sk; targets = candidates; break; }
+    // 目标池按敌对阵营取：普通敌人打玩家；倒戈单位（如李雅礼）打敌方
+    const targetPool = actor.team === 'player' ? battleState.getAliveEnemies() : battleState.getAlivePlayers();
+    const inRangeOf = sk => targetPool.filter(p => Math.abs(actor.position - p.position) <= sk.attackRange);
+
+    // 固定技能循环（开车警察：两次加油→一次开创→一次刹车）
+    if (actor.aiCycle) {
+        const cycleSkills = actor.aiCycle.map(name => actor.skills.find(s => s.name === name)).filter(Boolean);
+        for (let step = 0; step < cycleSkills.length; step++) {
+            const idx = (actor.aiIndex + step) % cycleSkills.length;
+            const sk = cycleSkills[idx];
+            if (actor.sp < sk.spCost) continue;
+            const candidates = inRangeOf(sk);
+            if (candidates.length > 0) {
+                chosenSkill = sk;
+                targets = candidates;
+                actor.aiIndex = (idx + 1) % cycleSkills.length;
+                break;
+            }
+        }
+        if (!chosenSkill) {
+            log(`${actor.name} 算力不足或没有可攻击目标，跳过`);
+            setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
+            return;
+        }
+    } else {
+        const availableSkills = actor.skills.filter(s => actor.sp >= s.spCost);
+        if (availableSkills.length === 0) {
+            log(`${actor.name} 算力不足，跳过`);
+            setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
+            return;
+        }
+        const sortedSkills = [...availableSkills].sort((a, b) => b.spCost - a.spCost);
+        for (let sk of sortedSkills) {
+            const candidates = inRangeOf(sk);
+            if (candidates.length > 0) { chosenSkill = sk; targets = candidates; break; }
+        }
+        if (!chosenSkill) {
+            log(`${actor.name} 没有可攻击目标，跳过`);
+            setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
+            return;
+        }
     }
-    if (!chosenSkill) {
-        log(`${actor.name} 没有可攻击目标，跳过`);
-        setTimeout(() => { battleState.currentActor = null; renderCharacters(); processNextAction(); }, 900);
-        return;
+    // 催眠气体释放：随机指定1个目标
+    if (chosenSkill.special && chosenSkill.special.type === 'stun') {
+        targets = [targets[Math.floor(Math.random() * targets.length)]];
     }
     log(`${actor.name} 使用 ${chosenSkill.name}，目标：${targets.map(t => t.name + '(' + t.position + ')').join(', ')}`);
     setTimeout(() => {
         SkillSystem.executeSkill(actor, chosenSkill, targets, battleState, allCharsDiv, log);
         battleState.currentActor = null;
-        renderCharacters();
-        processNextAction();
+        // 延迟重渲染：让动画完整播放（v0.285；v0.291 时长由 executeSkill 按技能动画设定）
+        const delay = window._actionAnimDelay || 800;
+        setTimeout(() => { renderCharacters(); processNextAction(); }, delay);
     }, 900);
 }

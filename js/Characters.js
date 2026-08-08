@@ -10,6 +10,8 @@ class Character {
         this.def = def;
         const [min, max] = speedRange;
         this.speed = Math.floor(Math.random() * (max - min + 1)) + min;
+        this.speedMin = min;   // 速度区间下限（最小速度）：加油/刹车只改它，开创速度差按它计算（用户指定设计）
+        this.speedMax = max;   // 速度区间上限：固定不变
         this.maxSP = maxSP;
         this.sp = maxSP;
         this.spRegen = spRegen;
@@ -25,6 +27,29 @@ class Character {
         this.damageDealt = 0;
         this.damageReceived = 0;
         this.dotDamageMap = {};
+        this.aiCycle = null;   // 敌方固定技能循环（如开车警察：加油×2→开创→刹车）
+        this.aiIndex = 0;      // 循环进度
+        this.defector = false;   // 死亡后倒戈加入玩家阵营（李雅礼）
+        this.aiControlled = false; // 倒戈单位仍由 AI 操控，玩家不操作
+        this.hateReduction = false; // 部下亡灵之怨恨：受击减伤100%，场上每阵亡1角色-10%（云长郡）
+        this.hateReductionCurrent = 100; // 减伤快照（每回合开始判定，回合内死亡不即时生效）
+    }
+
+    // —————— 亡灵怨恨减伤快照：每回合开始判定（100% - 累计阵亡数×15%，可为负，负值转为受到伤害加成） ——————
+    getHateReduction() {
+        return this.hateReduction ? this.hateReductionCurrent : 0;
+    }
+
+    updateHateReduction() {
+        if (!this.hateReduction) return;
+        const deaths = (typeof battleState !== 'undefined' && battleState) ? battleState.totalDeaths : 0;
+        this.hateReductionCurrent = 100 - deaths * 15;
+    }
+
+    // 每回合重随机实际速度（在最小~最大速度区间内）：最小速度是加油/刹车改变的核心属性，
+    // 实际速度只决定本回合行动顺序，开创伤害按最小速度算（确定性）
+    rerollSpeed() {
+        this.speed = Math.floor(Math.random() * (this.speedMax - this.speedMin + 1)) + this.speedMin;
     }
 
     // —————— 防御 ——————
@@ -41,22 +66,33 @@ class Character {
     takeDamage(dmg, attacker) {
         if (!this.alive) return 0;
         const totalDef = this.getTotalDef();
-        const actual = Math.max(0, dmg - totalDef);
+        let actual = Math.max(0, dmg - totalDef);
+        const reduction = this.getHateReduction();
+        if (reduction !== 0) actual = Math.floor(actual * (100 - reduction) / 100);   // 负值=加伤
         this.hp = Math.max(0, this.hp - actual);
         this.damageReceived += actual;
         if (attacker && attacker.alive) attacker.damageDealt += actual;
         if (this.hp <= 0) {
             this.alive = false;
             this.hp = 0;
-            if (typeof battleState !== 'undefined' && battleState) {
-                battleState.repositionAll();
-            }
         }
         this.buffs = this.buffs.filter(b => b.duration !== 'nextHit');
         return actual;
     }
 
-    // 真实伤害（无视防御）
+    // 死亡处理：倒戈复活 → 待命区补位 + 站位重排
+    handleDeath() {
+        if (typeof battleState !== 'undefined' && battleState) {
+            battleState.totalDeaths++;   // 阵亡计数（云长郡减伤计算）
+            if (this.defector && this.team === 'enemy') {
+                battleState.defectToPlayer(this);   // 李雅礼：作为我方单位复活
+            }
+            battleState.queueBenchEntry(this.team);   // 待命补位（回合开始时入场，v0.287）
+            battleState.repositionAll();
+        }
+    }
+
+    // 真实伤害（无视防御与减伤，完全穿透）
     takeTrueDamage(dmg) {
         if (!this.alive) return 0;
         this.hp = Math.max(0, this.hp - dmg);
@@ -64,9 +100,6 @@ class Character {
         if (this.hp <= 0) {
             this.alive = false;
             this.hp = 0;
-            if (typeof battleState !== 'undefined' && battleState) {
-                battleState.repositionAll();
-            }
         }
         return dmg;
     }

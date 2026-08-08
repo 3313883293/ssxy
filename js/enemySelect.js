@@ -53,8 +53,8 @@ function renderEnemyRoster() {
         const div = document.createElement('div');
         div.className = 'roster-card';
         const count = enemySlots.filter(r => r === roleName).length;
-        div.innerHTML = `<div class="name">${roleName}</div><div class="desc">${count > 0 ? `已选×${count}` : '点击上阵'}</div>`;
-        div.onclick = () => selectRosterEnemy(roleName);
+        div.innerHTML = `<div class="name">${roleName}</div><div class="desc">${count > 0 ? `已选×${count}` : '点击上阵查看详情'}</div>`;
+        div.onclick = () => { selectRosterEnemy(roleName); renderRoleDetail(roleName, 'enemyDetailPanel'); };
         container.appendChild(div);
     });
 }

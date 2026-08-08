@@ -1,0 +1,37 @@
+v0.308 更新内容：Web Audio API 合成音效系统（零音频文件）
+
+用户需求：「有没有音效库」→ 选择方案 1（Web Audio API 合成，无需外部音频文件）
+
+## 改动
+
+### 新增 js/audio.js（合成音效库，17 个音效，全部振荡器/噪声实时合成）
+- 合成工具：`sfxTone`（振荡器 + 频率滑动 + 指数衰减包络）、`sfxNoise`（白噪声 buffer + 滤波 + 衰减）
+- `SFX_TABLE` 17 个音效：strike（普攻嗖）/multi（一秒18棍连击）/hit（受击咚）/blocked（格挡叮）/death（死亡轰）/
+  slash（十二连刷刷刷）/slashSingle（亮剑铮）/swordWave（剑气咻）/carRush（开创引擎加速+撞击砰）/
+  bash（持盾猛击闷响）/buffUp（加油上行双音）/buffDown（刹车摩擦下行）/gas（催眠雾柔软下行）/
+  snap（噼啪）/round（回合提示）/victory（上行琶音）/defeat（低沉下滑）
+- `Sfx` 全局对象：懒创建 AudioContext、`play(name)` 查表播放、`playSkill(skill)` 按 SKILL_ANIM_CONFIG.type 映射
+  （aura 按技能名细分加油/刹车/持盾格挡）、`toggle()` 静音开关、`mount()` 挂接右下角悬浮 🔊 按钮（fixed 定位，所有页面可见）
+- **容错设计**：所有合成调用 try/catch + 静音/无 AudioContext 静默跳过——音效不影响游戏逻辑；
+  `_log` 记录每次播放（headless 验证探针）
+- 浏览器自动播放策略：AudioContext 首次用户交互后才可靠出声（游戏内点击按钮即满足）
+
+### 挂接点（3 处）
+- **SkillSystem.js executeSkill**：技能音按 SKILL_ANIM_CONFIG type 播放（普攻/棍击/开火→strike，开创→carRush 等）
+- **SkillSystem.js showDamageNumber**：受击音随伤害数字同帧——死亡→death、0 伤害→blocked（格挡）、受伤→hit；
+  演出型技能（slash/slashSingle/swordWave/carRush）的 showDamageNumber 被延迟到命中时刻，**受击音随之同步到撞击/剑痕浮现瞬间**
+- **battleFlow.js**：startNewRound→round（回合提示）、checkVictory→victory/defeat（胜负）
+- index.html 引入 audio.js（第一个加载）；style.css 加 #sfxToggleBtn 样式
+
+## 验证
+
+- 新增 verify-audio.js（9 项）：音效表完整可播放、静音按钮挂接与切换（🔊→🔇→🔊）、
+  敌方先手回合音序（round→strike→hit）、亮剑音序（slashSingle→hit 同步于命中）、开创音序（carRush→hit）
+- verify-anim 33 项 + verify-idle 7 项回归全部通过
+- 注：headless 验证音效触发与合成不抛异常；**实际音色听感需用户浏览器试听**（合成音效的音量/音色可再调）
+
+## 调试备忘
+
+- SFX_TABLE 顶层 const 不挂 window，验证脚本取不到——显式 `window.SFX_TABLE = SFX_TABLE` 暴露
+- 受击音区分格挡：伤害被防御完全抵消（dmg=0）会弹「格挡」→ 验证亮剑 hit 需选无格挡目标 + 满正面硬币（3/3）
+- waitForFunction 默认 rAF 轮询在 headless 下不可靠（老教训）——验证等待改定时轮询循环

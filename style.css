@@ -46,6 +46,34 @@ body {
 .level-card h3 { color: #e94560; }
 .level-card .enemy-preview { margin-top: 10px; color: #ccc; font-size: 0.85em; }
 
+/* 关卡介绍页 */
+.level-intro { margin-top: 5px; }
+.level-intro-desc {
+    background: #16213e; border: 2px solid #e94560; border-radius: 12px;
+    padding: 18px 24px; width: 400px; color: #f9ca24; font-size: 1.05em;
+}
+.level-intro-text {
+    background: #16213e; border: 2px solid #3498db; border-radius: 12px;
+    padding: 18px 24px; width: 400px; margin-top: 15px;
+    color: #ccc; line-height: 1.7; font-size: 0.95em;
+}
+.level-intro-enemies {
+    color: #f9ca24; margin-top: 15px; font-size: 0.95em;
+}
+.level-intro-enemy-row {
+    display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap;
+}
+.level-intro-enemy {
+    border: 2px solid #e74c3c; border-radius: 10px;
+    padding: 8px 18px; background: #16213e; color: #f9ca24;
+    cursor: pointer; font-size: 0.95em; user-select: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.level-intro-enemy:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 10px rgba(233, 69, 96, 0.6);
+}
+
 .battle-page { gap: 10px; }
 .battle-header { text-align: center; margin-bottom: 5px; }
 .battle-header h2 { color: #e94560; font-size: 1.5em; }
@@ -71,6 +99,8 @@ body {
 .bar-container { background: #333; border-radius: 8px; height: 8px; margin: 3px 0; overflow: hidden; }
 .hp-bar { background: #2ecc71; height: 100%; width: 100%; }
 .sp-bar { background: #3498db; height: 100%; width: 100%; }
+.hp-text { font-size: 0.7em; }
+.sp-text { font-size: 0.7em; }
 .stats { font-size: 0.75em; color: #ccc; margin-top: 4px; }
 .position-mark { font-size: 0.65em; color: #888; position: absolute; top: 3px; right: 8px; }
 
@@ -104,30 +134,262 @@ body {
     font-weight: bold;
 }
 
-@keyframes hitFlash {
-    0% { filter: brightness(2) drop-shadow(0 0 10px red); }
-    100% { filter: brightness(1) drop-shadow(0 0 0px red); }
+/* === 战斗动画（v0.285：前冲/受击震动/伤害飘字/死亡爆发；v0.291 加大振幅/加长/加亮） === */
+@keyframes hitShake {
+    0% { transform: translateX(0); filter: brightness(2.6) drop-shadow(0 0 14px red); }
+    25% { transform: translateX(-10px); }
+    50% { transform: translateX(8px); filter: brightness(1.8) drop-shadow(0 0 9px red); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); filter: brightness(1) drop-shadow(0 0 0px red); }
 }
-@keyframes attackerFlash {
-    0% { filter: brightness(2) drop-shadow(0 0 15px white); }
-    100% { filter: brightness(1) drop-shadow(0 0 0px white); }
+@keyframes lungeRight {
+    0% { transform: translateX(0) rotate(0deg); filter: brightness(1.6); }
+    40% { transform: translateX(55px) rotate(1.5deg); filter: brightness(3) drop-shadow(0 0 25px white); }
+    100% { transform: translateX(0) rotate(0deg); filter: brightness(1); }
 }
-@keyframes damageFloat {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-30px); }
+@keyframes lungeLeft {
+    0% { transform: translateX(0) rotate(0deg); filter: brightness(1.6); }
+    40% { transform: translateX(-55px) rotate(-1.5deg); filter: brightness(3) drop-shadow(0 0 25px white); }
+    100% { transform: translateX(0) rotate(0deg); filter: brightness(1); }
+}
+@keyframes damagePop {
+    0% { opacity: 0; transform: scale(1.6) translateY(-6px); }
+    25% { opacity: 1; transform: scale(1.1) translateY(-8px); }
+    70% { opacity: 1; transform: scale(1) translateY(-20px); }
+    100% { opacity: 0; transform: scale(0.9) translateY(-42px); }
+}
+@keyframes deathBurst {
+    0% { opacity: 0; transform: scale(0.3) translateY(0); }
+    20% { opacity: 1; transform: scale(1.4) translateY(-10px); }
+    100% { opacity: 0; transform: scale(1) translateY(-55px); }
+}
+@keyframes turnPulse {
+    0% { transform: scale(1); color: #aaa; }
+    40% { transform: scale(1.18); color: #f9ca24; }
+    100% { transform: scale(1); color: #aaa; }
 }
 .damage-number {
-    position: absolute; color: #ff4757; font-weight: bold;
-    font-size: 1.2em; text-shadow: 0 0 5px black;
-    pointer-events: none; animation: damageFloat 1s ease-out forwards; z-index: 10;
+    position: absolute; color: #ff6b6b; font-weight: bold;
+    font-size: 1.3em; text-shadow: 0 0 5px black;
+    pointer-events: none; animation: damagePop 0.9s ease-out forwards; z-index: 10;
 }
+.damage-number.big { color: #ff9f43; font-size: 1.7em; text-shadow: 0 0 8px rgba(255,159,67,0.7); }
+.damage-number.blocked { color: #95a5a6; font-size: 1em; }
 .coin-indicator {
     position: absolute; color: #f9ca24; font-size: 0.9em; font-weight: bold;
     text-shadow: 0 0 5px black; pointer-events: none;
-    animation: damageFloat 0.8s ease-out forwards; z-index: 10;
+    animation: damagePop 0.8s ease-out forwards; z-index: 10;
 }
-.hit-animation { animation: hitFlash 0.2s ease-out; }
-.attacker-animation { animation: attackerFlash 0.3s ease-out; }
+.death-burst {
+    position: absolute; font-size: 2em; font-weight: bold;
+    color: #ff4757; text-shadow: 0 0 10px rgba(255,71,87,0.8);
+    pointer-events: none; animation: deathBurst 0.8s ease-out forwards; z-index: 11;
+}
+/* 行动动画：攻击前冲 / 受击震动（v0.290：待机动画已移除，卡片平时静止；v0.291 放慢加长） */
+.character-card.hit-animation { animation: hitShake 0.5s ease-out; }
+.character-card.attacker-animation { animation: lungeRight 0.6s ease-out; }
+.character-card.attacker-animation.lunge-left { animation-name: lungeLeft; }
+/* 意图徽章（v0.287：敌方/AI 出手前展示） */
+.intent-badge {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    background: #e94560; color: white; font-size: 0.72em; white-space: nowrap;
+    padding: 3px 10px; border-radius: 10px; z-index: 12;
+    box-shadow: 0 0 8px rgba(233, 69, 96, 0.7);
+    animation: intentPop 0.25s ease-out;
+}
+@keyframes intentPop {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+/* 待命/召唤入场（v0.287：回合开始时从场外滑入） */
+@keyframes benchEntryRight {
+    0% { opacity: 0; transform: translateX(130px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes benchEntryLeft {
+    0% { opacity: 0; transform: translateX(-130px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+.character-card.bench-enter { animation: benchEntryRight 0.45s ease-out; }
+.character-card.bench-enter.bench-left { animation-name: benchEntryLeft; }
+.turn-info.turn-pulse { animation: turnPulse 0.45s ease-out; }
+.hp-bar.low-hp { background: #e74c3c; animation: lowHpPulse 1s ease-in-out infinite; }
+@keyframes lowHpPulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.8); }
+}
+/* 页面切换淡入 */
+.page { animation: pageFadeIn 0.22s ease-out; }
+@keyframes pageFadeIn {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+/* 结算横幅弹入 */
+.game-over { animation: resultIn 0.5s ease-out; }
+@keyframes resultIn {
+    0% { opacity: 0; transform: scale(0.6); }
+    60% { transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* ========== v0.289：技能专属动画覆盖层 ========== */
+
+/* --- 通用基类 --- */
+.skill-overlay {
+    position: absolute; pointer-events: none; z-index: 9;
+    transform-origin: center center;
+}
+
+/* --- 斩击/弹道连线（actor → target，旋转对齐；v0.291 白芯渐变+强发光） --- */
+.skill-line {
+    position: absolute; pointer-events: none; z-index: 9;
+    height: var(--thick, 3px); border-radius: 2px;
+    background: linear-gradient(90deg, transparent 0%, var(--color, #fff) 40%, #fff 100%);
+    box-shadow: 0 0 calc(var(--thick, 3px) * 3) var(--color, #fff), 0 0 calc(var(--thick, 3px) * 8) rgba(255, 255, 255, 0.35);
+    transform-origin: left center;
+}
+.skill-line.strike { animation: animStrikeFlash var(--dur, 0.35s) ease-out forwards; }
+.skill-line.beam   { animation: animPierceBeam var(--dur, 0.25s) ease-out forwards; }
+.skill-line.snap   { animation: animSnapCrack  var(--dur, 0.5s) ease-out forwards; }
+
+@keyframes animStrikeFlash {
+    0%   { opacity: 0; transform: rotate(var(--angle)) scaleX(0); }
+    25%  { opacity: 1; transform: rotate(var(--angle)) scaleX(1); }
+    100% { opacity: 0; transform: rotate(var(--angle)) scaleX(1); }
+}
+@keyframes animPierceBeam {
+    0%   { opacity: 0; transform: rotate(var(--angle)) scaleX(0); filter: brightness(3) drop-shadow(0 0 8px var(--color)); }
+    15%  { opacity: 1; transform: rotate(var(--angle)) scaleX(1); filter: brightness(3) drop-shadow(0 0 12px var(--color)); }
+    60%  { opacity: 0.6; transform: rotate(var(--angle)) scaleX(1); filter: brightness(1.5) drop-shadow(0 0 4px var(--color)); }
+    100% { opacity: 0; transform: rotate(var(--angle)) scaleX(1); filter: brightness(1); }
+}
+@keyframes animSnapCrack {
+    0%   { opacity: 1; transform: rotate(var(--angle)) scaleX(1); }
+    30%  { opacity: 1; transform: rotate(var(--angle)) scaleX(1); }
+    55%  { opacity: 0.8; transform: rotate(var(--angle)) scaleX(0.4) translateX(-15px); }
+    70%  { opacity: 0.6; transform: rotate(var(--angle)) scaleX(0.3) translateX(25px); }
+    100% { opacity: 0; transform: rotate(var(--angle)) scaleX(0) translateX(40px); }
+}
+
+/* --- 多段闪烁: 12/18 连击用，JS 创建多个 .skill-line 并错开 animation-delay --- */
+.skill-line.multi {
+    animation: animMultiStrike var(--dur, 0.8s) ease-out forwards;
+    animation-delay: var(--delay, 0s);
+}
+@keyframes animMultiStrike {
+    0%   { opacity: 0; transform: rotate(var(--angle)) scaleX(0); }
+    10%  { opacity: 1; transform: rotate(var(--angle)) scaleX(1.0); }
+    20%  { opacity: 0; transform: rotate(var(--angle)) scaleX(1.0); }
+    100% { opacity: 0; transform: rotate(var(--angle)) scaleX(1.0); }
+}
+
+/* --- 弧形刀光（v0.294 十二连·剑斩邪祟）：新月形光刃沿闪现方位挥斩，劈出后停留留痕，砍完统一淡出 --- */
+/* v0.297 直线斩击光带（废墟图书馆/边狱巴士式斩击线）：
+   SVG 直线双层 stroke（金色刀光带 + 白芯亮刃口），stroke-dash 从线一端划到另一端（刀光斩过轨迹）。
+   （用户否决圆弧方案：v0.296 弧形光带「别用圆做圆弧」、v0.295 mask 月牙渲染不可见、v0.294 border 圆环粗弯钩——斩击光痕是直线斜劈） */
+.skill-slash {
+    position: absolute; pointer-events: none; z-index: 9;
+    overflow: visible;   /* 光晕不被 svg 视口裁掉 */
+    transform-origin: center;
+    filter: drop-shadow(0 0 5px var(--color, #f9ca24)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.4));
+    animation: animBladeSwing 0.35s ease-out forwards;   /* 整线旋转扫动 + 生长 + 亮闪 */
+}
+.skill-slash path {
+    animation: animBladeStroke 0.35s ease-out forwards;  /* 直线从一端划到另一端（挥斩轨迹） */
+}
+.skill-slash.fade { opacity: 0 !important; transition: opacity 0.3s ease-out; }   /* v0.293：砍完统一淡出 */
+.skill-slash.instant { animation-duration: 0.18s; }   /* v0.300 亮剑「凭空出现」：不做生长划出，只快速亮闪现形 */
+.skill-slash.instant path { animation: none; }       /* dashoffset 已为 0，去掉划出动画 */
+
+/* --- 剑气（v0.302 剑气迸进）：圆弧形月牙光刃（蓝刃白芯双层 SVG stroke），JS 逐帧驱动 transform ---
+   v0.302 剑气本身为圆弧（用户指定；弹道为直线高加速）：transform = translate(加速位移x, 0)，
+   朝左飞时附加 scale(-1,1) 镜像（弧背始终朝飞行方向）；setInterval 16ms 运动学更新（rAF 在 headless 下不保证执行） */
+.sword-wave {
+    position: absolute; pointer-events: none; z-index: 9;
+    overflow: visible;   /* 光晕不被 svg 视口裁掉 */
+    filter: drop-shadow(0 0 6px var(--color, #3498db)) drop-shadow(0 0 14px rgba(255, 255, 255, 0.5));
+    will-change: transform;
+}
+.sword-wave.fade { opacity: 0; transition: opacity 0.25s ease-out; }
+@keyframes animBladeSwing {
+    0%   { transform: rotate(calc(var(--angle) - 24deg)) scale(0.5); opacity: 0; filter: brightness(3) drop-shadow(0 0 6px var(--color, #f9ca24)) drop-shadow(0 0 14px rgba(255, 255, 255, 0.5)); }
+    35%  { opacity: 1; filter: brightness(2) drop-shadow(0 0 8px var(--color, #f9ca24)) drop-shadow(0 0 16px rgba(255, 255, 255, 0.45)); }
+    65%  { transform: rotate(var(--angle)) scale(1); filter: brightness(1.15) drop-shadow(0 0 6px var(--color, #f9ca24)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.4)); }
+    100% { transform: rotate(var(--angle)) scale(1); opacity: var(--opacity, 0.85); filter: brightness(1) drop-shadow(0 0 5px var(--color, #f9ca24)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)); }
+}
+@keyframes animBladeStroke {
+    0%   { stroke-dashoffset: 84; }
+    100% { stroke-dashoffset: 0; }
+}
+
+/* --- 冲击波/光环/雾气 圆形覆盖层（v0.291 加大加亮） --- */
+.skill-circle {
+    position: absolute; pointer-events: none; z-index: 9;
+    width: var(--size, 60px); height: var(--size, 60px);
+    border-radius: 50%;
+    background: var(--fill, transparent);
+    border: var(--border, 2px solid var(--color));
+    box-shadow: 0 0 var(--glow, 10px) var(--color), 0 0 calc(var(--glow, 10px) * 2.5) rgba(255, 255, 255, 0.25);
+    transform: translate(-50%, -50%);
+}
+.skill-circle.burst { animation: animImpactBurst var(--dur, 0.5s) ease-out forwards; }
+.skill-circle.aura  { animation: animAuraPulse  var(--dur, 0.6s) ease-out forwards; }
+.skill-circle.gas   { animation: animGasCloud   var(--dur, 0.8s) ease-out forwards; }
+
+@keyframes animImpactBurst {
+    0%   { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+}
+@keyframes animAuraPulse {
+    0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 0.9; }
+    100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+}
+@keyframes animGasCloud {
+    0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0.7; filter: blur(2px); }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; filter: blur(10px); }
+}
+
+/* --- 粒子（emoji 文字飘散） --- */
+.skill-particle {
+    position: absolute; pointer-events: none; z-index: 10;
+    font-size: 1.3em; line-height: 1;
+    animation: animParticle var(--dur, 0.6s) ease-out forwards;
+}
+@keyframes animParticle {
+    0%   { transform: translate(0, 0) scale(0.3); opacity: 1; }
+    30%  { transform: translate(calc(var(--dx) * 0.4), calc(var(--dy) * 0.4)) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+}
+
+/* --- 速度线（开创冲刺用） --- */
+.skill-streak {
+    position: absolute; pointer-events: none; z-index: 8;
+    width: var(--len, 40px); height: 2px;
+    background: var(--color);
+    border-radius: 1px;
+    animation: animSpeedStreak var(--dur, 0.4s) ease-out forwards;
+}
+@keyframes animSpeedStreak {
+    0%   { opacity: 0; transform: translateX(0); }
+    30%  { opacity: 1; transform: translateX(calc(var(--len) * -0.5)); }
+    100% { opacity: 0; transform: translateX(calc(var(--len) * -2.0)); }
+}
+
+/* --- 枪口闪光 --- */
+.skill-dot {
+    position: absolute; pointer-events: none; z-index: 10;
+    width: var(--size, 12px); height: var(--size, 12px);
+    border-radius: 50%;
+    background: var(--color);
+    box-shadow: 0 0 var(--glow, 8px) var(--color);
+    transform: translate(-50%, -50%);
+    animation: animMuzzleFlash var(--dur, 0.25s) ease-out forwards;
+}
+@keyframes animMuzzleFlash {
+    0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+    35%  { transform: translate(-50%, -50%) scale(2.0); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(3.0); opacity: 0; }
+}
 
 .bottom-panel {
     width: 100%; background: #16213e; border-radius: 12px; padding: 12px;
@@ -141,8 +403,10 @@ body {
 .skill-btn {
     background: #0f3460; border: none; color: white;
     padding: 8px 14px; border-radius: 20px; cursor: pointer; font-size: 0.9em;
+    transition: transform 0.12s, background 0.15s;
 }
-.skill-btn:hover:not(:disabled) { background: #e94560; }
+.skill-btn:hover:not(:disabled) { background: #e94560; transform: translateY(-2px); }
+.skill-btn:active:not(:disabled) { transform: scale(0.94); }
 .skill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .target-hint { margin-top: 8px; color: #f9ca24; }
 .log {
@@ -276,6 +540,19 @@ body {
     font-size: 0.9em;
 }
 
+/* === 词条高亮（可点击弹出解释） === */
+.glossary-term {
+    color: #f9ca24;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    border-bottom: none;
+}
+.glossary-term:hover {
+    background: rgba(249, 202, 36, 0.15);
+    border-radius: 2px;
+}
+
 /* === 选角详情预览 === */
 .role-detail {
     background: #16213e;
@@ -335,6 +612,12 @@ body {
     margin-top: 2px;
     line-height: 1.5;
 }
+.rd-skill-effect {
+    color: #f9ca24;
+    font-size: 0.8em;
+    margin-top: 3px;
+    line-height: 1.5;
+}
 .rd-passive {
     background: #0f3460;
     border-radius: 6px;
@@ -344,3 +627,22 @@ body {
     color: #ccc;
     border-left: 3px solid #f9ca24;
 }
+
+/* ==================== v0.308 音效开关按钮 ==================== */
+#sfxToggleBtn {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 9999;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 2px solid #f9ca24;
+    background: rgba(15, 52, 96, 0.9);
+    color: #f9ca24;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s;
+}
+#sfxToggleBtn:hover { transform: scale(1.12); }
