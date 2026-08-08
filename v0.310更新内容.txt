@@ -1,0 +1,75 @@
+v0.310 更新内容：新手教程关（教学引导 + 训练木偶演示防御/破防）+ 角色解锁系统（初始仅三模板，通关鲁盼旋篇解锁）
+
+用户需求：「加一个新手教程关」（已确认：前半段强制引导教学、后半段自由练习；教学内容 = 选角站位/技能算力/目标选择/防御机制；教程敌人 = 训练木偶，两个技能分别演示普通防御与破防；初始我方仅三模板、通关鲁盼旋篇 4 关后解锁「鲁盼旋」；版本号 v0.310）
+
+## 改动
+
+**关卡结构（index.html + charSelect.js + battleFlow.js）**：
+1. 关卡列表最顶部新增「🎓 新手教程」卡片（selectLevel(-2)，测试关之前）
+2. LEVEL_INFO 追加教程关条目（索引 5），selectLevel 索引映射扩展为 -2 取 5
+3. startBattle 新增 -2 分支：敌方 = 训练木偶 ×1（无待命）
+
+**训练木偶 NPC（Roles.js）**：
+- createTrainingDummy：HP1500、防0、速[1,1]、SP 500+200/回；两个技能：
+  - 【普通示范】无 special → 正常走防御减免（玩家模板一防 200，伤害被显著减免）
+  - 【破防示范】special ignoreDef 9999 → 目标防御临时归 0，无视防御直接命中
+- AI 固定循环「普通示范 → 破防示范」，保证两回合分别看到被减免/被破防
+- createRoleInstance 注册；charSelect 详情预览防0/速1条目
+
+**教学引导状态机（js/tutorial.js 新建 + 各钩子）**：
+- 全局 Tutorial 对象：active/step/begin/advance/show/highlight/hide/end；8 步教学序列
+- 弹窗「右上角气泡」（#tutorialOverlay，遮罩 pointer-events:none 不拦截背后操作；强制步骤做对应操作才推进，⑦防御机制/⑧自由练习可手动关闭）
+- `.tutorial-highlight` 高亮目标（黄色描边 + 光晕）
+- 步骤：①选角（onSlotsChange 模块钩子）→ ②确认出战 → ③开始回合 → ④选技能 → ⑤选目标 → ⑥确认行动 → ⑦防御机制（敌方出手）→ ⑧自由练习（解除强制）
+- 教程关隐藏「跳过本回合」按钮，教学流程天然强制（未选技能无法选目标、未选目标确认按钮校验）
+
+**角色解锁系统（globals.js + charSelect.js + battleUI.js）**：
+- AVAILABLE_CHARS 初始仅三模板；getAvailableChars() 读 localStorage pwgame_cleared（JSON 数组），含 3（鲁盼旋篇 Boss）时解锁鲁盼旋
+- charSelect rosterSource 改为 getAvailableChars()（现读现取）
+- showResultPage 胜利分支：level >= 0 时把当前关卡写入 pwgame_cleared（测试关 -1 / 教程关 -2 不记录）
+- 仅我方选角受限；敌方测试关 AVAILABLE_ENEMIES 仍全部 15 角色（含训练木偶不可选）
+
+## 验证
+
+- 新增 verify-v310-tutorial.js（28 项）：
+  - 清空记录后初始我方仅三模板；选关页顶部第一个 = 新手教程；教程关介绍页 + 敌方卡训练木偶
+  - 教学逐步推进：选角页弹窗① → 选模板一推进② → 确认出战进入战斗（level -2、敌方训练木偶、③开始回合）→ ④选技能 → ⑤选目标 → ⑥确认 → ⑦防御机制 → ⑧自由练习 + Tutorial.active=false
+  - 破防验证：木偶【普通示范】打模板一(防200) 实际伤害 100，【破防示范】无视防御 300
+  - 解锁验证：模拟通关后 getAvailableChars 含鲁盼旋
+  - 全量通过，无回归
+- 回归 verify-v309.js（17 项，更新布局断言：新手教程 → 测试关 → 鲁盼旋篇 → 第一关）、verify-v309-passive.js（6 项）、verify-v309-settings.js（40 项）全部通过（开头各加一步模拟解锁鲁盼旋 + 点测试关改为按文案定位）
+
+## 备注
+
+- 教学强制不依赖额外拦截代码：战斗流程天然强制（未选技能无法选目标、未选目标确认按钮 alert 校验、敌方回合不可干预），教学只需在对应钩子推进弹窗步骤
+- 教程关再战（restartBattle）不会重播教学：首次走完步骤⑧后 Tutorial.active 已解除；中途失败再来一局会从当前步骤继续
+- 训练木偶仅用于教程关敌方，不进入测试关自选列表（避免污染自由测试）
+
+## 更新（教程 1 槽选角 + 三模板定位介绍）
+
+- 教程关选角改为只占 **1 个出战位**（selection.js 的 createSelectionModule 新增 setSlotCount 动态槽数，charSelect confirmLevel 教程关置 1、其余关卡置 3；startBattle -2 分支木偶位置随 playerChars.length 自动适配，无需改）
+- 教学步骤①文案改为同时介绍三个模板定位 + 说明只需选 1 名：模板一【均衡】中速中防伤害稳定递增 / 模板二【高速远程】全场最快(速4~7)多段连击、较脆(防100) / 模板三【近战爆发】防御最高(防300)高耗高伤、贴身距离1
+- 教程关介绍页 intro 补「只需选择 1 名角色出战」
+- 验证：verify-v310-tutorial.js 新增断言（教程出战槽=1、弹窗含三模板定位、战斗页我方仅 1 名）共 30 项全过；v0.309 三脚本回归全过（settings 确认我方选角仍 3 槽，未被教程 1 槽影响）
+
+## 更新（跳过回合 = 教学步骤⑧）
+
+- 「跳过本回合」不再整关隐藏，而是**成为教学步骤之一**：教学序列扩为 9 步，⑦防御机制后插入 **⑧跳过回合**（弹窗引导点【⏭ 跳过本回合】试一次），⑨自由练习
+- 跳过按钮显示逻辑：强制教学阶段（④⑤⑥⑦）隐藏、步骤⑧起显示、⑨自由练习起可正常跳过；点跳过在⑧阶段自动推进教学（battleActions.js 跳过按钮 onclick 钩子）
+- startNewRound 每回合刷新⑧弹窗+高亮（行动面板按回合重建，startNewRound 中 step==='skip-turn' 时 Tutorial.showCurrent()）
+- 验证：verify-v310-tutorial.js 更新流程（⑦→⑧跳过回合→下一回合开始→点跳过→⑨自由）共 33 项全过；v0.309 三脚本回归全过（非教程关 showSkip 恒 true，不受影响）
+
+## 更新（我方 AI 智能决策）
+
+- 把 play.js 的数值规划逻辑移植为游戏内 `decidePlayerAI(actor)`（battleActions.js），驱动**所有 aiControlled 的我方角色**（倒戈李雅礼、未来第四关锁定鲁盼旋）
+- 决策内容：期望伤害评估（硬币均分·50%命中·扣防御·燃烧折算）+ 减伤墙最后处理（场上有非减伤墙敌人时先不打云长郡）+ SP 攒大招前瞻（跳过攒大明显更优则跳）+ 目标取期望最高者（不超过硬币数）
+- 接入点：enemyTurn 开头加 `team==='player' && aiControlled` 分支走 decidePlayerAI；predictIntent 同分支，保证**意图预判与实际行动一致**（同一确定性函数、无随机）
+- 敌方 AI（aiCycle 循环/算力降序）保持不变；与 play.js 的差异：去掉 argv 优先/保护名单（脚本参数，游戏内无此概念）
+- 验证：新增 verify-v310-ai.js（10 项）——期望最高技能选择、射程外返回 null、减伤墙最后处理、SP 攒大招前瞻、predictIntent 一致、李雅礼倒戈端到端；全过
+- 回归：v310-tutorial（33 项）+ v0.309 三脚本全过
+
+## 修复（用户反馈）
+
+- 教程文本无法完全显示：教学弹窗容器 340px 但内部 .buff-popup 继承固定 380px，溢出视口右侧截断文本 → #tutorialOverlay .buff-popup 覆盖 width:100% 适配容器
+- 退出教程关后弹窗残留：showPage 只切 .page 不动弹窗 → showPage 中切离教程流程页（选角/战斗）时 Tutorial.end() 清理
+- 木偶血量太低易被秒杀：HP 1500 → 4000（模板一/三最大一击 1600/1700 打不死），保证至少撑到第二回合「破防示范」演示

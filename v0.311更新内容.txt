@@ -1,0 +1,33 @@
+v0.311 更新内容：鲁盼旋篇收纳版块 + 逐关解锁 + 第四关锁定鲁盼旋 AI 出战 + 待命补位
+
+用户需求：「把鲁盼旋篇做成一个可以收纳的版块，并且每通过一关解锁下一关。第四关锁定鲁盼旋（由ai脚本操控）在一号位，同时开放一个待命」（已确认：第四关 = 上场3 + 待命1；收纳默认收起；未解锁灰色锁定卡 + 点击提示）
+
+## 改动
+
+**鲁盼旋篇收纳版块（index.html + charSelect.js + style.css）**：
+1. 关卡列表新增 `#luSectionTitle`（点击可收起/展开）+ `#luSectionBody` 容器（内藏 4 张正式关卡卡）
+2. 默认收起（`display:none`），标题显示 ▸ / ▾ 切换箭头；`toggleLuSection()` 切换
+3. 正式关卡卡新增 id `levelCard0`~`levelCard3`；style.css 新增 `.level-section-title` 可点击样式
+
+**逐关解锁（charSelect.js + ui.js）**：
+- `isLevelUnlocked(n)`：第一关（0）恒解锁，其余需 `pwgame_cleared` 含上一关；`updateLevelLocks()` 进入关卡选择页时刷新（showPage 钩子）
+- 未解锁：`.level-locked` 灰色半透明 + 标题带 🔒 + 点击 alert「通关上一关后解锁本关！」；已通关关卡标题标 ✅
+- 复用现有 `pwgame_cleared`（胜利写入逻辑不变）；鲁盼旋解锁仍由通关第四关（含 3）控制
+
+**第四关锁定鲁盼旋 AI + 待命（selection.js + charSelect.js + battleFlow.js）**：
+- selection.js `createSelectionModule` 新增 `setSlotGroups`（分组：出战3 + 待命1）与 `setLockedSlot`（锁定槽：预填、不可移除不可覆盖、🔒 渲染、点击拦截）
+- charSelect.js `confirmLevel`：第四关 → 出战3 + 待命1 分组，1 号槽锁定鲁盼旋（AI 操控）；其余关卡恢复单组 3 槽
+- battleFlow.js `startBattle`：第四关时第 4 槽（待命）入 `battleState.benchPlayer`（死亡后经 queueBenchEntry 自动补位，与敌方待命共用机制），1 号位鲁盼旋设 `aiControlled = true`（走 v0.310 的 decidePlayerAI 智能决策）
+- 战斗开始日志新增「🛡️ 我方待命区：…（阵亡后入场补位）」
+- 第四关介绍页 intro 补「鲁盼旋将与你们并肩作战（锁定 1 号位，由 AI 操控），再选 2 名上场 + 1 名待命」
+
+## 验证
+
+- 新增 verify-v311.js（25 项）：收纳默认收起/展开/收起、标题箭头切换；逐关解锁（初始仅第一关开放，通关第一关解锁第二关、✅ 标记、锁定卡点击 alert 提示、通关 0~2 解锁第四关）；第四关流程（4 槽分组出战3+待命1、1 号槽 🔒 鲁盼旋不可移除、玩家选 2 上场 + 1 待命、战斗出场 3 人 + 待命区 1 人 + 鲁盼旋 aiControlled、意图预判与智能决策一致）——全过
+- 回归：verify-v309（17 项，适配收起展开 + 布局断言改为第一关在收纳版块内 + 第四关选角改为出战第 2 槽）、verify-v309-passive（6 项）、verify-v309-settings（40 项）、verify-v310-tutorial（33 项）、verify-v310-ai（10 项，适配解锁前置 + 展开）全部通过
+
+## 备注
+
+- 第四关剧情：鲁盼旋作为 AI 队友与你并肩作战（1 号位锁定），通关后解锁鲁盼旋供自选操控——锁定槽预填不依赖玩家已在 roster 解锁她
+- 我方待命复用敌方 bench 机制：`queueBenchEntry(team)` 死亡时从 bench 取最靠前者，`pendingEntry` 标记下一回合入场（入口动画由 renderCharacters 消费）
+- 回归脚本间 localStorage 共享：verify-v311 设一步式、其余回归脚本固定 two-step 并各自动态展开鲁盼旋篇，避免相互干扰

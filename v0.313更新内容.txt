@@ -1,0 +1,44 @@
+v0.313 更新内容：每回合自动存档 + 战斗中一键读档回本回合开始 + 刷新后续战
+
+用户需求：战斗存档机制。经确认采用「自动存档 + 读档」方案：每回合开始自动存一次，战斗中可一键读档回到本回合开始，刷新页面后可继续战斗。
+
+## 改动
+
+**回合开始自动存档（battleFlow.js）**：
+- 新增 `saveAutoBattle()`：在 `startNewRound` 的回合初始化完成后、行动开始前（`processNextAction()` 前）同步写入 localStorage `pwgame_battle_save`，含关卡、回合数、总阵亡数、召唤池、敌我全部队伍（出场 + 待命）、globalId
+- `serializeChar()`：角色 → 可 JSON 快照（hp/sp/speed/speedMin/speedMax/def/buffs/order/position/aiControlled/aiCycle/aiIndex/defector/hateReduction/pendingEntry/entryAnim/intentSkill/dotDamageMap/伤害统计/actedThisTurn 等）；怨灵额外记 `_wraithType` 标记（Roles.js 的 `createPoliceWraith` 新增字段），读档时经 `createPoliceWraith` 重建（保留 HP 减半）
+- 第 1 回合开始（turnCount>=1）才存档；战斗开始但未开回合时无存档
+
+**读档（battleFlow.js）**：
+- `loadAutoBattle()`：重建角色实例（普通角色走 `createRoleInstance`、怨灵走 `createPoliceWraith`）→ 覆盖快照字段 → 恢复召唤池/回合数/总阵亡数/globalId → `buildActionQueue()` 按存档速度重建行动队列 → `processNextAction()` 从本回合开始继续
+- `buildActionQueue()`：从 startNewRound 抽出的速度排序逻辑，startNewRound 与读档共用，保证行动顺序一致
+- 战斗中「↩️ 读档」按钮（`#loadSaveBtn`，战斗页头部，存档存在时显示）调 `loadSaveFromBattle()`（confirm 确认后回到本回合开始）
+- 标题页「▶️ 继续战斗」按钮（`#continueBtn`，有存档时显示）调 `continueBattle()`，刷新/重开后恢复未完成战斗
+
+**异步推进的纪元防护（battleFlow.js + battleActions.js）**：
+- 新增 `battleEpoch` 全局计数：`startBattle`/`startCustomBattle`/`backToTitle`/`loadAutoBattle` 时递增
+- `scheduleProcessNext(delay)`：替代 battleActions.js 中 7 处行动推进 `setTimeout`（玩家自动跳过、executePlayerAction 后、敌方行动后），回调内校验纪元，读档/重开后的旧回调一律丢弃；敌方行动外层 900ms 延迟也加 epoch 检查——读档瞬间的挂起动画/行动不会污染新状态
+- 读档后旧 DOM 上的确认/取消/跳过按钮随 `innerHTML` 重建自然失效，无需额外处理
+
+**战斗结束清档（battleUI.js）**：
+- `showResultPage` 开头 `clearBattleSave()`：战斗有结果（胜/负）即清除自动存档，主界面不再显示「继续战斗」，战斗中「读档」按钮隐藏
+
+## 验证
+
+- 新增 verify-v313.js（21 项）：纪元丢弃单元（旧纪元回调丢弃、新纪元执行）、怨灵序列化标记（kind=wraith + _wraithType）、端到端「进第一关→开始回合→自动存档」（存档含敌我队伍与完整字段 + 读档按钮显示）、「打伤→读档→HP 恢复快照一致 + 行动队列重建 + 日志已读档」、刷新后续战（标题页 continueBtn 出现→点击→恢复战斗页与回合显示）、战斗结束清档（结算后存档清除 + 刷新不再显示继续）、怨灵经读档完整重建（第四关召唤场景：类型/存活/减半HP/AI 鲁盼旋/云长郡属性/召唤池数量）——全过
+- 回归：verify-v312（15）、verify-v311（25）、verify-v310-tutorial（33）、verify-v310-ai（10）、verify-v309（17）、v309-passive（6）、v309-settings（40）全部通过
+
+## 备注
+
+- 存档点选在「回合开始、行动开始前」的同步点（无挂起的 setTimeout），读档即精确回到该时点；速度已在回合开始随机定死并存入快照，重建排序稳定
+- `currentSelectedTargets`（Set）在存档点为空，无需序列化
+- localStorage 不可用（file:// / 隐私模式）时静默跳过存档，不影响游玩
+- 教程关/测试关同样走自动存档（属同一条战斗流程）
+
+## Bug 修复：读档后角色 id 冲突（点击怨灵卡弹错详情 + 无法选中）
+
+**现象**（第四关）：读档/刷新续战后继续打，云长郡再次召唤怨灵，使用技能点击警察怨灵时弹出的是**鲁盼旋的被动详情**，且怨灵无法被技能选中。
+
+**根因**（battleFlow.js loadAutoBattle）：读档重建角色时 `globalId` 沿用当前较大的值分配新 id，重建完成后却 `globalId = data.globalId`（存档时的较小值）——下次创建角色（再召唤怨灵等）分配到的 id 会撞上重建角色的 id。卡片点击走 `findCharacterById(cardId)`（battleUI.js），id 冲突时返回第一个匹配 → 解析成重建的玩家角色（如鲁盼旋）→ 该角色 team='player'，既跳进 `showSkillInfo` 弹错详情，又不满足「enemy + selectable」而无法选中。
+
+**修复**：读档重建前 `globalId = 0`，重建全部角色（出场+待命）从 0 连续分配，重建完成后 `globalId` = 全部重建角色数；移除「恢复存档 globalId」的逻辑。验证：verify-v313.js 新增测试 H（构造存档时 globalId 与当前一致的最易冲突场景 → 读档 → 再召唤 → 断言 id 全唯一 + findCharacterById 返回正确怨灵），23 项全过。

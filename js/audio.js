@@ -1,7 +1,12 @@
 // audio.js（v0.308）——Web Audio API 合成音效库（零音频文件、零版权问题）
-// 用法：Sfx.play('hit')；静音开关 Sfx.toggle()；每次播放记录到 Sfx._log（headless 验证探针）
+// 用法：Sfx.play('hit')；静音开关 Sfx.toggle()（v0.309：开关移入设置弹窗，状态持久化）；每次播放记录到 Sfx._log（headless 验证探针）
 // 浏览器自动播放策略：AudioContext 在首次用户交互后才可靠出声——
 // 所有合成调用包 try/catch，静音或不可用时静默跳过，不影响游戏逻辑
+
+// 静音初始状态：读 localStorage（file:// 或隐私模式异常兜底为有声）
+function sfxLoadMuted() {
+    try { return localStorage.getItem('pwgame_sfx_muted') === '1'; } catch (e) { return false; }
+}
 
 // ==================== 合成工具 ====================
 
@@ -94,9 +99,8 @@ const AURA_SFX_BY_SKILL = { 加油: 'buffUp', 刹车: 'buffDown', 持盾格挡: 
 
 const Sfx = {
     ctx: null,
-    muted: false,
+    muted: sfxLoadMuted(),    // v0.309：静音状态持久化（localStorage）
     _log: [],                 // 播放记录（headless 验证探针，顺带调试）
-    _btn: null,               // 静音开关按钮元素
 
     // 懒创建 AudioContext（首次真实播放时）；浏览器策略下需用户交互后才有声
     ensureCtx() {
@@ -133,33 +137,16 @@ const Sfx = {
         if (name) this.play(name);
     },
 
-    // 静音开关（按钮复用：真静音→🔇，有声→🔊）
+    // 静音开关（v0.309：开关移入设置弹窗，由 toggleSfx() 调用；状态持久化）
     toggle() {
         this.muted = !this.muted;
-        if (this._btn) this._btn.textContent = this.muted ? '🔇' : '🔊';
+        try { localStorage.setItem('pwgame_sfx_muted', this.muted ? '1' : '0'); } catch (e) { /* 同前兜底 */ }
         if (!this.muted) this.play('buffUp');   // 打开时给个反馈音
         return this.muted;
-    },
-
-    // 挂接悬浮静音按钮（body 级，所有页面可见）
-    mount() {
-        if (document.getElementById('sfxToggleBtn')) return;
-        const btn = document.createElement('button');
-        btn.id = 'sfxToggleBtn';
-        btn.textContent = '🔊';
-        btn.title = '音效开关';
-        btn.onclick = () => Sfx.toggle();
-        document.body.appendChild(btn);
-        this._btn = btn;
     }
 };
 
 if (typeof window !== 'undefined') {
     window.Sfx = Sfx;
     window.SFX_TABLE = SFX_TABLE;   // 暴露给验证脚本（顶层 const 不挂 window）
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => Sfx.mount());
-    } else {
-        Sfx.mount();
-    }
 }

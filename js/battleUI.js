@@ -172,6 +172,8 @@ function renderCharacters() {
                 } else {
                     battleState.currentSelectedTargets.add(c);
                     this.style.borderColor = '#f9ca24';
+                    // v0.310：教程关首次选目标 → 推进教学步骤⑤→⑥
+                    if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'pick-target') Tutorial.advance('pick-target');
                 }
                 return;
             }
@@ -234,9 +236,27 @@ function updateTurnDisplay() {
 }
 
 function showResultPage(result) {
+    clearBattleSave();   // v0.313：战斗结束清除自动存档（返回主界面不再显示「继续战斗」）
     let html = `<div class="game-over" style="font-size:1.5em;margin-bottom:15px;">战斗${result}！</div>`;
     // 胜利时检测倒戈单位（李雅礼）是否存活
     if (result === '胜利') {
+        // v0.310：通关正式关卡写入 localStorage（level>=0；测试关 -1 / 教程关 -2 不记录）
+        if (battleState.currentLevel >= 0) {
+            try {
+                const arr = JSON.parse(localStorage.getItem('pwgame_cleared') || '[]');
+                if (Array.isArray(arr) && !arr.includes(battleState.currentLevel)) {
+                    arr.push(battleState.currentLevel);
+                    localStorage.setItem('pwgame_cleared', JSON.stringify(arr));
+                }
+            } catch (e) {}
+            addStar(battleState.currentLevel, 'base');   // v0.316：基础胜利 ⭐+1（去重）
+        }
+        // v0.314：特殊胜利达成 → 金色成就横幅（额外成就，不改变基础胜利/解锁）
+        if (battleState.specialState.achieved) {
+            html += `<div style="margin-bottom:12px;background:#f9ca24;color:#222;border-radius:8px;padding:12px 14px;font-weight:bold;text-align:center;font-size:1.15em;box-shadow:0 0 12px rgba(249,202,36,0.5);">
+                ✨ 特殊胜利达成！本关特殊胜利条件已满足
+            </div>`;
+        }
         const yali = battleState.playerTeam.find(c => c.defector);
         if (yali) {
             html += `<div style="margin-bottom:12px;background:#16213e;border:2px solid ${yali.alive ? '#2ecc71' : '#e74c3c'};border-radius:8px;padding:10px 14px;color:${yali.alive ? '#2ecc71' : '#e74c3c'};font-weight:bold;">
@@ -298,6 +318,13 @@ function showResultPage(result) {
             ${battleLog.map(msg => `<p style="margin:1px 0;">${msg}</p>`).join('')}
         </div>
     </div>`;
+
+    // v0.312：胜利且非最后一关 → 提供「下一关」入口
+    if (result === '胜利' && battleState.currentLevel >= 0 && battleState.currentLevel < 3) {
+        html += `<div class="control-buttons" style="margin-top:15px;">
+            <button class="btn-main" onclick="nextLevel()" style="background:#f9ca24;color:#222;">➡️ 下一关</button>
+        </div>`;
+    }
 
     document.getElementById('resultContent').innerHTML = html;
     showPage('pageResult');

@@ -11,34 +11,46 @@
     <div id="pageTitle" class="page active">
         <h1>某科学的书生学院</h1>
         <div class="sub">回合制策略对决</div>
-        <button class="btn-main" onclick="showPage('pageLevel')">开始游戏</button>
+        <div class="control-buttons" style="margin-top:15px;">
+            <button class="btn-main" onclick="showPage('pageLevel')">开始游戏</button>
+        </div>
+        <div class="control-buttons" style="margin-top:10px;">
+            <button class="btn-main" id="continueBtn" onclick="continueBattle()" style="display:none;background:#f9ca24;color:#222;">▶️ 继续战斗</button>
+        </div>
     </div>
 
     <div id="pageLevel" class="page">
         <h2>选择关卡</h2>
-        <div class="level-card" onclick="selectLevel(0)">
-            <h3>关卡0 · 测试场</h3>
-            <div class="enemy-preview">敌方配置：纸糊稻草人×1 铁皮稻草人×1 标准稻草人×1</div>
+        <!-- 新手教程（最顶部） -->
+        <div class="level-card" onclick="selectLevel(-2)" style="border-color:#2ecc71;">
+            <h3 style="color:#2ecc71;">🎓 新手教程</h3>
+            <div class="enemy-preview">引导选角站位、技能算力、目标选择与防御机制</div>
         </div>
-        <div class="level-card" onclick="selectLevel(1)" style="margin-top:12px;">
-            <h3>第一关</h3>
-            <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1</div>
-        </div>
-        <div class="level-card" onclick="selectLevel(2)" style="margin-top:12px; border-color:#e74c3c;">
-            <h3 style="color:#e74c3c;">第二关</h3>
-            <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1＋开车警察待命</div>
-        </div>
-        <div class="level-card" onclick="selectLevel(3)" style="margin-top:12px; border-color:#8e44ad;">
-            <h3 style="color:#8e44ad;">第三关</h3>
-            <div class="enemy-preview">敌方配置：李雅礼×1 持枪警察×2＋开车警察待命</div>
-        </div>
-        <div class="level-card" onclick="selectLevel(4)" style="margin-top:12px; border-color:#c0392b;">
-            <h3 style="color:#c0392b;">☠️ 第四关 · Boss</h3>
-            <div class="enemy-preview">敌方配置：云长郡×1（亡灵怨恨）</div>
-        </div>
+        <!-- 测试关（置顶，左上角） -->
         <div class="level-card" onclick="selectLevel(-1)" style="margin-top:12px; border-color:#f9ca24;">
-            <h3 style="color:#f9ca24;">🎯 自选敌人测试</h3>
-            <div class="enemy-preview">自由搭配敌人阵容，测试技能效果</div>
+            <h3 style="color:#f9ca24;">🎯 测试关 · 自选任意角色</h3>
+            <div class="enemy-preview">自由搭配全部角色（含我方角色），测试技能效果</div>
+        </div>
+        <!-- 鲁盼旋篇（v0.311：可收纳版块，默认收起；逐关解锁，未解锁灰色锁定；v0.316：⭐星数 + 解锁入口） -->
+        <div class="level-section-title" id="luSectionTitle" onclick="toggleLuSection()">📖 鲁盼旋篇 ▸</div>
+        <div id="luSectionBody" style="display:none;">
+            <div id="luUnlockArea"></div>
+            <div class="level-card" id="levelCard0" style="margin-top:8px;">
+                <h3>第一关</h3>
+                <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1</div>
+            </div>
+            <div class="level-card" id="levelCard1" style="margin-top:12px; border-color:#e74c3c;">
+                <h3 style="color:#e74c3c;">第二关</h3>
+                <div class="enemy-preview">敌方配置：持盾警察×1 持棍警察×1 持枪警察×1＋开车警察待命</div>
+            </div>
+            <div class="level-card" id="levelCard2" style="margin-top:12px; border-color:#8e44ad;">
+                <h3 style="color:#8e44ad;">第三关</h3>
+                <div class="enemy-preview">敌方配置：李雅礼×1 持枪警察×2＋开车警察待命</div>
+            </div>
+            <div class="level-card" id="levelCard3" style="margin-top:12px; border-color:#c0392b;">
+                <h3 style="color:#c0392b;">☠️ 第四关 · Boss</h3>
+                <div class="enemy-preview">敌方配置：云长郡×1（亡灵怨恨）</div>
+            </div>
         </div>
         <button class="btn-main" style="background:#555; margin-top:15px;" onclick="showPage('pageTitle')">返回</button>
     </div>
@@ -58,7 +70,7 @@
 
     <div id="pageSelectChar" class="page">
         <h2>选择出战角色与站位</h2>
-        <p style="color:#aaa;">先点空格标记位置，或先点角色再点空格填充</p>
+        <p id="charModeHint" style="color:#aaa;">两步式：先点空格标记位置，或先点角色卡待选，再点空格填充</p>
         <div class="char-slots" id="charSlots"></div>
         <div class="char-roster" id="charRoster"></div>
         <div id="roleDetailPanel" class="role-detail" style="display:none;">
@@ -73,7 +85,7 @@
 
     <div id="pageSelectEnemy" class="page">
         <h2>自选敌人 — 选择敌方阵容</h2>
-        <p style="color:#aaa;">点击空格选敌，点击已选角色移除</p>
+        <p id="enemyModeHint" style="color:#aaa;">两步式：先点空格标记位置，或先点敌方卡待选，再点空格填充</p>
         <div class="char-slots" id="enemySlots"></div>
         <div class="char-roster" id="enemyRoster"></div>
         <div id="enemyDetailPanel" class="role-detail" style="display:none;">
@@ -89,8 +101,10 @@
     <div id="pageBattle" class="page">
         <div class="battle-header">
             <h2>⚔️ 战斗</h2>
-            <div class="win-condition">🏆 胜利条件：击败敌方全部角色</div>
+            <div class="win-condition" id="winCondition">🏆 胜利条件：击败敌方全部角色</div>
             <div class="turn-info" id="turnDisplay">第 1 回合</div>
+            <button id="loadSaveBtn" onclick="loadSaveFromBattle()" style="display:none;background:#555;color:#eee;border:1px solid #666;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;" title="回到最近回合开始">↩️ 读档</button>
+            <button onclick="exitBattle()" style="background:#e94560;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;" title="退出当前战斗（存档保留，主界面「继续战斗」可接着打）">🚪 退出</button>
         </div>
         <div class="arena">
             <div class="all-characters" id="allChars"></div>
@@ -131,8 +145,61 @@
             <div id="glossaryPopupBody" class="buff-popup-body"></div>
         </div>
     </div>
+    <!-- 游戏内自定义弹窗（v0.319：替代浏览器原生 alert/confirm，样式与游戏一致；z-index 高于 buffPopup 防遮挡） -->
+    <div id="gameModalOverlay" class="buff-popup-overlay" style="display:none;z-index:1000;" onclick="closeGameModal()">
+        <div class="game-modal" onclick="event.stopPropagation()">
+            <div class="buff-popup-header">
+                <span id="gameModalTitle">提示</span>
+            </div>
+            <div id="gameModalMessage" class="game-modal-message"></div>
+            <div id="gameModalButtons" class="game-modal-buttons"></div>
+        </div>
+    </div>
+    <!-- 新手教程弹窗（v0.310 教程关教学引导；右上角气泡不遮挡操作，强制步骤做对应操作才推进） -->
+    <div id="tutorialOverlay" style="display:none;">
+        <div class="buff-popup">
+            <div class="buff-popup-header">
+                <span id="tutorialStepNum">🎓 新手教程</span>
+                <span class="buff-popup-close" onclick="Tutorial.hide()">✕</span>
+            </div>
+            <div id="tutorialText" class="buff-popup-body"></div>
+            <div style="padding:0 16px 14px;text-align:center;">
+                <button id="tutorialOkBtn" class="btn-main" style="display:none;" onclick="Tutorial.hide()">知道了</button>
+            </div>
+        </div>
+    </div>
+    <!-- 设置弹窗（复用 .buff-popup 模板；选角模式对敌我双方生效） -->
+    <div id="settingsOverlay" class="buff-popup-overlay" style="display:none;" onclick="closeSettings()">
+        <div class="buff-popup" onclick="event.stopPropagation()">
+            <div class="buff-popup-header">
+                <span>⚙️ 设置</span>
+                <span class="buff-popup-close" onclick="closeSettings()">✕</span>
+            </div>
+            <div class="buff-popup-body">
+                <div class="settings-section-title">选角模式（我方与敌方共用）</div>
+                <div class="settings-options">
+                    <div class="settings-option" id="modeOneStep" onclick="setSelectionMode('one-step')">
+                        <div class="settings-option-name">一步式</div>
+                        <div class="settings-option-desc">点角色卡直接填入第一个空槽</div>
+                    </div>
+                    <div class="settings-option" id="modeTwoStep" onclick="setSelectionMode('two-step')">
+                        <div class="settings-option-name">两步式</div>
+                        <div class="settings-option-desc">先点角色卡待选，再点空槽填充；再点卡片取消待选</div>
+                    </div>
+                </div>
+                <div class="settings-section-title" style="margin-top:20px;">音效</div>
+                <div class="settings-options">
+                    <div class="settings-option" id="sfxOption" onclick="toggleSfx()">
+                        <div class="settings-option-name" id="sfxOptionName">🔊 音效：开</div>
+                        <div class="settings-option-desc">点击切换游戏音效开关</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<script src="js/modal.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/glossary.js"></script>
 <script src="js/Skills.js"></script>
@@ -141,7 +208,9 @@
 <script src="js/BattleState.js"></script>
 <script src="js/SkillSystem.js"></script>
 <script src="js/globals.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/selection.js"></script>
 <script src="js/charSelect.js"></script>
 <script src="js/enemySelect.js"></script>
 <script src="js/battleUI.js"></script>

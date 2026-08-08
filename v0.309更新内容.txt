@@ -1,0 +1,77 @@
+v0.309 更新内容：关卡结构调整（删关卡0、测试关置顶、鲁盼旋篇分组、自选全部角色）+ 被动敌我阵营区分 + 设置界面（选角模式切换、敌我统一选取模块、右下角设置图标、音效开关入设置、敌方后备）
+
+用户需求：「把第零关删掉，保留一个测试关自选任意角色放在左上角。其余关卡收进鲁盼旋篇」（已确认：敌方自选扩展到全部角色含我方角色；版本号 v0.309）；「给敌我双方的被动触发区分开来」；「做一个设置界面，可以调整选角色是一步式还是两步式。同时选取角色统一调用一种模式」；「设置改成一个图标始终放在右下角。开关声音放在设置里。选敌界面角色太多看不完整，并且无法选择后备」（已确认：敌方后备 = 出场3 + 后备3）
+
+## 改动
+
+**选关页面（index.html + style.css）**：
+1. 删除「关卡0 · 测试场」卡片
+2. 「🎯 测试关 · 自选任意角色」置顶放左上角（第一个卡片）
+3. 第一关~第四关收进「📖 鲁盼旋篇」章节分组，新增 .level-section-title 样式
+
+**关卡重编号（charSelect.js LEVEL_INFO + battleFlow.js startBattle）**：
+- 删除关卡0后重映射：第一关=0、第二关=1、第三关=2、第四关=3
+- LEVEL_INFO 重排为 4 正式关卡 + 测试关（selectLevel(-1) 取索引 4）
+- startBattle 关卡分支同步重映射，else 兜底改为第一关
+- restartBattle 依赖 battleState.currentLevel，无需改动
+
+**测试关自选扩展（globals.js AVAILABLE_ENEMIES）**：
+- 敌方可选从 6 种扩展到全部 15 个角色：模板一/二/三、鲁盼旋（我方角色亦可作为敌方）+ 纸糊/铁皮/标准/灵敏/再生稻草人 + 持盾/持棍/持枪/开车警察 + 李雅礼 + 云长郡
+- 己方出战仍限 3 个角色（AVAILABLE_CHARS 不变）
+
+**被动修复：鲁盼旋被动按敌我阵营区分（Roles.js）**：
+- 被动零「惩恶之火」：`target.team === 'player'` → `target.team === self.team` —— 本阵营角色受伤时，伤害来源获得 1 层【恶】
+- 被动三「本阵营角色死亡获愤怒」：`deadChar.team === 'player'` → `deadChar.team === self.team` —— 本阵营角色死亡时获得 3 层愤怒
+- 这样鲁盼旋作为敌方出场（测试关自选）时，被动按敌方阵营正确触发，与作为我方时行为对称；被动一/二/四不涉及阵营判定，无需改动
+
+**设置界面 + 选角模式切换 + 敌我统一选取模块（selection.js 新建）**：
+- 主菜单新增「⚙️ 设置」按钮 → 设置弹窗（复用 .buff-popup 模板，style.css 追加 .settings-* 样式）：选角模式可选「一步式」（点角色卡直接填入第一个空槽；点已上阵槽移除）或「两步式」（先点卡待选 → 再点空槽填充；再点同卡取消待选）
+- 模式全局生效（我方/敌方共用），localStorage 键 `pwgame_select_mode` 持久化（默认两步式，读写均 try/catch 兜底）；选角页顶部提示文案（#charModeHint / #enemyModeHint）随模式刷新
+- 抽取通用工厂 `createSelectionModule(opts)`：我方（charSelect.js）与敌方（enemySelect.js）改为薄封装调用同一模块，仅靠配置差异区分（容器 id / 数据源 / 填充色 / 文案 / 详情回调）；待选状态（pendingIndex/pendingRole）由工厂闭包管理，globals.js 删除 4 个 pending 全局变量；battleFlow 读取的 selectedSlots / enemySlots 名字与形状不变，零改动
+
+## 验证
+
+- 新增 verify-v309.js（17 项）：
+  - 选关页结构：关卡0 已删、测试关卡片置顶（左上角）、「鲁盼旋篇」分组标题存在、布局顺序「测试关 → 鲁盼旋篇 → 第一关」、第一~四关齐全
+  - 测试关流程：介绍页标题、敌方候选 = 15 个角色、自选含我方角色（鲁盼旋当敌方）可正常开局、进入战斗页
+  - 正式关卡重映射：第一关（持盾+持棍+持枪）、第二关（+开车警察待命）、第四关（云长郡 + 召唤池 10 怨灵）
+  - 全量通过，无回归
+- 新增 verify-v309-passive.js（6 项）：
+  - 敌方鲁盼旋：队友受击 → 伤害来源获得「恶」（被动零）；队友阵亡 → 敌方鲁盼旋获得「愤怒」（被动三）
+  - 我方鲁盼旋回归：行为不变（受击来源获恶、队友阵亡获愤怒）
+  - 全量通过，无回归
+- 新增 verify-v309-settings.js（原 20 项 → 现 40 项）：
+  - 默认两步式 + 按钮高亮；设置弹窗开/关；UI 切换一步式 + 按钮高亮切换；localStorage 写入与 reload 持久化读；提示文案随模式刷新
+  - 一步式：我方/敌方点一次卡即填第 1 槽、点已上阵槽移除
+  - 两步式回归：点卡后第 1 槽仍空 + 空槽显示「准备填充」→ 再点空槽才填；点同卡取消待选；敌方同样先点卡再点槽
+  - 全量通过，无回归
+
+**设置入口改为右下角悬浮图标（index.html + selection.js + style.css）**：
+- 主菜单删除「⚙️ 设置」按钮；selection.js 新增 mountSettingsButton()，创建 #settingsBtn（⚙️）固定右下角（所有页面可见），复用原 #sfxToggleBtn 的 fixed 定位样式
+- 设置弹窗保留原样，仍含选角模式切换；打开方式从主菜单按钮改为右下角图标
+
+**音效开关移入设置弹窗（audio.js + selection.js + index.html）**：
+- 删除右下角 #sfxToggleBtn 悬浮按钮（audio.js mount()/_btn 逻辑整体移除）
+- 设置弹窗新增「音效」区块（#sfxOption）：点击调 toggleSfx()（包装 Sfx.toggle + 刷新弹窗 UI），显示 🔊 音效：开 / 🔇 音效：关，active 高亮表示有声
+- 静音状态持久化：localStorage 键 pwgame_sfx_muted（'1' 静音 / '0' 有声），启动时读取初始化，toggle 时写回，均 try/catch 兜底
+
+**敌方 6 槽 = 出场3 + 后备3 + 角色栏换行（selection.js + enemySelect.js + battleFlow.js + style.css）**：
+- createSelectionModule 新增 slotCount（缺省3）与 slotGroups（可选分组渲染 [{label, count}]）：init 按总槽数建空数组，renderSlots 按组分块渲染（组标题 + 槽位行），槽位下标为全局下标；我方单组无标题（视觉不变），敌方两组「出场」「后备」
+- enemySelect.js 配置 slotCount:6 + slotGroups 出场3/后备3；charSelect.js 显式 slotCount:3
+- battleFlow.js startCustomBattle() 拆槽：前3出场建 enemyChars（校验改为至少选1出场），后3后备 createRoleInstance 建角色赋给 battleState.benchEnemy（order 依次排在最后），复用 queueBenchEntry 补位机制（死亡时队列、下一回合入场），并输出待命区日志
+- style.css：.char-roster 加 flex-wrap: wrap（敌方15卡换行显示完整）；新增 .char-slot-group / .char-slot-group-label / .char-slot-row / #enemySlots（纵向排列两组）
+- globals.js 注释更新 enemySlots = 6 槽
+
+## 验证
+
+- verify-v309-settings.js 更新为 40 项：
+  - 新增：右下角 #settingsBtn 存在且 fixed、主菜单无设置按钮；#sfxOption 切换 Sfx.muted + 文案变化 + localStorage 写 pwgame_sfx_muted + reload 持久化读；我方仍 3 槽单组无标题；敌方 6 槽 + 「出场/后备」分组标签 + 角色栏 15 卡 + flexWrap wrap；一步式填满 6 槽 → 开战后 enemyTeam 3 人 + benchEnemy 3 人（角色名对应）；杀 1 出场 → 后备移出待命区并 pendingEntry 排队；只选 1 出场可开打（0 待命）；两步式敌方回归（先点卡再点槽）
+  - 全量通过，无回归
+- 回归 verify-v309.js（17 项）+ verify-v309-passive.js（6 项）全部通过：#enemySlots 6 槽下选择器兼容，startCustomBattle 拆槽不影响正式关卡流程
+
+## 备注
+
+- 测试关自选我方角色当敌人时，该角色被动按敌方团队判定；v0.309 跟进修复了鲁盼旋被动零/三的阵营硬编码（team==='player' → self.team），敌我双方行为对称
+- 选角模式为全局单值，敌我双方共用；一步式下槽满时点卡不填入（仅打开详情面板），点已上阵槽是唯一移除手段
+- 敌方后备沿用 v0.287 待命补位机制：阵亡时 queueBenchEntry 移出待命区，下一回合开始入场（pendingEntry），全灭后备才算获胜（getAliveEnemies 计入入场后单位）
+- 设置入口唯一化为右下角 ⚙️ 图标；音效开关只存在于设置弹窗（右下角不再有独立音效按钮）

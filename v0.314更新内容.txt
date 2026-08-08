@@ -1,0 +1,45 @@
+v0.314 更新内容：特殊胜利条件（每关额外成就）
+
+用户需求：给战斗加「特殊胜利」——每个关卡有基础胜利条件（现状：击败敌方全部角色）与特殊胜利条件（每关独特的额外挑战）。经确认采用「额外成就」方案：达成特殊胜利不结束战斗、不写通关记录，仅作额外成就展示。
+
+## 设计决策（已与用户确认）
+
+1. **覆盖范围**：仅正式关 0~3 设特殊胜利；测试关(-1)自由测试、教程关(-2)教学引导不设。
+2. **结算方式**：达成特殊胜利**不结束战斗**，战斗仍以全灭判定胜负；特殊胜利是额外成就（达成即记录并展示）。
+3. **通关解锁**：仅基础胜利（全灭）写入 `pwgame_cleared` 解锁下一关；特殊胜利不写。
+
+## 每关特殊胜利条件
+
+| 关卡 | 敌人/机制 | 特殊胜利条件 | 判定逻辑 |
+|---|---|---|---|
+| 第一关(0) | 持盾/持棍/持枪警察，教学向 | **我方无人阵亡（无损通关）** | 胜利时 `playerTeam.every(c => c.alive)` |
+| 第二关(1) | +开车警察待命（加油×2→开创→刹车） | **开车警察未使出「开创」即获胜** | `specialState.driverUsedOpen === false`（全程追踪） |
+| 第三关(2) | 李雅礼（死亡倒戈）+持枪×2+开车待命 | **李雅礼倒戈并存活至胜利** | 胜利时 `playerTeam.some(c => c.defector && c.alive)` |
+| 第四关(3) | 云长郡（亡灵怨恨减伤+召唤怨灵） | **云长郡减伤仍过半时将其击败**（反转：不靠堆阵亡削弱，硬碰硬取胜） | 胜利时 `云长郡.getHateReduction() >= 50`（场上累计阵亡 ≤3 时成立） |
+
+## 改动
+
+**BattleState.js**：新增 `specialState = { achieved, driverUsedOpen }`（构造器 + reset）；`achieved` 本关特殊胜利是否已达成（达成即记录，读档不丢失）、`driverUsedOpen` 第二关开车警察是否使过「开创」（过程追踪）。
+
+**battleFlow.js**：
+- 新增 `SPECIAL_CONDITIONS` 常量表（四关条件文案）+ `checkSpecialCondition(level)`（按上表判定；非正式关返回 false）
+- `checkVictory()` 胜利分支接入：`getAliveEnemies()===0` 时、`showResultPage('胜利')` 之前，若 `!specialState.achieved && checkSpecialCondition(currentLevel)` → 置 `achieved=true` + log「✨ 特殊胜利条件达成！」。战斗不中断，继续走全灭胜利
+- 新增 `updateWinCondition()`：动态改写战斗页 `#winCondition`——正式关显示「🏆 胜利条件 + ✨ 特殊胜利」两行，其余仅基础一行；在 `startBattle`/`startCustomBattle`/`loadAutoBattle` 中调用
+- 存档兼容 v0.313：`saveAutoBattle()` data 加 `specialState`；`loadAutoBattle()` 恢复（`data.specialState || { achieved:false, driverUsedOpen:false }`），已达成状态读档后保留
+
+**SkillSystem.js**：`executeSkill` 开头加追踪——`actor.name==='开车警察' && skill.name==='开创'` → `specialState.driverUsedOpen = true`（怨灵车同名，仅第四关出现，不影响第二关判定）。
+
+**battleUI.js**：`showResultPage('胜利')` 且 `specialState.achieved` 时，在「战斗胜利」标题下插入金色成就横幅「✨ 特殊胜利达成！本关特殊胜利条件已满足」（仿「下一关」按钮 #f9ca24 金底）。
+
+**index.html**：战斗页胜利条件栏加 `id="winCondition"`，供 `updateWinCondition()` 稳定选择。
+
+## 验证
+
+- 新增 verify-v314.js（22 项）：单元·四关判定（L0 无损达成/破坏、L1 未使开创达成/使过不达成、L2 李雅礼存活/阵亡、L3 减伤过半/跌破、教程/测试关不设）、开车警察使「开创」→ driverUsedOpen 追踪、端到端·第一关胜利条件栏显示两行、端到端·无损全灭→达成+金色横幅+基础胜利照常解锁+清档、端到端·阵亡1名→不达成+无横幅+基础胜利照常、达成状态经自动存档/读档保留——全过
+- 回归：verify-v313（23 项，含读档 id 冲突回归）、verify-v312（15）、verify-v311（25）、verify-v310-tutorial（33）、verify-v310-ai（10）在 v0.314 服务器上全部通过
+
+## 备注
+
+- 特殊胜利与基础胜利互相独立：达成特殊胜利照常全灭取胜并清档；未达成也照常解锁通关
+- L3 判定读取云长郡「减伤快照」`hateReductionCurrent`（每回合开始更新）：场上累计阵亡 ≤3 时减伤仍 ≥50%，即要在亡灵怨恨仍庇护时硬碰硬击败
+- L0 无损判定天然基于死亡角色留队（alive=false），无需额外追踪

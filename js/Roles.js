@@ -64,9 +64,9 @@ function createLuPanxuan(team, position) {
         new Skill('十二连·剑斩邪祟', 800,  300, 100, 12, 3, null, { type: 'evilDrain', bonus: 100 })   // v0.293：加成伤害与恶加伤 50→100
     ];
     const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
-    // ——— 被动零：惩恶之火 — 友方受伤时伤害来源获得 1 层【恶】 ———
+    // ——— 被动零：惩恶之火 — 本阵营角色受伤时伤害来源获得 1 层【恶】（v0.309 按敌我阵营区分） ———
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
-        if (actual > 0 && target.team === 'player') {
+        if (actual > 0 && target.team === self.team) {
             attacker.addBuffStack('e', 1, 1);
             log(`  🔥 ${attacker.name} 获得1层「恶」`);
         }
@@ -94,9 +94,9 @@ function createLuPanxuan(team, position) {
         }
     });
 
-    // ——— 被动三：友方死亡获得 5 层愤怒 ———
+    // ——— 被动三：本阵营角色死亡获得 3 层愤怒（v0.309 按敌我阵营区分） ———
     char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
-        if (deadChar.team === 'player' && self !== deadChar) {
+        if (deadChar.team === self.team && self !== deadChar) {
             self.addBuffStack('rage', 3, 1);
             const rageBuff = self.buffs.find(b => b.type === 'rage');
             if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
@@ -144,6 +144,7 @@ function createPoliceWraith(type, position) {
     else c = createDrivingPolice('enemy', position, 250);
     const ratio = type === '开车警察' ? 0.25 : 0.5;   // 怨灵车只有25%HP
     c.maxHp = c.hp = Math.floor(c.hp * ratio);
+    c._wraithType = type;   // v0.313：标记怨灵类型，战斗自动存档据此重建（createPoliceWraith）
     return c;
 }
 
@@ -178,6 +179,22 @@ function createDrivingPolice(team, position, initialSP = null) {
     if (initialSP !== null) char.sp = initialSP;
     // AI 循环：两次加油 → 一次开创 → 一次刹车
     char.aiCycle = ['加油', '加油', '开创', '刹车'];
+    return char;
+}
+
+// ==================== 训练木偶（教程关专用） ====================
+// 两个技能分别演示「普通防御减免」与「破防（无视防御）」两种机制
+function createTrainingDummy(team, position) {
+    const skills = [
+        // 普通示范：无 special，正常走防御减免（玩家模板一防御200，该技能伤害会被减到 0/格挡）
+        new Skill('普通示范', 100, 100, 200, 1, 2),
+        // 破防示范：ignoreDef 9999 → target.def 临时归 0，无视全部防御直接命中
+        new Skill('破防示范', 200, 100, 200, 1, 2, null, { type: 'ignoreDef', value: 9999 })
+    ];
+    const char = new Character('训练木偶', 4000, 0, [1,1], 500, 200, skills, team, position);
+    // AI 循环：固定交替，保证玩家两回合分别看到「被防御减免」「被破防无视」
+    // HP 4000：模板一/三的最大一击(1600/1700)打不死，保证至少撑到第二回合的「破防示范」演示
+    char.aiCycle = ['普通示范', '破防示范'];
     return char;
 }
 
@@ -242,5 +259,6 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '开车警察') return createDrivingPolice(team, position);
     if (roleName === '李雅礼') return createLiYali(team, position);
     if (roleName === '云长郡') return createYunChangjun(team, position);
+    if (roleName === '训练木偶') return createTrainingDummy(team, position);
     return null;
 }

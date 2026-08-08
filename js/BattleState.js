@@ -15,6 +15,10 @@ class BattleState {
         this.benchEnemy = [];    // 敌方待命区
         this.totalDeaths = 0;    // 场上累计阵亡数（云长郡减伤计算用）
         this.summonPool = [];    // 云长郡怨灵召唤池（2持盾2持棍4持枪2车）
+        this.specialState = {    // v0.314：特殊胜利状态（每关额外成就，达成即记录、读档不丢失）
+            achieved: false,       // 本关特殊胜利是否已达成
+            driverUsedOpen: false  // 第二关：开车警察是否使出过「开创」（过程追踪）
+        };
     }
 
     // —————— 云长郡召唤：每回合开始时若自身无友方单位，召唤2个警察怨灵 ——————
@@ -91,5 +95,6 @@ class BattleState {
         this.benchEnemy = [];
         this.totalDeaths = 0;
         this.summonPool = [];
+        this.specialState = { achieved: false, driverUsedOpen: false };   // v0.314
     }
 }

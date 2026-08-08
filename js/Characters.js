@@ -62,6 +62,14 @@ class Character {
         return total;
     }
 
+    // v0.312：第四关 AI 鲁盼旋「誓死守护」——队友仍存活时锁血为 1，不会倒下
+    isImmortalWhileAlliesAlive() {
+        return this.name === '鲁盼旋' && this.aiControlled
+            && typeof battleState !== 'undefined' && battleState
+            && battleState.currentLevel === 3
+            && battleState.playerTeam.some(c => c !== this && c.alive && !c.pendingEntry);
+    }
+
     // 普通伤害（吃防御）
     takeDamage(dmg, attacker) {
         if (!this.alive) return 0;
@@ -73,8 +81,13 @@ class Character {
         this.damageReceived += actual;
         if (attacker && attacker.alive) attacker.damageDealt += actual;
         if (this.hp <= 0) {
-            this.alive = false;
-            this.hp = 0;
+            if (this.isImmortalWhileAlliesAlive()) {
+                this.hp = 1;   // v0.312：队友仍奋战，鲁盼旋锁血
+                if (typeof log === 'function') log(`🛡️ ${this.name} 誓死守护队友，锁血为 1！`);
+            } else {
+                this.alive = false;
+                this.hp = 0;
+            }
         }
         this.buffs = this.buffs.filter(b => b.duration !== 'nextHit');
         return actual;
@@ -98,8 +111,13 @@ class Character {
         this.hp = Math.max(0, this.hp - dmg);
         this.damageReceived += dmg;
         if (this.hp <= 0) {
-            this.alive = false;
-            this.hp = 0;
+            if (this.isImmortalWhileAlliesAlive()) {
+                this.hp = 1;   // v0.312：队友仍奋战，鲁盼旋锁血
+                if (typeof log === 'function') log(`🛡️ ${this.name} 誓死守护队友，锁血为 1！`);
+            } else {
+                this.alive = false;
+                this.hp = 0;
+            }
         }
         return dmg;
     }

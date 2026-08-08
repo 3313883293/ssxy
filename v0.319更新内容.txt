@@ -1,0 +1,29 @@
+v0.319 更新内容：游戏内自定义弹窗（替代浏览器原生 alert/confirm）
+
+用户反馈：浏览器自带的 alert/confirm 提示框「怪瘆人的」，换成游戏风格的弹窗。
+
+## 改动
+
+**新增 js/modal.js**：游戏内弹窗系统，复用现有 buffPopup 的覆盖层风格（深色卡片 + 金色描边 + popIn 动画），z-index 高于 buffPopup（1000）。
+- `showModal({ title, message, type:'info'|'confirm', confirmText, cancelText, onConfirm, onCancel })`
+  - info：单个「知道了」按钮，点击关闭
+  - confirm：取消/确定，点「确定」触发 onConfirm（对应原 `confirm()===true` 分支），点「取消」触发 onCancel
+- 点击覆盖层背景 = 关闭但不触发回调（不会误确认）
+
+**index.html**：全局弹窗区新增 `#gameModalOverlay`（复用 .buff-popup-overlay 类）；引入 modal.js。
+
+**style.css**：新增 `.game-modal` / `.game-modal-message`（white-space:pre-line 保留换行）/ `.game-modal-buttons`。
+
+**替换全部 9 处原生弹窗**（零残留）：
+- `alert`→info：请至少选择一个目标 / 请至少选择一个出场敌人！/ 请先在选角界面选择出战角色！/ 至少选择一个角色出战！/ 还需集齐 6 颗星 / 通关上一关后解锁本关
+- `confirm`→confirm 弹窗（回调式）：读档确认（loadSaveFromBattle）、退出战斗（exitBattle）、解锁鲁盼旋（unlockLu，确认后成功提示也走弹窗）
+
+## 注意（同步 confirm 改异步回调）
+
+原 `if (confirm(...)) doX()` 改为 `showModal({ type:'confirm', onConfirm: () => doX() })`——**onConfirm 里不要再同步依赖 confirm 的返回值**，需要把原 true 分支挪进回调。
+
+## 验证
+
+- check-v319.js：零浏览器 dialog + 星数不够提示 / 解锁全流程（确认→置位→成功提示）/ 锁定关提示 / 读档确认弹窗
+- check-v318-exit.js（适配新交互）：退出弹窗取消/确定、存档保留、继续战斗恢复
+- verify-v316（21 项，F 段解锁流程加一步点「确定」）：回归全过

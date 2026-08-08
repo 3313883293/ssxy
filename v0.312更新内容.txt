@@ -1,0 +1,33 @@
+v0.312 更新内容：鲁盼旋站最前方 + 我方替补从左边上 + 第四关 AI 鲁盼旋锁血1 + 胜利「下一关」按钮
+
+用户需求：「鲁盼旋应该锁定在最前方。游戏胜利增加下一关按钮。第四关让ai鲁盼旋在队友死亡前锁血为1。我方替补应从左边上」
+
+## 改动
+
+**第四关 AI 鲁盼旋站最前方（battleFlow.js startBattle）**：
+- 第四关玩家出场重排：鲁盼旋移到数组末尾（order/position 最大 → 玩家最右、紧挨敌方），与倒戈李雅礼 order=999 同方向定位
+- 玩家 position 0/1/2 = 模板一/模板二/鲁盼旋（鲁盼旋在最前）
+
+**我方替补从左边上（battleFlow.js startBattle）**：
+- 我方待命者 order 由「playerChars.length + i」（最右/最前线）改为负值 -10-i → 入场后 repositionAll 排玩家最左（自家后排、远离敌人），从左边补上
+- 入场动画本就走 `bench-left`（左侧滑入），改动只影响最终站位
+
+**第四关 AI 鲁盼旋锁血 1（Characters.js）**：
+- 新增 `isImmortalWhileAlliesAlive()`：鲁盼旋 + aiControlled + 第四关（level 3）+ 仍有存活队友（alive 且非候补）时判定
+- `takeDamage` / `takeTrueDamage` 两处致死判定前插入：满足条件则 `hp = 1`、不死亡（不触发 handleDeath / 待命补位），并打日志「🛡️ 鲁盼旋 誓死守护队友，锁血为 1！」
+- 队友全死后锁血解除（可正常阵亡）；非第四关不生效（解锁后玩家自选的鲁盼旋不受影响）
+
+**胜利结算「下一关」按钮（battleUI.js + battleFlow.js）**：
+- `showResultPage` 胜利且 `currentLevel` 为 0~2（正式关未到最后一关）时，结算页动态加「➡️ 下一关」金色按钮
+- 新增 `nextLevel()`：`selectLevel(currentLevel + 1)` 进下一关介绍页（第四关/测试关/教程关胜利不显示）
+
+## 验证
+
+- 新增 verify-v312.js（15 项）：第四关出场 3 人站位（鲁盼旋 position 2 最前 + aiControlled + 替补 order -10）、替补入场后站 position 0（单元构造）、锁血四场景（队友存活→锁1 / 队友全死→正常阵亡 / 非第四关不锁 / 真实伤害同样锁）、下一关按钮三场景（第一关胜利→有按钮且点击进第二关介绍页 / 第四关胜利无 / 测试关胜利无）——全过
+- 回归：verify-v311（25 项，两处断言适配 v0.312 站位：鲁盼旋 position 2 + playerNames 集合）、verify-v309（17）、v309-passive（6）、v309-settings（40）、v310-tutorial（33）、v310-ai（10）全部通过
+
+## 备注
+
+- 锁血判断以「场上存活队友」（playerTeam 中 alive 且非 pendingEntry）为准，待命区未入场单位不计为队友
+- 鲁盼旋锁血时伤害照常结算（damageReceived/damageDealt 累计），仅阻止倒下
+- 倒戈李雅礼（order 999）不受替补 order 改负影响：倒戈走 defectToPlayer 独立路径

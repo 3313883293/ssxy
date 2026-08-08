@@ -1,0 +1,49 @@
+v0.316 更新内容：⭐ 星级收集系统 + 鲁盼旋星级解锁
+
+用户需求：加入 ⭐ 星标系统。鲁盼旋篇（正式关 0~3）共 8 颗星（每关基础胜利 + 特殊胜利各 1 星）。星数 ≥6 后在鲁盼旋篇版块点击解锁鲁盼旋。
+
+## 设计决策（已与用户确认）
+
+1. **完全替代**现有解锁：删掉 `getAvailableChars` 里 `pwgame_cleared.includes(3)` 自动解锁逻辑，解锁只认星级（`pwgame_lu_unlocked`）。
+2. **按通关追溯补星**：老玩家按已通关关数补基础胜利星（通关第 N 关 = +1 颗 base 星），特殊胜利星需重新达成。
+3. **解锁入口放鲁盼旋篇版块**：⭐≥6 时版块内出现「🔓 点击解锁鲁盼旋」按钮，点击后永久解锁。
+
+## 星级规则
+
+- **8 星来源**：正式关 0~3，每关 基础胜利（全灭敌方）+ 特殊胜利（额外成就）各 1 星；教程关(-2)/测试关(-1) 不发星。
+- **发放点**：
+  - 基础胜利星：`showResultPage('胜利')` 写 pwgame_cleared 处并置 `addStar(level,'base')`（level>=0 守卫）
+  - 特殊胜利星：`checkVictory` 敌方全灭分支、`specialState.achieved` 首次置 true 时 `addStar(level,'special')`——达成瞬间发星，不依赖最终胜负（与「达成即记录」一致）
+- **去重**：同关同类型星已拿则 no-op，重复打不重复给。
+- **追溯补星**：`getStarMap()` 惰性扫描 pwgame_cleared，已通关关若 base 星缺失则补并写回（幂等）。
+
+## 改动
+
+**globals.js**：
+- 新增星工具：`getStarMap()`（读 pwgame_stars + 追溯补星）、`getStarCount()`、`addStar(level,type)`（去重）、`getLuUnlocked()`/`setLuUnlocked()`（读写 pwgame_lu_unlocked）
+- `getAvailableChars()`：改为 `getLuUnlocked() ? 含鲁盼旋 : 三模板`——删除原 `pwgame_cleared.includes(3)` 逻辑（完全替代）
+- 新增 localStorage：`pwgame_stars`（结构 `{ "0": {"base":true,"special":true}, ... }`）、`pwgame_lu_unlocked`（`'1'`=已解锁）
+
+**selection.js**：`createSelectionModule` 返回值增加 `setRosterSource(source)`——运行时更换数据源并重渲染 roster。
+
+**charSelect.js**：
+- `initCharSelection()` 开头 `charSelection.setRosterSource(getAvailableChars())`——解锁鲁盼旋后同会话进选角页立即可选（修复原模块创建时捕获数组引用的问题）
+- 新增 `updateLuStars()`：刷新版块标题星数 `📖 鲁盼旋篇 ⭐ n/8 ▸/▾` + 解锁区三态（未满6星 / 可解锁按钮 / 已解锁），页面加载与展开/收起时调用
+- 新增 `unlockLu()`：星数≥6 确认后 `setLuUnlocked()` + 刷新 + 提示
+- `toggleLuSection()`：改为调 `updateLuStars()` 统一刷新标题/解锁区
+
+**index.html**：`#luSectionBody` 顶部加 `#luUnlockArea`（解锁区容器）。
+
+**battleUI.js**：`showResultPage` 胜利分支并置 `addStar(level,'base')`。
+
+**battleFlow.js**：`checkVictory` 特殊胜利首次达成时并置 `addStar(level,'special')`。
+
+## 验证
+
+- 新增 verify-v316.js（21 项）：星工具（空=0/置位/去重/非法no-op/追溯补星5）、解锁判定替换（未解锁3模板/解锁含鲁盼旋/通关第四关无标记不解锁）、逐关解锁不变、e2e 基础星（阵亡1名→base发special不发）、e2e 特殊星（第四关减伤70→special+base）、版块 UI（标题星数/6星按钮/点击解锁置位/已解锁态）、roster 刷新（解锁后选角含鲁盼旋）、第四关锁定槽回归——全过
+- 回归：verify-v315（22 项，含 L3 阈值）、verify-v314（22 项）在 v0.316 服务器上全部通过
+
+## 备注
+
+- 解锁后星级不清零，星继续可攒满 8 颗（纯收集向）
+- 第四关 1 号槽锁定鲁盼旋机制不受影响（verify H 回归）

@@ -109,6 +109,11 @@ class SkillSystem {
         logFn(`${actor.name}(位置${actor.position}) 使用【${skill.name}】，消耗${skill.spCost}算力`);
         if (window.refreshCardState) refreshCardState(actor);   // 算力条同帧扣减（含 buff/防御标签）
 
+        // v0.314：第二关特殊胜利追踪——开车警察使出「开创」即记为已用过（怨灵车同名，仅第四关出现，不影响第二关判定）
+        if (actor.name === '开车警察' && skill.name === '开创') {
+            battleState.specialState.driverUsedOpen = true;
+        }
+
         // 攻击者前冲（朝目标方向，带闪光）；鲁盼旋三技能各有专属演出（v0.294~v0.300）
         const animCfg = SKILL_ANIM_CONFIG[skill.name];
         if (actor.cardElement) {

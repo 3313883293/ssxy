@@ -33,6 +33,11 @@ body {
 .char-slot:hover { transform: scale(1.05); border-color: #f9ca24; }
 .char-slot .name { font-weight: bold; margin: 8px 0; }
 .char-slot .desc { color: #ccc; font-size: 0.85em; }
+/* v0.309：分组槽（敌方「出场/后备」两组上下排列） */
+.char-slot-group { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.char-slot-group-label { color: #f9ca24; font-weight: bold; font-size: 0.9em; }
+.char-slot-row { display: flex; gap: 30px; }
+#enemySlots { flex-direction: column; align-items: center; }
 .control-buttons { display: flex; gap: 15px; }
 
 .select-level-page { gap: 20px; }
@@ -45,6 +50,19 @@ body {
 .level-card:hover { border-color: #e94560; transform: scale(1.02); }
 .level-card h3 { color: #e94560; }
 .level-card .enemy-preview { margin-top: 10px; color: #ccc; font-size: 0.85em; }
+/* v0.311：未解锁关卡（灰色锁定卡，点击提示通关上一关解锁） */
+.level-locked { opacity: 0.55; filter: grayscale(0.7); cursor: not-allowed; }
+.level-locked:hover { border-color: transparent; transform: none; }
+.level-locked h3 { color: #888; }
+/* 章节分组标题（v0.311：可点击收纳/展开） */
+.level-section-title {
+    margin: 20px 0 8px; padding-bottom: 6px;
+    width: 400px; text-align: center;
+    color: #f9ca24; font-size: 1.1em; font-weight: bold;
+    border-bottom: 2px solid #f9ca24; letter-spacing: 2px;
+    cursor: pointer; user-select: none;
+}
+.level-section-title:hover { color: #ffe066; }
 
 /* 关卡介绍页 */
 .level-intro { margin-top: 5px; }
@@ -425,6 +443,7 @@ body {
 /* === 选角：下方角色栏 === */
 .char-roster {
     display: flex;
+    flex-wrap: wrap;      /* v0.309：敌方 15 卡换行显示完整 */
     gap: 20px;
     margin: 10px 0 15px;
     padding: 15px 20px;
@@ -474,6 +493,31 @@ body {
     max-width: 90vw;
     box-shadow: 0 0 40px rgba(249,202,36,0.3);
     animation: popIn 0.25s ease-out;
+}
+/* v0.319：游戏内自定义弹窗（替代浏览器原生 alert/confirm）——复用 buff-popup 的覆盖层，框体独立 */
+.game-modal {
+    background: #16213e;
+    border: 2px solid #f9ca24;
+    border-radius: 16px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 0 40px rgba(249,202,36,0.3);
+    animation: popIn 0.25s ease-out;
+}
+.game-modal-message {
+    padding: 22px 24px;
+    color: #ddd;
+    font-size: 1.05em;
+    line-height: 1.7;
+    text-align: center;
+    white-space: pre-line;   /* 保留消息里的 \n 换行 */
+    word-break: break-word;
+}
+.game-modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    padding: 0 24px 22px;
 }
 @keyframes popIn {
     0% { transform: scale(0.8); opacity: 0; }
@@ -628,8 +672,8 @@ body {
     border-left: 3px solid #f9ca24;
 }
 
-/* ==================== v0.308 音效开关按钮 ==================== */
-#sfxToggleBtn {
+/* ==================== v0.309 右下角设置图标（悬浮，所有页面可见） ==================== */
+#settingsBtn {
     position: fixed;
     right: 14px;
     bottom: 14px;
@@ -645,4 +689,65 @@ body {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     transition: transform 0.15s;
 }
-#sfxToggleBtn:hover { transform: scale(1.12); }
+#settingsBtn:hover { transform: scale(1.12); }
+
+/* ==================== 设置弹窗（选角模式切换） ==================== */
+.settings-section-title {
+    color: #f9ca24;
+    font-size: 1em;
+    font-weight: bold;
+    margin-bottom: 12px;
+}
+.settings-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.settings-option {
+    background: #0f3460;
+    border: 2px solid #555;
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.settings-option:hover { border-color: #f9ca24; }
+.settings-option.active {
+    border-color: #f9ca24;
+    box-shadow: 0 0 12px rgba(249, 202, 36, 0.4);
+}
+.settings-option-name {
+    font-weight: bold;
+    font-size: 1.05em;
+    color: #eee;
+}
+.settings-option.active .settings-option-name { color: #f9ca24; }
+.settings-option-desc {
+    font-size: 0.8em;
+    color: #aaa;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* v0.310：新手教程教学高亮（弹窗指向目标） */
+.tutorial-highlight {
+    outline: 3px solid #f9ca24 !important;
+    box-shadow: 0 0 14px rgba(249, 202, 36, 0.6) !important;
+}
+
+/* v0.310：新手教程弹窗——右上角气泡，遮罩层 pointer-events:none 不拦截背后操作 */
+#tutorialOverlay {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    width: 340px;
+    z-index: 2000;
+    pointer-events: none;
+}
+#tutorialOverlay .buff-popup {
+    pointer-events: auto;
+    width: 100%;   /* 覆盖 .buff-popup 固定 380px：容器仅 340px，固定宽会溢出视口右侧截断文本 */
+    background: #16213e;
+    border: 2px solid #f9ca24;
+}
+#tutorialOverlay #tutorialStepNum { color: #f9ca24; }
