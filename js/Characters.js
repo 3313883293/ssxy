@@ -33,6 +33,7 @@ class Character {
         this.aiControlled = false; // 倒戈单位仍由 AI 操控，玩家不操作
         this.hateReduction = false; // 部下亡灵之怨恨：受击减伤100%，场上每阵亡1角色-10%（云长郡）
         this.hateReductionCurrent = 100; // 减伤快照（每回合开始判定，回合内死亡不即时生效）
+        this.directReduce = 0;   // 直伤减伤（百分比）：黎明级后天能力者·直伤减伤20%（灼华）
     }
 
     // —————— 亡灵怨恨减伤快照：每回合开始判定（100% - 累计阵亡数×15%，可为负，负值转为受到伤害加成） ——————
@@ -77,6 +78,7 @@ class Character {
         let actual = Math.max(0, dmg - totalDef);
         const reduction = this.getHateReduction();
         if (reduction !== 0) actual = Math.floor(actual * (100 - reduction) / 100);   // 负值=加伤
+        if (this.directReduce > 0) actual = Math.floor(actual * (100 - this.directReduce) / 100);   // 直伤减伤（灼华 20%）
         this.hp = Math.max(0, this.hp - actual);
         this.damageReceived += actual;
         if (attacker && attacker.alive) attacker.damageDealt += actual;

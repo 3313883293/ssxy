@@ -198,6 +198,40 @@ function createTrainingDummy(team, position) {
     return char;
 }
 
+// ==================== 灼华（燃烧 dot 手，玩家可用角色） ====================
+function createZhuoHua(team, position) {
+    const skills = [
+        new Skill('燃木', 250, 150, 150, 2, 3, null, { type: 'burn', stacks: 2 }),
+        new Skill('煽风', 500, 200, 200, 3, 4, null, { type: 'burnUp', levels: 2 }),
+        new Skill('引爆', 800, 300, 150, 1, 5, null, { type: 'detonate', ratio: 2 })
+    ];
+    const char = new Character('灼华', 1800, 150, [3,6], 1500, 300, skills, team, position);
+    char.directReduce = 20;   // 黎明级后天能力者：直伤减伤20%
+
+    // ——— 被动·添薪：技能命中已带「燃烧」的目标 → 层数+1（补燃料延长 dot） ———
+    char.registerPassive('onSkillHit', (self, bs, actor, target, coins, log) => {
+        if (self !== actor) return;
+        if (target.alive && target.getBuffStack('burn') > 0) {
+            target.addBuffStack('burn', 1, 1);
+            log(`  🧨 ${self.name} 添薪：${target.name}「燃烧」层数+1`);
+        }
+    });
+
+    // ——— 被动·风助火势：回合结束时，带「燃烧」的敌方单位「燃烧」等级+1（全场滚雪球） ———
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        let n = 0;
+        bs.allCharacters.forEach(c => {
+            if (c.alive && c.team !== self.team && c.getBuffStack('burn') > 0) {
+                c.addBuffLevel('burn', 1);
+                n++;
+            }
+        });
+        if (n > 0) log(`  🌬️ 风助火势：${n} 名敌方单位「燃烧」等级+1`);
+    });
+
+    return char;
+}
+
 // ==================== 稻草人系列（测试用） ====================
 function createScarecrowPaper(team, position) {
     const skills = [
@@ -260,5 +294,6 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '李雅礼') return createLiYali(team, position);
     if (roleName === '云长郡') return createYunChangjun(team, position);
     if (roleName === '训练木偶') return createTrainingDummy(team, position);
+    if (roleName === '灼华') return createZhuoHua(team, position);
     return null;
 }

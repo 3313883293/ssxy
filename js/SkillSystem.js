@@ -68,6 +68,19 @@ const SKILL_ANIM_CONFIG = {
         type: 'strike', color: '#ff6b6b', thick: 3, dur: 0.45,
         muzzle: true
     },
+    // —— 灼华 ——
+    '燃木': {
+        type: 'strike', color: '#e67e22', thick: 4, dur: 0.5,
+        impact: { color: '#ff9f43', size: 60, dur: 0.5 }
+    },
+    '煽风': {
+        type: 'gas', color: '#ff6348', dur: 1.2, size: 120,
+        particles: { count: 6, icon: '🔥', spread: 60 }
+    },
+    '引爆': {
+        type: 'strike', color: '#ff5252', thick: 5, dur: 0.45,
+        muzzle: true, impact: { color: '#ff6b6b', size: 110, dur: 0.7 }
+    },
 };
 const SKILL_ANIM_DEFAULT = { type: 'strike', color: '#95a5a6', thick: 2, dur: 0.25 };
 
@@ -228,15 +241,45 @@ class SkillSystem {
                 Character.invokePassives('onAllyDeath', battleState, target, logFn);
             }
 
-            // ——— 时点广播：技能命中（鲁盼旋施加燃烧） ———
-            if (actor.name === '鲁盼旋') {
-                 Character.invokePassives('onSkillHit', battleState, actor, target, coins, logFn);
-            }
+            // ——— 时点广播：技能命中（鲁盼旋施加燃烧 / 灼华添薪；仅注册该时点的角色回调） ———
+            Character.invokePassives('onSkillHit', battleState, actor, target, coins, logFn);
 
             // ——— 技能特殊效果：一技能施加燃烧层数 ———
             if (skill.special && skill.special.type === 'burn') {
                 target.addBuffStack('burn', skill.special.stacks || 1, 1);
                 logFn(`  🔥 ${target.name} 获得${skill.special.stacks || 1}层「燃烧」（技能效果）`);
+            }
+
+            // ——— 特殊效果：煽风——提升目标「燃烧」等级（无燃烧则直接点燃 Lv） ———
+            if (skill.special && skill.special.type === 'burnUp') {
+                if (target.getBuffStack('burn') > 0) {
+                    target.addBuffLevel('burn', skill.special.levels);
+                    logFn(`  🔥 ${target.name}「燃烧」等级+${skill.special.levels}（现 Lv${target.getBuffLevel('burn')}）`);
+                } else {
+                    target.addBuffStack('burn', 1, skill.special.levels);
+                    logFn(`  🔥 ${target.name} 被点燃：获得1层 Lv${skill.special.levels}「燃烧」`);
+                }
+            }
+
+            // ——— 特殊效果：引爆——将目标「燃烧」结算为一次性真实伤害并清零 ———
+            if (skill.special && skill.special.type === 'detonate') {
+                const lvl = target.getBuffLevel('burn');
+                const stk = target.getBuffStack('burn');
+                if (lvl > 0 && stk > 0) {
+                    const detDmg = lvl * 50 * (skill.special.ratio || 2);
+                    const actual = target.takeTrueDamage(detDmg);
+                    if (window.refreshCardState) refreshCardState(target);
+                    logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害 (HP:${target.hp})`);
+                    target.clearBuff('burn');
+                    SkillSystem.showDamageNumber(target, detDmg, null, allCharsDiv);
+                    if (!target.alive) {
+                        logFn(`  💥 ${target.name} 倒下！`);
+                        target.handleDeath();
+                        Character.invokePassives('onAllyDeath', battleState, target, logFn);
+                    }
+                } else {
+                    logFn(`  ${target.name} 没有可引爆的「燃烧」`);
+                }
             }
 
             // ——— 特殊效果：催眠（下一回合施加【暂时昏迷】，使目标无法行动一回合） ———

@@ -1,0 +1,33 @@
+v0.320 更新内容：新角色「灼华」——燃烧 dot 手（玩家可用）
+
+用户设计的新角色实装：黎明级后天能力者，燃烧持续伤害手。入初始可选池（无需解锁），也可在测试关作为敌人自选。
+
+## 新角色 灼华
+
+- 面板：HP 1800 ｜ 防 150 ｜ 速 3~6 ｜ SP 1500+300/回
+- 被动「黎明级后天能力者」：受到的直接伤害减免 20%（新增 directReduce 属性，仅在 takeDamage 生效，不作用于真实伤害）
+- 被动「添薪」：技能命中已带「燃烧」的目标时，该目标「燃烧」层数 +1
+- 被动「风助火势」：回合结束时，所有带「燃烧」的敌方单位「燃烧」等级 +1（只升敌方，我方不受影响）
+
+技能（燃烧双轴：层数=燃料，等级=火力）：
+- 燃木：250 算力 ｜ 距离 3 ｜ 150+150×硬币(2) ｜ 命中施加 2 层「燃烧」
+- 煽风：500 算力 ｜ 距离 4 ｜ 200+200×硬币(3) ｜ 目标已有「燃烧」→ 等级 +2；无「燃烧」→ 施加 1 层 Lv2
+- 引爆：800 算力 ｜ 距离 5 ｜ 300+150×硬币(1) ｜ 命中引爆目标「燃烧」：造成 等级×50×2 真实伤害并清零燃烧
+
+## 系统改动
+
+- Characters.js：新增 `directReduce` 属性，takeDamage 内按 `实际×(100-directReduce)/100` 减免（向下取整）
+- SkillSystem.js：
+  - onSkillHit 被动广播从「仅鲁盼旋」放宽为所有角色（仍由 invokePassives 按已注册者过滤，无副作用）
+  - 新增 burnUp（升火）与 detonate（引爆）两类 special 结算；引爆走 takeTrueDamage 真伤 + 清燃烧 + 手动死亡结算
+  - 动画配置新增 燃木/煽风/引爆 三条目（点燃橙 / 升火红 / 引爆红+冲击）
+- glossary.js：burnUp / detonate 效果文案
+- battleActions.js：decidePlayerAI 纳入升火与引爆期望收益（升火≈每级 50/回合；引爆按目标当前燃烧等级折算）
+- globals.js：灼华进初始可选池（含鲁盼旋解锁后的完整池）、测试关敌方候选、PASSIVE_INFO 三行被动文案
+- charSelect.js：属性表补 灼华 防 150 / 速 3~6
+
+## 验证
+
+- verify-v320.js：28 项（面板/技能参数/可选池/燃木点燃/煽风升火 Lv3→5/无燃烧点火 Lv2/引爆总伤 650=真伤500+本体150/燃烧清零/直伤减伤 680/添薪/风助火势敌我区分/渲染/详情/技能文案/AI 决策与预判一致）
+- 回归：verify-v316、verify-v310-tutorial、verify-v313、verify-v314、verify-v315、verify-v310-ai、verify-v311、verify-v312、check-v317-starref、check-v318-exit、check-v319、check-l4-wincond、verify-v309、verify-v309-passive、verify-v309-settings 全通过
+  （脚本适配：可选池由 3→4、敌方候选 15→16 含灼华、鲁盼旋解锁统一改 pwgame_lu_unlocked、verify-v311 点锁定卡改读游戏内弹窗文案）

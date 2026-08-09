@@ -58,6 +58,8 @@ function skillEffectLines(skill) {
         else if (s.type === 'ignoreDef') lines.push(`【伤害时】无视目标${s.value}防御`);
         else if (s.type === 'evilDrain') lines.push(`【伤害时】目标每层「恶」+${s.bonus}伤害，并清零「恶」`);
         else if (s.type === 'speedDiff') lines.push(`【伤害时】与目标每点速度差，每枚硬币额外+${s.bonus}伤害`);
+        else if (s.type === 'burnUp') lines.push(`【命中时】目标「燃烧」等级+${s.levels}；无「燃烧」则施加1层Lv${s.levels}`);
+        else if (s.type === 'detonate') lines.push(`【命中时】引爆目标「燃烧」：造成 等级×50×${s.ratio} 真实伤害并清零`);
     }
     return lines;
 }

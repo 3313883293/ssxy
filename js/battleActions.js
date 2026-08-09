@@ -20,9 +20,11 @@ function decidePlayerAI(actor) {
             const coinsEach = Math.floor(s.coinCount / inRange.length);
             let extra = 0;
             if (s.special && s.special.type === 'burn') extra = s.coinCount * 50 * 1.5;   // 燃烧≈50/级/回合
+            else if (s.special && s.special.type === 'burnUp') extra = s.special.levels * 50;   // 升火收益≈每级50/回合
             const perTarget = inRange.map(e => {
                 if (e.getHateReduction() > 0 && hasOtherEnemies) return { target: e, exp: -1 };   // 减伤墙最后处理
                 let exp = s.baseDamage + coinsEach * 0.5 * s.bonusDamage + extra - defOf(e);
+                if (s.special && s.special.type === 'detonate') exp += e.getBuffLevel('burn') * 50 * (s.special.ratio || 2);   // 引爆收益取决于目标当前火势
                 if (e.getHateReduction() > 0) exp = exp * (100 - e.getHateReduction()) / 100;
                 return { target: e, exp: Math.max(0, exp) };
             });
