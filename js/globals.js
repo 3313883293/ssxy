@@ -64,10 +64,10 @@ function getStarMap() {
 function getStarCount() {
     const map = getStarMap();
     let n = 0;
-    for (const level in map) {
+    [0, 1, 2, 3].forEach(level => {   // v0.5 fix：仅统计鲁盼旋篇（0~3），勿混入灼华篇（4/5/6）
         if (map[level] && map[level].base) n++;
         if (map[level] && map[level].special) n++;
-    }
+    });
     return n;
 }
 

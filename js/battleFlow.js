@@ -118,6 +118,8 @@ function loadAutoBattle() {
     if (battleState.benchPlayer.length) log(`🛡️ 我方待命区：${battleState.benchPlayer.map(c => c.name).join('、')}`);
     if (battleState.benchEnemy.length) log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}`);
     actionContent.innerHTML = '继续战斗';
+    nextRoundBtn.onclick = startNewRound;   // v0.5 fix：读档/续战也绑定「开始回合」——页面刷新后 onclick 为 null，回合结束按钮会显示但点不动
+    nextRoundBtn.style.display = 'none';    // 回合进行中隐藏（onTurnEnd 时重新显示）
     processNextAction();
     showPage('pageBattle');
     return true;
