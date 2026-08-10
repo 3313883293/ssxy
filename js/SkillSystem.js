@@ -69,17 +69,21 @@ const SKILL_ANIM_CONFIG = {
         muzzle: true
     },
     // —— 灼华 ——
+    // v0.5 火焰特效：燃木火球飞击 / 煽风火柱腾升 / 引爆三层爆炸（动画各由 _flameThrow/_emberRise/_fireBomb 统一管理）
     '燃木': {
-        type: 'strike', color: '#e67e22', thick: 4, dur: 0.5,
-        impact: { color: '#ff9f43', size: 60, dur: 0.5 }
+        type: 'flameThrow', color: '#e67e22', thick: 4, dur: 0.55,
+        impact: { color: '#ff9f43', size: 80, dur: 0.5 },
+        particles: { count: 7, icon: '🔥', spread: 70 }
     },
     '煽风': {
-        type: 'gas', color: '#ff6348', dur: 1.2, size: 120,
-        particles: { count: 6, icon: '🔥', spread: 60 }
+        type: 'emberRise', color: '#ff6348', dur: 0.9,
+        impact: { color: '#ff6348', size: 70, dur: 0.5 },
+        particles: { count: 10, icon: '🔥', spread: 40, upward: true }
     },
     '引爆': {
-        type: 'strike', color: '#ff5252', thick: 5, dur: 0.45,
-        muzzle: true, impact: { color: '#ff6b6b', size: 110, dur: 0.7 }
+        type: 'fireBomb', color: '#ff5252', dur: 0.8,
+        impact: { color: '#ff7979', size: 120, dur: 0.6 },
+        particles: { count: 12, icon: '💥', spread: 110 }
     },
 };
 const SKILL_ANIM_DEFAULT = { type: 'strike', color: '#95a5a6', thick: 2, dur: 0.25 };
@@ -153,6 +157,18 @@ class SkillSystem {
                 // 开创（v0.307）：警车加速冲过目标（伤害越高加速度越高）→ 撞击受伤同步 → 停在目标对侧
                 SkillSystem._carRush(actor, targets, allCharsDiv);
                 window._actionAnimDelay = 1100;
+            } else if (animCfg && animCfg.type === 'flameThrow') {
+                // 燃木（火焰特效）：火球沿直线飞向目标 → 命中炸开火焰（冲击波+🔥粒子）→ 伤害反馈同步
+                SkillSystem._flameThrow(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 700;
+            } else if (animCfg && animCfg.type === 'emberRise') {
+                // 煽风（火焰特效）：目标身上火柱腾升，火焰越烧越旺（呼应升火）→ 伤害反馈在火柱中段同步
+                SkillSystem._emberRise(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 1100;
+            } else if (animCfg && animCfg.type === 'fireBomb') {
+                // 引爆（火焰特效）：三层冲击波剧烈爆开 + 震屏 → 伤害反馈起爆瞬间同步
+                SkillSystem._fireBomb(actor, targets, allCharsDiv);
+                window._actionAnimDelay = 1000;
             } else {
                 actor.cardElement.classList.add('attacker-animation');
                 if (targets[0] && actor.position > targets[0].position) {
@@ -202,7 +218,7 @@ class SkillSystem {
             battleState.enemyTeam.push(minion);
             battleState.allCharacters.push(minion);
             battleState.repositionAll();
-            logFn(`  🔥 ${actor.name} 召唤了烬火信徒：${minion.name}（HP ${minion.maxHp}）`);
+            logFn(`  🔥 ${actor.name} 召唤了烬火信徒：${minion.name}（血量 ${minion.maxHp}）`);
         }
 
         // v0.308：技能音效（Web Audio 合成，按 SKILL_ANIM_CONFIG type 映射专属音）
@@ -261,7 +277,7 @@ class SkillSystem {
 
             if (storedDef !== null) target.def = storedDef;
 
-            logFn(`  → 对${target.name}(位置${target.position}) 分配${coins}硬币，投掷结果：正${effectiveCoins}/${coins}，造成${actual}伤害 (HP:${target.hp})`);
+            logFn(`  → 对${target.name}(位置${target.position}) 分配${coins}硬币，投掷结果：正${effectiveCoins}/${coins}，造成${actual}伤害 (血量:${target.hp})`);
             if (!target.alive) {
                 logFn(`  💥 ${target.name} 倒下！`);
                 target.handleDeath();   // 倒戈/待命补位（放在伤害与倒下日志之后）
@@ -303,7 +319,7 @@ class SkillSystem {
                     const detDmg = lvl * 50 * (skill.special.ratio || 2);
                     const actual = target.takeTrueDamage(detDmg);
                     if (window.refreshCardState) refreshCardState(target);
-                    logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害 (HP:${target.hp})`);
+                    logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害 (血量:${target.hp})`);
                     target.clearBuff('burn');
                     SkillSystem.showDamageNumber(target, detDmg, null, allCharsDiv);
                     if (!target.alive) {
@@ -331,11 +347,13 @@ class SkillSystem {
             // v0.289：技能对目标专属动画（斩击线/弹道/冲击波/雾气等），与伤害数字同帧
             SkillSystem.playSkillTargetAnimation(actor, target, skill, allCharsDiv);
 
-            // 鲁盼旋专属演出型技能（slash 十二连 / slashSingle 亮剑 / swordWave 剑气）+ 开创（carRush）：
-            // 受伤反馈（数字/震动/倒下爆发）延迟到各自动画的关键时刻播放（v0.299 十二连、v0.300 亮剑/剑气、v0.307 开创），
-            // 保证「造成伤害」与「剑痕/剑气命中/撞击」视觉同步
+            // 鲁盼旋专属演出型技能（slash 十二连 / slashSingle 亮剑 / swordWave 剑气）+ 开创（carRush）
+            // + 灼华火焰演出（flameThrow 火球 / emberRise 火柱 / fireBomb 爆炸）：
+            // 受伤反馈（数字/震动/倒下爆发）延迟到各自动画的关键时刻播放（v0.299 十二连、v0.300 亮剑/剑气、v0.307 开创、v0.5 火焰），
+            // 保证「造成伤害」与「剑痕/剑气命中/撞击/火球命中/爆炸」视觉同步
             const slashCfg = SKILL_ANIM_CONFIG[skill.name];
-            const delayedHit = slashCfg && (slashCfg.type === 'slash' || slashCfg.type === 'slashSingle' || slashCfg.type === 'swordWave' || slashCfg.type === 'carRush');
+            const delayedHit = slashCfg && (slashCfg.type === 'slash' || slashCfg.type === 'slashSingle' || slashCfg.type === 'swordWave' || slashCfg.type === 'carRush'
+                || slashCfg.type === 'flameThrow' || slashCfg.type === 'emberRise' || slashCfg.type === 'fireBomb');
             if (delayedHit) {
                 if (slashCfg.type === 'carRush') window._slashCarDamage = actual;   // 开创：实际伤害驱动加速度（伤害越高加速度越高）
                 (window._slashHitFeedbacks = window._slashHitFeedbacks || []).push(
@@ -435,8 +453,9 @@ class SkillSystem {
     static playSkillTargetAnimation(actor, target, skill, allCharsDiv) {
         const config = SKILL_ANIM_CONFIG[skill.name];
         if (!config) return;   // 未知技能不播放动画（不含降级，模板角色按需单独配置）
-        // 专属演出型（十二连/亮剑/剑气/开创）：目标侧特效由各自流程统一管理，避免重复出招
-        if (config.type === 'slash' || config.type === 'slashSingle' || config.type === 'swordWave' || config.type === 'carRush') return;
+        // 专属演出型（十二连/亮剑/剑气/开创/灼华火焰）：目标侧特效由各自流程统一管理，避免重复出招
+        if (config.type === 'slash' || config.type === 'slashSingle' || config.type === 'swordWave' || config.type === 'carRush'
+            || config.type === 'flameThrow' || config.type === 'emberRise' || config.type === 'fireBomb') return;
         const arena = allCharsDiv.parentElement;
         if (!target.cardElement || !actor.cardElement) return;
 
@@ -807,6 +826,139 @@ class SkillSystem {
             const x = 0.5 * acc * t * t * Math.sign(L);   // 初速 0、加速度很高：起步慢 → 爆发冲出
             actorCard.style.transform = `translate(${x.toFixed(1)}px, 0)`;
         }, 16);
+    }
+
+    // 燃木（v0.5 火焰特效）：灼华卡前凝火苗 → 火球沿直线飞向目标（运动学：初速慢→急速命中）→
+    // 命中炸开火焰（橙红冲击波 + 🔥粒子四溅），伤害反馈在命中时刻同步播放
+    static _flameThrow(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['燃木'] || {};
+        const actorCard = actor.cardElement;
+        if (!actorCard || !targets[0] || !targets[0].cardElement) return;
+        const arena = allCharsDiv.parentElement;
+        const ap = SkillSystem._animPoint(actorCard, arena);
+        const as = SkillSystem._animSize(actorCard);
+        const tp = SkillSystem._animPoint(targets[0].cardElement, arena);
+        const ts = SkillSystem._animSize(targets[0].cardElement);
+        const dir = (tp.x + ts.w / 2 >= ap.x + as.w / 2) ? 1 : -1;
+        const startX = (dir > 0 ? ap.x + as.w : ap.x);   // 角色卡边缘起手
+        const cy = ap.y + as.h / 2;
+
+        // 火球：多层火苗层叠的圆形光球（radial-gradient + 多重 box-shadow 模拟火苗），从起手位置飞向目标
+        const ball = document.createElement('div');
+        ball.className = 'flame-ball';
+        ball.style.left = startX + 'px';
+        ball.style.top = cy + 'px';
+        arena.appendChild(ball);
+
+        // 运动学（与剑气相同）：x(t) = v0·t + ½a·t²，初速 = 平均速度 1/3，起步慢、急速命中
+        const T = 450;   // 飞行总时长
+        const endX = (dir > 0 ? tp.x + ts.w : tp.x) + dir * 30 * SkillSystem._dispScale();   // 冲过头 30px；v0.4：窄屏缩小
+        const L = endX - startX;   // 带符号行程
+        const dist = Math.abs(L);
+        const v0 = L / (T * 3);
+        const acc = 2 * (L - v0 * T) / (T * T);
+        // 命中目标中心时刻（运动学反解）：此刻炸开火焰 + 伤害反馈同步
+        const dHit = dir > 0 ? (tp.x + ts.w / 2) - startX : startX - (tp.x + ts.w / 2);
+        const tHit = (dHit > 0 && dHit < dist) ? (-v0 + Math.sqrt(v0 * v0 + 2 * acc * dHit)) / acc : T;
+        setTimeout(() => {
+            const fb = window._slashHitFeedbacks || [];
+            window._slashHitFeedbacks = [];
+            fb.forEach(f => f());
+            targets.forEach(t => {   // 命中炸开：冲击波 + 火焰粒子四溅（多目标 AOE 时全部炸开）
+                if (t.cardElement) {
+                    if (cfg.impact) SkillSystem._createBurst(t.cardElement, arena, cfg.impact);
+                    if (cfg.particles) SkillSystem._createParticles(t.cardElement, arena, cfg.particles);
+                }
+            });
+            ball.classList.add('fade');   // 火球命中后淡出
+            setTimeout(() => ball.remove(), 260);
+        }, tHit);
+
+        const t0 = Date.now();
+        const timer = setInterval(() => {
+            const t = Date.now() - t0;
+            if (t >= tHit) { clearInterval(timer); return; }   // 命中后由命中回调接管淡出
+            const x = v0 * t + 0.5 * acc * t * t;
+            // 火球为圆形，translate 需折回自身半径（13px）保持中心在弹道上；加微小正弦抖动模拟火焰跳动
+            ball.style.transform = `translate(${(x - 13).toFixed(1)}px, ${(Math.sin(t * 0.02) * 3).toFixed(1)}px)`;
+        }, 16);
+    }
+
+    // 煽风（v0.5 火焰特效）：目标身上火柱腾升——8~12 个火焰粒子从卡底向上蹿升（逐批涌出，火焰越烧越旺
+    // 呼应「升火」），顶部火星飘散；伤害反馈在火柱腾升中段（~300ms）同步播放
+    static _emberRise(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['煽风'] || {};
+        const arena = allCharsDiv.parentElement;
+        targets.forEach(target => {
+            if (!target.cardElement) return;
+            const p = SkillSystem._animPoint(target.cardElement, arena);
+            const s = SkillSystem._animSize(target.cardElement);
+            const cx = p.x + s.w / 2;
+            const bottom = p.y + s.h;   // 从卡底喷涌
+            const count = 8 + Math.floor(Math.random() * 5);   // 8~12 个火焰粒子
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    if (!target.cardElement.isConnected) return;
+                    const flame = document.createElement('div');
+                    flame.className = 'flame-particle';
+                    const drift = (Math.random() - 0.5) * 70;   // 水平摆动
+                    const rise = 70 + Math.random() * 50;       // 上升高度
+                    const dur = 0.5 + Math.random() * 0.35;
+                    const size = 10 + Math.random() * 14;
+                    flame.style.cssText = `left:${cx}px;top:${bottom}px;--dx:${drift.toFixed(0)}px;--dy:${(-rise).toFixed(0)}px;--dur:${dur.toFixed(2)}s;--size:${size.toFixed(0)}px`;
+                    arena.appendChild(flame);
+                    setTimeout(() => flame.remove(), dur * 1000 + 120);
+                }, i * 70);   // 逐批蹿升（火焰越烧越旺）
+            }
+        });
+        // 火柱腾升中段：伤害反馈 + 目标处橙红冲击波
+        setTimeout(() => {
+            const fb = window._slashHitFeedbacks || [];
+            window._slashHitFeedbacks = [];
+            fb.forEach(f => f());
+            targets.forEach(t => {
+                if (t.cardElement && cfg.impact) SkillSystem._createBurst(t.cardElement, arena, cfg.impact);
+            });
+        }, 300);
+    }
+
+    // 引爆（v0.5 火焰特效）：目标剧烈爆炸（三技能里最华丽）——三层冲击波（白闪快圈→橙红大圈→暗红外圈
+    // 错开 80ms 依次扩散）+ 🔥💥粒子向四周高速飞射 + 目标卡震屏；伤害反馈在起爆瞬间（~120ms）同步播放
+    static _fireBomb(actor, targets, allCharsDiv) {
+        const cfg = SKILL_ANIM_CONFIG['引爆'] || {};
+        const arena = allCharsDiv.parentElement;
+        const rings = [
+            { color: '#ffffff', size: 50, dur: 0.4, delay: 0 },    // 白闪快圈（起爆）
+            { color: '#ff5252', size: 90, dur: 0.6, delay: 80 },    // 橙红大圈
+            { color: '#c0392b', size: 130, dur: 0.7, delay: 160 },  // 暗红外圈
+        ];
+        targets.forEach(target => {
+            if (!target.cardElement) return;
+            const p = SkillSystem._getCardCenter(target.cardElement, arena);
+            rings.forEach(r => {
+                setTimeout(() => {
+                    const ring = document.createElement('div');
+                    ring.className = 'explosion-ring';
+                    ring.style.cssText = `left:${p.x}px;top:${p.y}px;--size:${r.size}px;--color:${r.color};--dur:${r.dur}s`;
+                    arena.appendChild(ring);
+                    setTimeout(() => ring.remove(), r.dur * 1000 + 100);
+                }, r.delay);
+            });
+            target.cardElement.classList.add('hit-animation');   // 震屏
+            setTimeout(() => target.cardElement.classList.remove('hit-animation'), 600);
+        });
+        // 起爆瞬间：伤害反馈 + 爆炸粒子高速飞射 + 大冲击波
+        setTimeout(() => {
+            const fb = window._slashHitFeedbacks || [];
+            window._slashHitFeedbacks = [];
+            fb.forEach(f => f());
+            targets.forEach(t => {
+                if (t.cardElement) {
+                    if (cfg.impact) SkillSystem._createBurst(t.cardElement, arena, cfg.impact);
+                    if (cfg.particles) SkillSystem._createParticles(t.cardElement, arena, cfg.particles);
+                }
+            });
+        }, 120);
     }
 
     // 冲击波（target 处扩散）

@@ -102,7 +102,7 @@ function createSelectionModule(opts) {
 
     // v0.311：锁定槽（index, roleName）——预填、不可移除不可覆盖。传 (null, null) 清除。调用方设置后需再 init() 生效
     function setLockedSlot(index, roleName, lockDesc) {
-        // v0.5：lockDesc 第三参自定义锁槽文案（默认 'AI 操控'，灼华篇第三关传 '锁定出战'）
+        // v0.5：lockDesc 第三参自定义锁槽文案（默认 'AI 操控'；目前鲁盼旋第四关/灼华第三关都用默认 AI 操控）
         lockedSlot = (index === null || index === undefined) ? null : { index, roleName, lockDesc: lockDesc || 'AI 操控' };
     }
 
@@ -158,6 +158,7 @@ function createSelectionModule(opts) {
         container.innerHTML = '';
         const slots = opts.getSlots();
         let globalIdx = 0;   // 全局槽下标 = 组偏移 + 组内 idx
+        let playIdx = 0;     // v0.5：我方出战位置编号（从 0 起，对应战斗 position）；待命组不占用编号
         slotGroups.forEach(group => {
             const groupDiv = document.createElement('div');
             groupDiv.className = 'char-slot-group';
@@ -169,15 +170,21 @@ function createSelectionModule(opts) {
             }
             const rowDiv = document.createElement('div');
             rowDiv.className = 'char-slot-row';
+            const isBench = group.bench === true;   // v0.5：待命组（仅我方第四关/灼华第三关，渲染在最左）
             for (let g = 0; g < group.count; g++, globalIdx++) {
                 const idx = globalIdx;
                 const role = slots[idx];
                 const div = document.createElement('div');
                 div.className = 'char-slot';
+                // v0.5：我方槽标注「待命 / 位置0、1、2」（从左到右待命区在前、出战位置0~2在后）；
+                // 敌方（opts.positionFromZero 未开启）保持原「站位N」标注
+                const slotDesc = opts.positionFromZero
+                    ? (isBench ? '待命' : `位置${playIdx++}`)
+                    : `站位${idx + 1}`;
                 if (lockedSlot && lockedSlot.index === idx) {
-                    // v0.311+v0.5：锁定槽（默认「AI 操控」；灼华篇第三关为「锁定出战」）——预填角色、固定边框色、不可点击
+                    // v0.311+v0.5：锁定槽（默认「AI 操控」；鲁盼旋第四关/灼华篇第三关均 AI 操控）——预填角色、固定边框色、不可点击
                     div.style.borderColor = opts.fillColor;
-                    div.innerHTML = `<div class="name">🔒 ${lockedSlot.roleName}</div><div class="desc">站位${idx + 1} · ${lockedSlot.lockDesc || 'AI 操控'}</div>`;
+                    div.innerHTML = `<div class="name">🔒 ${lockedSlot.roleName}</div><div class="desc">${slotDesc} · ${lockedSlot.lockDesc || 'AI 操控'}</div>`;
                     div.style.cursor = 'default';
                 } else if (role === null) {
                     const isPendingSlot = (idx === pendingIndex);
@@ -197,7 +204,7 @@ function createSelectionModule(opts) {
                     div.innerHTML = `<div class="name">空位</div><div class="desc">${desc}</div>`;
                 } else {
                     div.style.borderColor = opts.fillColor;
-                    div.innerHTML = `<div class="name">${role}</div><div class="desc">站位${idx + 1}</div>`;
+                    div.innerHTML = `<div class="name">${role}</div><div class="desc">${slotDesc}</div>`;
                 }
                 div.onclick = () => clickSlot(idx);
                 rowDiv.appendChild(div);

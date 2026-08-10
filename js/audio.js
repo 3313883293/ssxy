@@ -80,6 +80,12 @@ const SFX_TABLE = {
     gas: (c) => { sfxTone(c, { type: 'sine', f0: 500, f1: 180, dur: 0.8, vol: 0.15 }); },
     // 噼啪（snap 类短促声）
     snap: (c) => { sfxNoise(c, { dur: 0.06, vol: 0.3, f0: 4000, f1: 2000 }); },
+    // 燃木火球（v0.5 火焰特效）：低频带通噪声上扫（火球呼啸飞出）+ 发射「噗」短噪声
+    flame: (c) => { sfxNoise(c, { dur: 0.5, vol: 0.3, f0: 150, f1: 800, type: 'bandpass' }); sfxNoise(c, { dur: 0.12, vol: 0.22, f0: 2500, f1: 500, when: 0.04 }); },
+    // 煽风火柱（v0.5 火焰特效）：多次随机小噪声脆响（火焰噼啪）+ 柔和带通噪声上扫（风声/火势）
+    ember: (c) => { for (let i = 0; i < 6; i++) sfxNoise(c, { dur: 0.04, vol: 0.12, f0: 3000 + Math.random() * 2000, f1: 1000, when: i * 0.09 }); sfxNoise(c, { dur: 0.7, vol: 0.15, f0: 300, f1: 1500, type: 'bandpass' }); },
+    // 引爆爆炸（v0.5 火焰特效）：锯齿波低频下坠（爆炸轰隆）+ 低通噪声爆轰 + 延迟二次回响
+    bomb: (c) => { sfxTone(c, { type: 'sawtooth', f0: 120, f1: 30, dur: 0.6, vol: 0.5 }); sfxNoise(c, { dur: 0.5, vol: 0.45, f0: 1200, f1: 80, type: 'lowpass' }); sfxTone(c, { type: 'sine', f0: 60, f1: 25, dur: 0.7, vol: 0.35, when: 0.25 }); },
     // 回合开始：双音提示
     round: (c) => { sfxTone(c, { type: 'square', f0: 440, dur: 0.08, vol: 0.07 }); sfxTone(c, { type: 'square', f0: 660, dur: 0.1, vol: 0.07, when: 0.09 }); },
     // 胜利：上行琶音 C E G C
@@ -91,7 +97,8 @@ const SFX_TABLE = {
 // 技能动画 type → 音效名（aura 按技能名细分加油/刹车/持盾格挡）
 const SKILL_SFX_MAP = {
     slash: 'slash', slashSingle: 'slashSingle', swordWave: 'swordWave', carRush: 'carRush',
-    multi: 'multi', strike: 'strike', snap: 'snap', gas: 'gas'
+    multi: 'multi', strike: 'strike', snap: 'snap', gas: 'gas',
+    flameThrow: 'flame', emberRise: 'ember', fireBomb: 'bomb'   // v0.5 灼华火焰特效
 };
 const AURA_SFX_BY_SKILL = { 加油: 'buffUp', 刹车: 'buffDown', 持盾格挡: 'bash' };
 

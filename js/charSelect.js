@@ -9,6 +9,7 @@ const charSelection = createSelectionModule({
     getSlots: () => selectedSlots,
     setSlots: (arr) => { selectedSlots = arr; },
     slotCount: 3,
+    positionFromZero: true,   // v0.5：我方槽标注「待命 / 位置0、1、2」（待命区最左，出战位置从 0 起）
     fillColor: '#2ecc71',
     emptyPendingDesc: '点击选人',
     emptyDesc: '点击空格选人',
@@ -56,7 +57,7 @@ const LEVEL_INFO = [
     // v0.5 灼华篇（level 4/5/6）
     { title: '🔥 第一关', desc: '烬火信徒 ×2　焦木傀儡 ×1', enemies: ['烬火信徒', '焦木傀儡'], intro: '烬火教团的纵火信徒。焦木傀儡【易燃】受燃烧 dot 伤害×1.5，可用灼华烧它，但小心火势蔓延。' },
     { title: '🔥 第二关', desc: '引火学徒 ×2　焚香祭司 ×1 ＋ 烬火信徒待命', enemies: ['引火学徒', '焚香祭司', '烬火信徒'], intro: '焚香祭司【焚香】会给友军挂「燃烧」并回算力——教团在"喂火"，趁它未使出焚香前速战可得特殊胜利。' },
-    { title: '🔥 第三关 · Boss', desc: '焚天祭司·烛央 ×1　焦木傀儡 ×2', enemies: ['焚天祭司·烛央', '焦木傀儡'], intro: '灼华将与你们并肩作战（锁定 1 号位，玩家操控），再选 2 名上场 + 1 名待命。烛央【薪火不息】把场上燃烧吸成【狂炎】而变强（每层+150伤害/-20防），烧得越猛它越疯——是双刃剑。机制细节见其被动。' },
+    { title: '🔥 第三关 · Boss', desc: '焚天祭司·烛央 ×1　焦木傀儡 ×2', enemies: ['焚天祭司·烛央', '焦木傀儡'], intro: '灼华将与你们并肩作战（锁定 1 号位，AI 操控），再选 2 名上场 + 1 名待命。烛央【薪火不息】把场上燃烧吸成【狂炎】而变强（每层+150伤害/-20防），烧得越猛它越疯——是双刃剑。机制细节见其被动。' },
     { title: '🎯 测试关 · 自选任意角色', desc: '自由搭配全部角色', enemies: [], intro: '自由搭配全部角色（含我方角色），测试技能与机制，没有固定关卡配置。' },
     { title: '🎓 新手教程', desc: '训练木偶 ×1', enemies: ['训练木偶'], intro: '本关将引导你：①选角与站位 ②技能与算力 ③目标选择 ④防御机制。只需选择 1 名角色出战，前半段有教学引导，后半段自由练习。' }
 ];
@@ -66,25 +67,30 @@ function selectLevel(level) {
     // v0.310+v0.5：-2 教程关取索引 8（-1 测试关取索引 7，0~6 正式关取自身）
     const info = LEVEL_INFO[level === -1 ? 7 : level === -2 ? 8 : level];
     document.getElementById('introTitle').textContent = info.title;
+    // v0.5：关卡介绍显示胜利条件——基础 + 正式关特殊胜利（SPECIAL_CONDITIONS 定义于 battleFlow.js，运行时已全部加载）
+    const special = (level >= 0 && level <= 6 && typeof SPECIAL_CONDITIONS !== 'undefined' && SPECIAL_CONDITIONS[level])
+        ? `<br>✨ 特殊胜利：${SPECIAL_CONDITIONS[level]}` : '';
     // 出场敌方卡（可点击查看详情，去重显示）
     const enemyCards = (info.enemies || []).filter((v, i, a) => a.indexOf(v) === i)
         .map(name => `<div class="level-intro-enemy" onclick="renderRoleDetail('${name}', 'introDetailPanel')">${name}</div>`).join('');
     document.getElementById('introContent').innerHTML = `
         <div class="level-intro-desc">敌方配置：${renderGlossaryText(info.desc)}</div>
         ${enemyCards ? `<div class="level-intro-enemies">出场敌方（点击查看详情）：</div><div class="level-intro-enemy-row">${enemyCards}</div>` : ''}
+        <div class="level-intro-win">🏆 胜利条件：击败敌方全部角色${special}</div>
         <div class="level-intro-text">${renderGlossaryText(info.intro)}</div>`;
     showPage('pageLevelIntro');
 }
 
 function confirmLevel() {
-    // v0.311：第四关 = 出战3（1 号锁定鲁盼旋 AI）+ 待命1；
-    // v0.5：灼华篇第三关 = 出战3（1 号锁定灼华·玩家手动）+ 待命1；教程关 1 槽；其余 3 槽
+    // v0.311+v0.5：第四关/灼华篇第三关 = 待命区（最左）+ 出战3（位置2 锁定 AI 角色 = 战斗最前方）
+    // 布局从左到右：待命区、位置0、位置1、位置2（待命槽 index 0，出战槽 index 1/2/3，锁定出战位置2 = 最前方）
+    // v0.5：强制上场角色统一用内置我方 AI；教程关 1 槽；其余 3 槽
     if (currentSelectedLevel === 3) {
-        charSelection.setSlotGroups([{ label: '出战', count: 3 }, { label: '待命', count: 1 }]);
-        charSelection.setLockedSlot(0, '鲁盼旋');
+        charSelection.setSlotGroups([{ label: '待命', count: 1, bench: true }, { label: '出战', count: 3 }]);
+        charSelection.setLockedSlot(3, '鲁盼旋');
     } else if (currentSelectedLevel === 6) {
-        charSelection.setSlotGroups([{ label: '出战', count: 3 }, { label: '待命', count: 1 }]);
-        charSelection.setLockedSlot(0, '灼华', '锁定出战');
+        charSelection.setSlotGroups([{ label: '待命', count: 1, bench: true }, { label: '出战', count: 3 }]);
+        charSelection.setLockedSlot(3, '灼华');   // 默认第三参 'AI 操控'（与鲁盼旋第四关一致）
     } else {
         charSelection.setSlotGroups(null);
         charSelection.setLockedSlot(null, null);
@@ -109,7 +115,7 @@ function renderRoleDetail(roleName, panelId) {
     header.innerHTML = `
         <span class="role-detail-icon">📋</span>
         <span class="role-detail-name">${roleName}</span>
-        <span class="role-detail-stats">${renderGlossaryText(`HP ${tmpChar.maxHp} ｜ SP ${tmpChar.maxSP}+${tmpChar.spRegen}/回 ｜ 防${defVal} ｜ 速${spdRange}`)}</span>
+        <span class="role-detail-stats">${renderGlossaryText(`血量 ${tmpChar.maxHp} ｜ 算力 ${tmpChar.maxSP}+${tmpChar.spRegen}/回 ｜ 防${defVal} ｜ 速${spdRange}`)}</span>
     `;
 
     let html = '';
@@ -211,12 +217,12 @@ function updateLevelLocks() {
     }
 }
 
-// ==================== 灼华篇（v0.5）：可收纳版块 + 逐关解锁（复用 pwgame_cleared；灼华初始可用，无解锁入口） ====================
+// ==================== 灼华篇（v0.5）：可收纳版块 + 逐关解锁（复用 pwgame_cleared；灼华 ⭐≥4 版块🔓解锁，仿鲁盼旋） ====================
 function toggleZhSection() {
     const body = document.getElementById('zhSectionBody');
     const open = body.style.display !== 'none';
     body.style.display = open ? 'none' : 'block';
-    if (!open) updateZhLevelLocks();   // 展开时刷新解锁状态
+    if (!open) { updateZhLevelLocks(); updateZhUnlock(); }   // 展开时刷新关卡/灼华解锁状态
     updateZhStars();                   // 星数随展开/收起刷新
 }
 
@@ -228,6 +234,35 @@ function updateZhStars() {
         const open = body && body.style.display !== 'none';
         title.textContent = '🔥 灼华篇 ⭐ ' + getStarCountZh() + '/6 ' + (open ? '▾' : '▸');
     }
+}
+
+// v0.5 改：灼华解锁区三态（仿鲁盼旋 updateLuStars，阈值 4/6）——✅已解锁 / 🔓达标可点 / 🔒未达标
+function updateZhUnlock() {
+    const area = document.getElementById('zhUnlockArea');
+    if (!area) return;
+    const n = getStarCountZh();
+    if (getZhUnlocked()) {
+        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:2px solid #2ecc71;border-radius:8px;color:#2ecc71;font-weight:bold;text-align:center;">✅ 灼华已解锁</div>';
+    } else if (n >= 4) {
+        area.innerHTML = '<button class="btn-main" style="width:100%;background:#f9ca24;color:#222;margin:10px 0;" onclick="unlockZh()">🔓 点击解锁灼华（⭐' + n + '/6）</button>';
+    } else {
+        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:1px dashed #555;border-radius:8px;color:#888;text-align:center;">🔒 集齐 4 星解锁灼华（当前 ⭐' + n + '/6）</div>';
+    }
+}
+
+function unlockZh() {
+    if (getStarCountZh() < 4) { showModal({ title: '提示', message: '还需集齐 4 颗星（当前 ' + getStarCountZh() + '/6）！' }); return; }
+    showModal({
+        title: '解锁灼华',
+        message: '集齐 ' + getStarCountZh() + '/6 星，确定解锁灼华吗？',
+        type: 'confirm',
+        onConfirm: () => {
+            setZhUnlocked();
+            updateZhUnlock();
+            updateZhStars();
+            showModal({ title: '🎉 解锁成功', message: '灼华已解锁！现在可在选角界面使用她了。' });
+        }
+    });
 }
 
 // v0.5：灼华篇逐关解锁（level 4/5/6 → zhCard0~2）
@@ -273,3 +308,4 @@ function getRoleSpeedRange(roleName) {
 
 updateLuStars();   // v0.316：页面加载即显示版块标题星数（DOM 已就绪）
 updateZhStars();   // v0.5：灼华篇标题星数
+updateZhUnlock();  // v0.5 改：灼华篇解锁区（⭐≥4 显示🔓）

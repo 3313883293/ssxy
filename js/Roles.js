@@ -78,7 +78,7 @@ function createLuPanxuan(team, position) {
             const before = self.sp;
             self.sp = Math.min(self.maxSP, self.sp + 200);
             const gained = self.sp - before;
-            if (gained > 0) log(`♻️ ${self.name}(位置${self.position}) 未使用技能，回复${gained}算力 (${self.sp}/${self.maxSP})`);
+            if (gained > 0) log(`♻️ ${self.name}(位置${self.position}) 未使用技能，回复${gained}算力 (算力 ${self.sp}/${self.maxSP})`);
         }
     });
 
@@ -270,7 +270,7 @@ function createScarecrowRegen(team, position) {
         if (self.alive && self.hp < self.maxHp) {
             const heal = 500;
             self.hp = Math.min(self.maxHp, self.hp + heal);
-            log(`🌿 ${self.name}(位置${self.position}) 再生恢复${heal}HP (${self.hp}/${self.maxHp})`);
+            log(`🌿 ${self.name}(位置${self.position}) 再生恢复${heal}血量 (血量 ${self.hp}/${self.maxHp})`);
         }
     });
     return char;

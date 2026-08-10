@@ -91,6 +91,12 @@ body {
     transform: translateY(-2px);
     box-shadow: 0 0 10px rgba(233, 69, 96, 0.6);
 }
+/* v0.5：关卡介绍页胜利条件（基础 + 特殊胜利，金色卡片） */
+.level-intro-win {
+    background: #16213e; border: 2px solid #f9ca24; border-radius: 12px;
+    padding: 16px 24px; width: 400px; margin-top: 15px;
+    color: #f9ca24; font-size: 1em; line-height: 1.8;
+}
 
 .battle-page { gap: 10px; }
 .battle-header { text-align: center; margin-bottom: 5px; }
@@ -778,7 +784,7 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .battle-header h2 { margin: 0; }
 
     /* 选角/关卡页固定宽 → 流式，不超视口 */
-    .level-card, .level-section-title, .level-intro-desc, .level-intro-text { width: 100%; max-width: 400px; }
+    .level-card, .level-section-title, .level-intro-desc, .level-intro-text, .level-intro-win { width: 100%; max-width: 400px; }
     .char-slots, .char-slot-row { flex-wrap: wrap; justify-content: center; }
     .control-buttons { flex-wrap: wrap; justify-content: center; }
 
@@ -851,7 +857,7 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .roster-card { padding: 10px 12px; min-width: 96px; min-height: 44px; }
     .level-card { padding: 16px 12px; }
     .level-section-title { font-size: 1em; }
-    .level-intro-desc, .level-intro-text { padding: 14px 12px; font-size: 0.92em; }
+    .level-intro-desc, .level-intro-text, .level-intro-win { padding: 14px 12px; font-size: 0.92em; }
     .btn-main { padding: 12px 22px; font-size: 1.1em; min-height: 44px; }
 
     /* ---- 弹窗与悬浮按钮 ---- */
@@ -921,4 +927,57 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .next-btn { margin-top: 6px; padding: 8px; min-height: 40px; font-size: 0.9em; }
     .target-hint { margin-top: 4px; font-size: 0.85em; }
     .log { margin-top: 6px; max-height: 56px; padding: 6px 8px; font-size: 0.72em; }
+}
+
+/* ==================== 灼华火焰特效（v0.5） ==================== */
+
+/* --- 火球（燃木）：多层火苗层叠的圆形光球，JS setInterval 运动学驱动 transform 飞行 ---
+   radial-gradient 橙黄亮心→橙红外焰 + 三重 box-shadow 模拟火苗外焰与余晖；命中后 .fade 淡出 */
+.flame-ball {
+    position: absolute; pointer-events: none; z-index: 10;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff6d5 0%, #ff9f43 30%, #e67e22 62%, #d63031 100%);
+    box-shadow:
+        0 0 10px 4px rgba(255, 159, 67, 0.75),
+        0 0 22px 10px rgba(230, 126, 34, 0.45),
+        0 0 38px 20px rgba(214, 48, 49, 0.25);
+    will-change: transform;
+}
+.flame-ball.fade { opacity: 0; transition: opacity 0.25s ease-out; }
+
+/* --- 火焰粒子（煽风火柱）：泪滴形火苗从卡底向上蹿升 + 水平摆动 + 渐隐（火焰越烧越旺） ---
+   --dx/--dy/--size/--dur 由 JS 逐粒随机；泪滴形 = 圆角不对称 + rotate45° */
+.flame-particle {
+    position: absolute; pointer-events: none; z-index: 10;
+    width: var(--size, 14px); height: var(--size, 14px);
+    border-radius: 50% 50% 50% 0;   /* 泪滴形，尖端朝上 */
+    background: radial-gradient(circle at 40% 30%, #ffeaa7 0%, #ff9f43 45%, #e74c3c 100%);
+    box-shadow: 0 0 8px 2px rgba(255, 159, 67, 0.6);
+    transform: translate(-50%, -50%) rotate(45deg);
+    animation: animFlameRise var(--dur, 0.6s) ease-out forwards;
+}
+@keyframes animFlameRise {
+    0%   { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) translate(0, 0) scale(0.5); }
+    15%  { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) translate(0, 0) scale(0.9); }
+    60%  { opacity: 0.9; }
+    100% { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) translate(var(--dx, 0px), var(--dy, -70px)) scale(1.15); }
+}
+
+/* --- 爆炸圈（引爆）：多层冲击波环向外扩散渐隐（白闪→橙红→暗红外圈错开由 JS 控制） --- */
+.explosion-ring {
+    position: absolute; pointer-events: none; z-index: 9;
+    width: var(--size, 90px); height: var(--size, 90px);
+    border-radius: 50%;
+    border: 3px solid var(--color, #ff5252);
+    box-shadow:
+        0 0 14px var(--color, #ff5252),
+        inset 0 0 14px var(--color, #ff5252),
+        0 0 30px rgba(255, 255, 255, 0.35);
+    transform: translate(-50%, -50%);
+    animation: animExplosion var(--dur, 0.6s) ease-out forwards;
+}
+@keyframes animExplosion {
+    0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
+    60%  { opacity: 0.9; }
+    100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
 }

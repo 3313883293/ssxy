@@ -52,9 +52,10 @@
                 <div class="enemy-preview">敌方配置：云长郡×1（亡灵怨恨）</div>
             </div>
         </div>
-        <!-- 灼华篇（v0.5：可收纳版块，默认收起；逐关解锁；灼华初始可用，无需解锁入口） -->
+        <!-- 灼华篇（v0.5：可收纳版块，默认收起；逐关解锁；灼华 ⭐≥4 版块🔓解锁，未解锁时仅第三关锁槽 AI 强制上场） -->
         <div class="level-section-title" id="zhSectionTitle" onclick="toggleZhSection()">🔥 灼华篇 ▸</div>
         <div id="zhSectionBody" style="display:none;">
+            <div id="zhUnlockArea"></div>
             <div class="level-card" id="zhCard0" style="margin-top:8px; border-color:#ff6b81;">
                 <h3>🔥 第一关</h3>
                 <div class="enemy-preview">敌方配置：烬火信徒×2　焦木傀儡×1</div>
@@ -65,7 +66,7 @@
             </div>
             <div class="level-card" id="zhCard2" style="margin-top:12px; border-color:#e056fd;">
                 <h3 style="color:#e056fd;">🔥 第三关 · Boss</h3>
-                <div class="enemy-preview">敌方配置：焚天祭司·烛央×1　焦木傀儡×2（灼华锁定出战）</div>
+                <div class="enemy-preview">敌方配置：焚天祭司·烛央×1　焦木傀儡×2（灼华 AI 操控）</div>
             </div>
         </div>
         <button class="btn-main" style="background:#555; margin-top:15px;" onclick="showPage('pageTitle')">返回</button>

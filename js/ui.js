@@ -12,5 +12,8 @@ function showPage(id) {
         if (typeof updateLevelLocks === 'function') updateLevelLocks();
         // v0.317：返回关卡选择页时实时刷新 ⭐ 星数与鲁盼旋解锁状态（原只在展开版块时刷新，打完退出星数不更新）
         if (typeof updateLuStars === 'function') updateLuStars();
+        // v0.5 改：灼华篇标题星数与解锁区同步实时刷新（打完灼华篇回关卡页即更新）
+        if (typeof updateZhStars === 'function') updateZhStars();
+        if (typeof updateZhUnlock === 'function') updateZhUnlock();
     }
 }

@@ -27,14 +27,18 @@ function log(msg) {
 // v0.309：选取逻辑统一由 selection.js 的 createSelectionModule 工厂管理（敌我共用同一套，
 //          pending 待选状态在工厂闭包内，不再需要全局变量）
 // v0.316：初始我方仅三模板；鲁盼旋篇 ⭐≥6 后可在版块点击解锁「鲁盼旋」（完全替代原通关第四关自动解锁）
-// v0.320：新增「灼华」进初始可选池（燃烧 dot 手，无需解锁）
+// v0.320：新增「灼华」进初始可选池（燃烧 dot 手）
+// v0.5 改：灼华不再初始可用——灼华篇 ⭐≥4 后可在灼华篇版块点击解锁（key pwgame_zh_unlocked）；未解锁时
+//          仅灼华篇第三关锁槽强制 AI 上场（Boss 关剧情参战），不进初始可选池
 const AVAILABLE_CHARS = ['模板一', '模板二', '模板三'];
 let selectedSlots = [];
 
 function getAvailableChars() {
-    // v0.316：解锁只认星级——鲁盼旋篇版块点击解锁后写 pwgame_lu_unlocked；不再看 pwgame_cleared.includes(3)
-    if (getLuUnlocked()) return ['模板一', '模板二', '模板三', '鲁盼旋', '灼华'];
-    return ['模板一', '模板二', '模板三', '灼华'];
+    // v0.316：解锁只认星级标记——鲁盼旋/灼华各管各的（pwgame_lu_unlocked / pwgame_zh_unlocked），不再看 pwgame_cleared
+    const chars = ['模板一', '模板二', '模板三'];
+    if (getLuUnlocked()) chars.push('鲁盼旋');
+    if (getZhUnlocked()) chars.push('灼华');
+    return chars;
 }
 
 // ==================== ⭐ 星级系统（v0.316：鲁盼旋篇 8 星收集，≥6 星点击解锁鲁盼旋） ====================
@@ -98,6 +102,13 @@ function getLuUnlocked() {
 function setLuUnlocked() {
     try { localStorage.setItem('pwgame_lu_unlocked', '1'); } catch (e) {}
 }
+// v0.5 改：灼华解锁标记（灼华篇 ⭐≥4 版块点击解锁后写 '1'）
+function getZhUnlocked() {
+    try { return localStorage.getItem('pwgame_zh_unlocked') === '1'; } catch (e) { return false; }
+}
+function setZhUnlocked() {
+    try { localStorage.setItem('pwgame_zh_unlocked', '1'); } catch (e) {}
+}
 
 // ==================== 自选敌人状态 ====================
 // v0.309：测试关可自选全部角色（含我方角色）
@@ -119,7 +130,7 @@ const PASSIVE_INFO = {
     '开车警察': ['技能循环（AI）：【加油】×2 → 【开创】 → 【刹车】'],
     '李雅礼': ['倒戈：阵亡后在我方队伍最右方（紧挨敌人）复活，仍由AI操控'],
     '云长郡': [
-        '部下亡灵之怨恨：受击减伤100%，场上每阵亡1名角色减伤-15%；减伤跌破0%转为受到伤害加成；减伤每回合开始判定，回合内死亡下回合生效；每回合开始时若场上只剩自己且召唤池非空，召唤2个警察怨灵（池：2持盾2持棍4持枪2车，怨灵为原单位一半HP与初始算力，怨灵车为25%HP）'
+        '部下亡灵之怨恨：受击减伤100%，场上每阵亡1名角色减伤-15%；减伤跌破0%转为受到伤害加成；减伤每回合开始判定，回合内死亡下回合生效；每回合开始时若场上只剩自己且召唤池非空，召唤2个警察怨灵（池：2持盾2持棍4持枪2车，怨灵为原单位一半血量与初始算力，怨灵车为25%血量）'
     ],
     '灼华': [
         '黎明级后天能力者：受到的直接伤害减免20%',
@@ -127,7 +138,7 @@ const PASSIVE_INFO = {
         '风助火势：回合结束时，所有带「燃烧」的敌方单位「燃烧」等级+1'
     ],
     '纸糊稻草人': [], '铁皮稻草人': [], '标准稻草人': [], '灵敏稻草人': [],
-    '再生稻草人': ['再生：回合结束时回复500HP'],
+    '再生稻草人': ['再生：回合结束时回复500血量'],
     '训练木偶': ['教程专用演示木偶：两个技能分别演示普通防御与破防（无视防御）'],
     // v0.5 烬火教团
     '烬火信徒': [],

@@ -5,7 +5,7 @@ const TUTORIAL_STEPS = [
     { id: 'char-select',    text: '① 本关只需选【1 名角色】出战。三个模板的定位：<br>· 模板一【均衡】— 中速中防，伤害稳定递增<br>· 模板二【高速远程】— 全场最快(速4~7)、多段连击，但较脆(防100)<br>· 模板三【近战爆发】— 防御最高(防300)、高耗高伤，贴身距离1<br>点下方【角色卡】→ 再点出战空格放入', highlight: '.roster-card' },
     { id: 'confirm',        text: '② 选择好出战角色后，点击【确认出战】进入战斗', highlight: null },
     { id: 'start-round',    text: '③ 点击【▶ 开始回合】，进入行动阶段', highlight: '#nextRoundBtn' },
-    { id: 'pick-skill',     text: '④ 从下方技能按钮选一个技能——注意上方显示消耗算力 SP 与攻击距离', highlight: '.skill-btn' },
+    { id: 'pick-skill',     text: '④ 从下方技能按钮选一个技能——注意上方显示消耗算力与攻击距离', highlight: '.skill-btn' },
     { id: 'pick-target',    text: '⑤ 点击射程内的敌方角色卡选目标（目标数 = 硬币数）；点错再点一下可取消', highlight: '.character-card.selectable' },
     { id: 'confirm-action', text: '⑥ 选好目标后，点击【✅ 确认】执行技能', highlight: '#confirmTargetBtn' },
     { id: 'defense',        text: '⑦ 看敌方出手——【普通示范】会被你的防御(200)减免伤害，【破防示范】无视防御直接命中', highlight: null, dismissable: true },

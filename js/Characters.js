@@ -67,11 +67,16 @@ class Character {
     }
 
     // v0.312：第四关 AI 鲁盼旋「誓死守护」——队友仍存活时锁血为 1，不会倒下
+    // v0.5：灼华篇第三关锁槽灼华同规则（强制上场角色 = AI 操控 + 锁血，与鲁盼旋第四关一致）
+    // v0.5 补：队友检测含待命区——出战队友全灭但待命区仍有存活队友时同样锁血（誓死守护延伸到候补队友）
     isImmortalWhileAlliesAlive() {
-        return this.name === '鲁盼旋' && this.aiControlled
-            && typeof battleState !== 'undefined' && battleState
-            && battleState.currentLevel === 3
-            && battleState.playerTeam.some(c => c !== this && c.alive && !c.pendingEntry);
+        if (typeof battleState === 'undefined' || !battleState) return false;
+        const isLockedHero = (this.name === '鲁盼旋' && battleState.currentLevel === 3)
+                          || (this.name === '灼华' && battleState.currentLevel === 6);
+        if (!(isLockedHero && this.aiControlled)) return false;
+        // 队友 = 出场（playerTeam，排除入场动画中 pendingEntry）+ 待命区（benchPlayer 存活未入场）
+        const allies = battleState.playerTeam.concat(battleState.benchPlayer || []);
+        return allies.some(c => c !== this && c.alive && !c.pendingEntry);
     }
 
     // 普通伤害（吃防御）

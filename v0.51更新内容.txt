@@ -1,0 +1,42 @@
+v0.51 更新内容：灼华火焰特效优化——三技能专属火焰演出 + 火焰专属音效
+
+按用户要求（「优化灼华特效：与火焰强相关」），为灼华的燃烧 dot 手三技能各定制专属火焰动画，对齐鲁盼旋专属演出（亮剑/剑气/开创）的等级，延续「慢而炫、夸张化」风格。改动纯表现层，机制零改动。
+
+## 灼华三技能火焰动画（SkillSystem.js）
+
+| 技能 | 原特效 | 新特效 | 新动画 type |
+|---|---|---|---|
+| 燃木（施加 2 层燃烧） | 普通直线打击线 | **火球飞击**：灼华卡前凝火苗 → 多层火苗层叠的圆形火球沿直线飞向目标（运动学初速慢→急速命中，复用剑气模式）→ 命中炸开火焰（橙红冲击波 + 🔥粒子四溅），伤害反馈在命中时刻同步 | `flameThrow`（_flameThrow） |
+| 煽风（燃烧+2级/点燃） | 雾气扩散 | **火柱腾升**：8~12 个泪滴形火焰粒子从目标卡底向上逐批蹿升（火焰越烧越旺呼应升火）、顶部火星飘散，伤害反馈在火柱腾升中段（~300ms）同步 | `emberRise`（_emberRise） |
+| 引爆（引爆真伤） | 打击线+枪口闪光 | **三层爆炸**（最华丽）：白闪→橙红→暗红外圈错开 80ms 依次扩散 + 🔥💥粒子高速飞射 + 目标卡震屏，伤害反馈起爆瞬间（~120ms）同步 | `fireBomb`（_fireBomb） |
+
+三技能均走 `delayedHit` 演出型机制（伤害数字/受击音/死亡爆发延迟到命中时刻播放，与鲁盼旋演出技能同机制）；`playSkillTargetAnimation` 已加对应 return 防重复出招；坐标统一经 _animPoint/_getCardCenter/_animSize，位移乘 _dispScale（窄屏/横屏适配）。
+
+## 火焰专属音效（audio.js）
+
+- **flame**（燃木）：低频带通噪声上扫（火球呼啸飞出）+ 发射「噗」短噪声
+- **ember**（煽风）：6 次随机小噪声脆响（火焰噼啪）+ 柔和带通噪声上扫（风声/火势）
+- **bomb**（引爆）：锯齿波低频下坠（爆炸轰隆）+ 低通噪声爆轰 + 延迟二次回响
+
+SKILL_SFX_MAP 加 flameThrow:flame / emberRise:ember / fireBomb:bomb。
+
+## 火焰动画样式基元（style.css 末尾追加）
+
+- `.flame-ball`：火球（radial-gradient 橙黄亮心→橙红外焰 + 三重 box-shadow 火苗余晖），命中后 .fade 淡出
+- `.flame-particle`：泪滴形火苗粒子（圆角不对称 + rotate45°），keyframes animFlameRise 向上蹿升 + 水平摆动 + 渐隐
+- `.explosion-ring`：爆炸圈（多层 border + 光晕），keyframes animExplosion 向外扩散渐隐
+
+## 验证
+
+新增 check-v05-flameanim.js（16 项，桌面 1280 走查灼华篇第一关）：
+- 燃木：.flame-ball 火球出现 → 命中冲击波 + 伤害数字（反馈同步）→ 火球淡出移除；施加 2 层燃烧；flame 音效
+- 煽风：.flame-particle 火柱粒子喷涌；升火燃烧等级 +2；火柱中段伤害数字；ember 音效
+- 引爆：.explosion-ring 三层爆炸圈；引爆真伤数字立即 + 普通伤害反馈同步；燃烧被引爆清零；bomb 音效
+- 全程无页面异常、无残留 dialog
+
+回归全过：verify-v050-zh（32）、verify-v320（28）、verify-v316（21）、check-v05-responsive（15）、check-v05-zhunlock/bosspos/zhlock/introwin。
+
+## 不做
+
+- 敌方烬火教团火系技能（火球术/祭火/烈焰鞭/焚天祭）仍走通用动画，留待后续
+- 灼华被动（添薪/风助火势）为 buff 逻辑，无需动画

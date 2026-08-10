@@ -37,7 +37,7 @@ class BattleState {
             wraith.order = -99;   // 怨灵在左边生成（紧贴玩家一侧）
             this.enemyTeam.push(wraith);
             this.allCharacters.push(wraith);
-            if (typeof log === 'function') log(`👻 云长郡 召唤了警察怨灵：${wraith.name}（HP ${wraith.maxHp}）`);
+            if (typeof log === 'function') log(`👻 云长郡 召唤了警察怨灵：${wraith.name}（血量 ${wraith.maxHp}）`);
         }
         this.repositionAll();
     }

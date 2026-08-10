@@ -28,7 +28,7 @@ function updateCharBars(char) {
         hpBar.classList.toggle('low-hp', char.hp / char.maxHp < 0.3);
     }
     const hpText = card.querySelector('.hp-text');
-    if (hpText) hpText.textContent = `HP ${char.hp}/${char.maxHp}`;
+    if (hpText) hpText.textContent = `血量 ${char.hp}/${char.maxHp}`;
     const spBar = card.querySelector('.sp-bar');
     if (spBar) spBar.style.width = Math.max(0, char.sp / char.maxSP * 100) + '%';
     const spText = card.querySelector('.sp-text');
@@ -142,7 +142,7 @@ function renderCharacters() {
             <span class="position-mark">位置${char.position}</span>
             <div class="name">${char.name}</div>
             <div class="bar-container"><div class="hp-bar${lowHp ? ' low-hp' : ''}" style="width:${(char.hp / char.maxHp) * 100}%"></div></div>
-            <div class="hp-text">HP ${char.hp}/${char.maxHp}</div>
+            <div class="hp-text">血量 ${char.hp}/${char.maxHp}</div>
             <div class="bar-container"><div class="sp-bar" style="width:${(char.sp / char.maxSP) * 100}%"></div></div>
             <div class="sp-text">算力 ${char.sp}/${char.maxSP}</div>
             <div class="stats">防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
@@ -219,6 +219,8 @@ function showSkillInfo(char) {
     const skills = char.skills;
     if (!skills || skills.length === 0) return;
     const parts = [];
+    // v0.5：基础数值（面板值，与关卡介绍 renderRoleDetail 头部同源格式；战斗中点角色卡即可查看）
+    parts.push(`📊 基础面板：血量 ${char.maxHp} ｜ 算力 ${char.maxSP}+${char.spRegen}/回 ｜ 防御 ${char.def} ｜ 速度 ${char.speedMin}~${char.speedMax}`);
     // 被动/机制（标在技能前）
     const passives = PASSIVE_INFO[char.name] || [];
     if (passives.length > 0) {

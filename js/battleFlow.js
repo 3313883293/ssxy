@@ -266,7 +266,7 @@ function onTurnEnd() {
             if (c.burnMultiplier !== 1) burnDmg = Math.floor(burnDmg * c.burnMultiplier);
             const actual = c.takeTrueDamage(burnDmg);
             c.dotDamageMap['burn'] = (c.dotDamageMap['burn'] || 0) + actual;
-            log(`🔥 ${c.name} 受到${burnDmg}点「燃烧」伤害（Lv${burnLevel}×${burnStack}层），消耗${consume}层，实际${actual} (HP:${c.hp})`);
+            log(`🔥 ${c.name} 受到${burnDmg}点「燃烧」伤害（Lv${burnLevel}×${burnStack}层），消耗${consume}层，实际${actual} (血量:${c.hp})`);
             // v0.286：燃烧掉血同帧更新血条并飘伤害数字；v0.288 连 buff 标签一起刷新
             if (window.refreshCardState) refreshCardState(c);
             SkillSystem.showDamageNumber(c, actual, null, allCharsDiv);
@@ -395,12 +395,12 @@ function startBattle(level) {
     const playerChars = [];
     const benchPlayers = [];
     let pos = 0;
-    // v0.311：第四关 = 出战3（1 号锁定鲁盼旋 AI）+ 待命1（第 4 槽，阵亡后补位）；其余关卡全上场
+    // v0.311+v0.5：第四关/灼华第三关 = 待命1（index 0，最左）+ 出战3（index 1/2/3）；其余关卡全上场
     selectedSlots.forEach((role, idx) => {
         if (role === null) return;
         const char = createRoleInstance(role, 'player', idx);
         if (!char) return;
-        if ((level === 3 || level === 6) && idx === 3) {
+        if ((level === 3 || level === 6) && idx === 0) {
             benchPlayers.push(char);
             return;
         }
@@ -420,10 +420,11 @@ function startBattle(level) {
             playerChars.forEach((c, i) => { c.position = i; c.order = i; });
         }
     }
-    // v0.5：灼华篇第三关（level 6）锁定灼华站最前方（玩家手动操控，不设 AI）
+    // v0.5：灼华篇第三关（level 6）锁定灼华站最前方；v0.5 改：强制上场角色统一内置我方 AI（与第四关鲁盼旋一致）
     if (level === 6) {
         const zhIdx = playerChars.findIndex(c => c.name === '灼华');
         if (zhIdx !== -1) {
+            playerChars[zhIdx].aiControlled = true;
             const zh = playerChars.splice(zhIdx, 1)[0];
             playerChars.push(zh);   // 移到数组末尾 → order/position 最大 → 最前方
             playerChars.forEach((c, i) => { c.position = i; c.order = i; });
@@ -491,10 +492,11 @@ function startBattle(level) {
         battleState.benchEnemy = [benchCultist];
     } else if (level === 6) {
         // 灼华篇第三关：Boss 烛央（狂炎/薪火不息/焚尽薪火）+ 焦木傀儡×2
+        // v0.5：Boss 站最后排——焦木傀儡（HP3200 肉盾）挡在前线，烛央殿后（原烛央 order 最小裸奔最前，站位颠倒）
         enemyChars = [
-            createZhuYang('enemy', playerChars.length),
+            createCharredGolem('enemy', playerChars.length),
             createCharredGolem('enemy', playerChars.length + 1),
-            createCharredGolem('enemy', playerChars.length + 2)
+            createZhuYang('enemy', playerChars.length + 2)
         ];
     } else if (level === -2) {
         // 教程关：训练木偶 ×1（演示防御/破防机制）
