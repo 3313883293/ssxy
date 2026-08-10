@@ -781,6 +781,18 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .level-card, .level-section-title, .level-intro-desc, .level-intro-text { width: 100%; max-width: 400px; }
     .char-slots, .char-slot-row { flex-wrap: wrap; justify-content: center; }
     .control-buttons { flex-wrap: wrap; justify-content: center; }
+
+    /* ---- 触屏通用（v0.41：锁定横屏后玩家主界面即 844~900 宽横屏，按钮/弹窗同样要触屏适配；
+          竖屏时与 ≤767 同规则重复无冲突，桌面 ≥901 完全不命中） ---- */
+    .skill-btn { min-height: 44px; }
+    #confirmTargetBtn, #cancelTargetBtn, #loadSaveBtn, .battle-header button { min-height: 44px; padding: 10px 16px !important; }
+    .next-btn { min-height: 48px; }
+    .buff-popup, .game-modal { max-height: 92vh; overflow-y: auto; }      /* 横屏手机高度仅 360~430px */
+    .buff-popup-body { max-height: min(400px, 55vh); overflow-y: auto; }
+    #settingsBtn {
+        right: calc(14px + env(safe-area-inset-right));
+        bottom: calc(14px + env(safe-area-inset-bottom));
+    }
 }
 
 /* ---------- 手机竖屏（≤767px） ---------- */
@@ -854,4 +866,32 @@ button, .character-card, .char-slot, .roster-card, .level-card,
 
     /* 结算表（battleUI.js showResultPage 内联 padding:8px）：窄屏压缩 */
     #resultContent table td, #resultContent table th { padding: 6px 4px !important; }
+}
+
+/* ===== v0.41：锁定横屏提示层 =====
+   纯 CSS 实现：竖屏触屏（手机竖拿）时全屏遮罩引导横屏；横过来自动消失。
+   触发条件 = 手机宽度(≤767) + 竖屏(宽<高) + 触屏(pointer:coarse) + 无精确hover(hover:none)，
+   桌面鼠标/触屏笔记本窄窗不误触发；桌面端 ≥901px 完全不参与。 */
+.rotate-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;                 /* 高于 gameModal 1000，盖住一切 */
+    background: #0d1117;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    padding: 24px;
+}
+.rotate-overlay .rotate-phone { font-size: 64px; animation: rotateHint 1.8s ease-in-out infinite; }
+.rotate-overlay .rotate-text { color: #f9ca24; font-size: 22px; font-weight: bold; letter-spacing: 2px; }
+.rotate-overlay .rotate-sub { color: #999; font-size: 14px; }
+@keyframes rotateHint {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(90deg); }   /* 手机图标转 90° 示意「转过来」 */
+}
+@media (max-width: 767px) and (orientation: portrait) and (pointer: coarse) and (hover: none) {
+    #rotateOverlay { display: flex; }
 }
