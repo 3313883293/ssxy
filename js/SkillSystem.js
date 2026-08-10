@@ -85,6 +85,11 @@ const SKILL_ANIM_CONFIG = {
 const SKILL_ANIM_DEFAULT = { type: 'strike', color: '#95a5a6', thick: 2, dur: 0.25 };
 
 class SkillSystem {
+    // v0.4：窄屏缩放动画位移。桌面端恒为 1（行为与 v0.320 完全一致）
+    static _dispScale() {
+        return (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) ? 0.4 : 1;
+    }
+
     static flipCoin(probability = 0.5) {
         return Math.random() < probability;
     }
@@ -488,7 +493,7 @@ class SkillSystem {
             const cy = rects.reduce((s, r) => s + r.top + r.height / 2, 0) / rects.length;
             const dir = cx >= baseRect.left + baseRect.width / 2 ? 1 : -1;   // 朝目标方向冲
             const farX = dir > 0 ? Math.max(...rects.map(r => r.right)) : Math.min(...rects.map(r => r.left));
-            const passX = farX + dir * 140;   // 穿过目标群后停在对面
+            const passX = farX + dir * 140 * SkillSystem._dispScale();   // 穿过目标群后停在对面（v0.4：窄屏缩小位移）
             actorCard.style.transition = 'transform 0.28s ease-in';
             actorCard.style.zIndex = 50;
             actorCard.style.transform = `translate(${passX - (baseRect.left + baseRect.width / 2)}px, ${cy - (baseRect.top + baseRect.height / 2)}px)`;
@@ -580,7 +585,7 @@ class SkillSystem {
             dir = (tRect.left + tRect.width / 2 >= baseRect.left + baseRect.width / 2) ? -1 : 1;
         }
         actorCard.style.transition = 'transform 0.2s ease-out';
-        actorCard.style.transform = `translate(${dir * 42}px, 0)`;
+        actorCard.style.transform = `translate(${dir * 42 * SkillSystem._dispScale()}px, 0)`;   // v0.4：窄屏缩小位移
 
         // 阶段2：剑痕凭空出现（每目标一道）+ 目标受伤反馈同步 + 🔥 粒子
         const strikeAt = 240;
@@ -656,7 +661,7 @@ class SkillSystem {
         // x(t) = v0·t + ½a·t² —— 加速度很高（初速 = 平均速度 1/3，末速 ≈ 平均速度 5/3），起步慢、急速命中
         // 弹道为直线（y 恒定，v0.302 用户澄清：圆弧是剑气形状不是弹道）
         const T = 380;   // 总飞行时长
-        const L = (dir > 0 ? tRect.right : tRect.left) + dir * 40 - arenaRect.left - startX;   // 总行程（含冲过头 40px）
+        const L = (dir > 0 ? tRect.right : tRect.left) + dir * 40 * SkillSystem._dispScale() - arenaRect.left - startX;   // 总行程（含冲过头 40px；v0.4：窄屏缩小）
         const v0 = L / (T * 3);
         const acc = 2 * (L - v0 * T) / (T * T);
         // 穿过目标时刻（运动学反解 v0·t + ½a·t² = 目标中心距离）：命中在飞行中后段，恰是速度最快时
@@ -699,7 +704,7 @@ class SkillSystem {
         const dir = (tRect.left + tRect.width / 2 >= baseRect.left + baseRect.width / 2) ? 1 : -1;
         const baseLeft = baseRect.left - arenaRect.left;
         // 冲过目标群停在目标对侧 140px（单硬币技能，目标 = targets[0]）
-        const passX = (dir > 0 ? tRect.right : tRect.left) + dir * 140 - arenaRect.left;
+        const passX = (dir > 0 ? tRect.right : tRect.left) + dir * 140 * SkillSystem._dispScale() - arenaRect.left;   // v0.4：窄屏缩小位移
         const L = passX - baseLeft;                       // 带符号行程
         const dist = Math.abs(L);
         actorCard.style.zIndex = 50;                      // 盖在目标上形成穿过感

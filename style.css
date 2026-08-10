@@ -6,7 +6,7 @@ body {
     display: flex; justify-content: center; align-items: center;
 }
 .container {
-    width: 1000px; min-height: 600px;
+    width: 100%; max-width: 1000px; min-height: 600px;
     padding: 20px; position: relative;
 }
 .page { display: none; flex-direction: column; align-items: center; }
@@ -751,3 +751,107 @@ body {
     border: 2px solid #f9ca24;
 }
 #tutorialOverlay #tutorialStepNum { color: #f9ca24; }
+
+/* ============================================================
+   v0.4 手机响应式适配
+   桌面端（≥901px）行为与 v0.320 完全一致；≤900px 起响应式。
+   ============================================================ */
+
+/* 触屏基础：消除移动端双击缩放延迟（保留捏合缩放） */
+button, .character-card, .char-slot, .roster-card, .level-card,
+.level-intro-enemy, .buff-tag, .buff-popup-close, .settings-option,
+.btn-main, .skill-btn, .next-btn, .action-controls button {
+    touch-action: manipulation;
+}
+
+/* ---------- 平板 / 横屏手机（≤900px） ---------- */
+@media (max-width: 900px) {
+    body { align-items: flex-start; }        /* 高内容可滚动，避免 flex 居中裁掉顶部 */
+    .container { padding: 16px; }
+
+    /* 战斗区：允许换行。玩家卡先渲染 → 自动占上方行，敌方卡占下方行 */
+    .all-characters { width: 100%; flex-wrap: wrap; justify-content: center; gap: 12px 15px; }
+    .character-card { flex: 0 1 140px; width: 140px; }
+
+    /* 战斗页头部：标题/胜利条件/回合/读档/退出竖排居中，按钮不挤压 */
+    .battle-header { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .battle-header h2 { margin: 0; }
+
+    /* 选角/关卡页固定宽 → 流式，不超视口 */
+    .level-card, .level-section-title, .level-intro-desc, .level-intro-text { width: 100%; max-width: 400px; }
+    .char-slots, .char-slot-row { flex-wrap: wrap; justify-content: center; }
+    .control-buttons { flex-wrap: wrap; justify-content: center; }
+}
+
+/* ---------- 手机竖屏（≤767px） ---------- */
+@media (max-width: 767px) {
+    body { overflow-x: hidden; }             /* 动画/光效短暂越界的兜底 */
+    .container { padding: 12px; }
+    .page.active h1 { font-size: 2em; }      /* 标题页大标题缩小 */
+
+    /* ---- 战斗区卡片：3 列自适应（375px→约112px/卡，320px→约93px/卡） ---- */
+    .all-characters { gap: 10px 8px; }
+    .character-card { flex: 1 1 96px; min-width: 88px; width: auto; padding: 8px; }
+    .character-card .name { font-size: 0.95em; }
+    .hp-text, .sp-text { font-size: 0.62em; }
+    .stats { font-size: 0.68em; }
+    .position-mark { font-size: 0.58em; top: 2px; right: 6px; }
+    .intent-badge { font-size: 0.6em; top: -14px; padding: 2px 7px; }   /* 意图徽章贴卡上沿、字号缩小 */
+
+    /* ---- 动画位移收敛（重定义 keyframes，桌面端不受影响） ---- */
+    @keyframes lungeRight {
+        0% { transform: translateX(0) rotate(0deg); filter: brightness(1.6); }
+        40% { transform: translateX(30px) rotate(1.5deg); filter: brightness(3) drop-shadow(0 0 25px white); }
+        100% { transform: translateX(0) rotate(0deg); filter: brightness(1); }
+    }
+    @keyframes lungeLeft {
+        0% { transform: translateX(0) rotate(0deg); filter: brightness(1.6); }
+        40% { transform: translateX(-30px) rotate(-1.5deg); filter: brightness(3) drop-shadow(0 0 25px white); }
+        100% { transform: translateX(0) rotate(0deg); filter: brightness(1); }
+    }
+    @keyframes hitShake {
+        0% { transform: translateX(0); filter: brightness(2.6) drop-shadow(0 0 14px red); }
+        25% { transform: translateX(-6px); }
+        50% { transform: translateX(5px); filter: brightness(1.8) drop-shadow(0 0 9px red); }
+        75% { transform: translateX(-3px); }
+        100% { transform: translateX(0); filter: brightness(1) drop-shadow(0 0 0px red); }
+    }
+    @keyframes benchEntryRight { 0% { opacity: 0; transform: translateX(60px); } 100% { opacity: 1; transform: translateX(0); } }
+    @keyframes benchEntryLeft  { 0% { opacity: 0; transform: translateX(-60px); } 100% { opacity: 1; transform: translateX(0); } }
+
+    /* ---- 操作区：触屏加大 ---- */
+    .skill-btn { padding: 12px 16px; min-height: 44px; font-size: 0.95em; }
+    /* 覆盖 battleActions.js 内联 padding:8px 16px / 4px 10px（battleUI.js 读档、index.html 退出按钮） */
+    #confirmTargetBtn, #cancelTargetBtn, #loadSaveBtn, .battle-header button {
+        min-height: 44px; padding: 10px 16px !important; font-size: 1em;
+    }
+    .next-btn { min-height: 48px; font-size: 1.05em; }
+    .action-controls { flex-wrap: wrap; justify-content: center; }
+    .log { max-height: 100px; font-size: 0.75em; }
+    .skill-detail { font-size: 0.82em; }
+
+    /* ---- 选角 / 关卡页 ---- */
+    .char-slots, .char-slot-row { gap: 12px; }
+    .char-slot { flex: 1 1 calc(33.33% - 8px); min-width: 96px; max-width: 140px; padding: 10px; }
+    .char-slot .desc { font-size: 0.78em; }
+    .char-slot-group { gap: 6px; }
+    .char-roster { gap: 10px; padding: 12px 8px; }
+    .roster-card { padding: 10px 12px; min-width: 96px; min-height: 44px; }
+    .level-card { padding: 16px 12px; }
+    .level-section-title { font-size: 1em; }
+    .level-intro-desc, .level-intro-text { padding: 14px 12px; font-size: 0.92em; }
+    .btn-main { padding: 12px 22px; font-size: 1.1em; min-height: 44px; }
+
+    /* ---- 弹窗与悬浮按钮 ---- */
+    .buff-popup, .game-modal { width: 92vw; }                 /* 原 max-width:90vw 已兜底，收紧宽度 */
+    .buff-popup-body { max-height: min(400px, 55vh); }
+    #tutorialOverlay { left: 12px; right: 12px; width: auto; top: 12px; }   /* 右上气泡改近全宽 */
+    #tutorialOverlay .buff-popup-body { font-size: 0.88em; }
+    #settingsBtn {
+        right: calc(14px + env(safe-area-inset-right));
+        bottom: calc(14px + env(safe-area-inset-bottom));
+    }
+
+    /* 结算表（battleUI.js showResultPage 内联 padding:8px）：窄屏压缩 */
+    #resultContent table td, #resultContent table th { padding: 6px 4px !important; }
+}

@@ -1,0 +1,37 @@
+v0.4 更新内容：手机响应式适配版（桌面体验不变）
+
+把固定 1000px 宽桌面布局改为响应式布局，手机上（竖屏/横屏）完整可玩，桌面端行为与 v0.320 完全一致。游戏机制/数值/localStorage 键零改动。
+
+## 手机端效果
+
+- 竖屏（375~430px，如 iPhone）：战斗卡片自动 3 列换行（玩家上/敌方下），卡宽自适应 ≥88px；操作按钮加大到 ≥44px 触屏可点；动画位移按比例收敛，不把卡片推出视口。
+- 横屏（如 844×390）：战斗卡片流式收缩，无横向溢出。
+- 双击缩放延迟消除（touch-action: manipulation），支持 iPhone 刘海/底部安全区（viewport-fit=cover + env(safe-area-inset-*)）。
+
+## 改动文件
+
+### index.html（行 5）
+viewport meta：加 `viewport-fit=cover`（让 env(safe-area-inset-*) 生效；不强制禁缩放）。
+
+### style.css
+- 根因：`.container` 由 `width:1000px` 改为 `width:100%; max-width:1000px`（桌面 ≥1000px 仍精确 1000px）。
+- 末尾追加响应式区块，两个断点：
+  - ≤900px（平板/横屏手机）：body 顶部对齐、容器收窄、战斗区 flex-wrap、战斗页头部竖排、关卡/介绍卡流式、槽位换行居中。
+  - ≤767px（手机竖屏）：body overflow-x:hidden、战斗卡 `flex:1 1 96px; min-width:88px`、keyframes 内重定义 lungeRight/Left 55→30px、hitShake 10→6px、benchEntry 130→60px（桌面不受影响）、技能/确认/取消/读档/退出/下一关按钮 min-height 44~48px、选角槽 `calc(33.33%-8px)`、弹窗/设置/教程气泡 width:92vw、结算表压缩。
+
+### js/SkillSystem.js
+- 新增静态 helper `_dispScale()`：`matchMedia('(max-width:767px)')` 命中时返回 0.4，否则 1。
+- 4 处硬编码位移量乘系数：十二连/开创穿过 140px、亮剑后撤 42px、剑气冲过头 40px（桌面系数 1 → 数值不变）。
+
+## 验证
+
+- verify-v040-responsive.js：28 项全过。
+  - A 移动端 390×844 完整走查：主界面/关卡选择/关卡介绍/选角/战斗/结算全程无横向溢出；选角槽在视口内；角色栏换行；战斗卡换行且宽 ≥88；技能/确认/取消按钮 ≥44px；技能动画播放完卡片仍在视口内；设置弹窗与 buff 弹窗在视口内。
+  - B 桌面 1280×900 回归：容器宽 1000px、战斗卡单行 150px、无页面异常、无残留 dialog。
+  - C 横屏 844×390：关卡选择/选角/战斗页无横向溢出、卡片在视口内。
+- 回归：verify-v320、verify-v316、verify-v315、verify-v314、verify-v313、verify-v310-tutorial、verify-v310-ai、verify-v312、verify-v311、verify-v309、verify-v309-passive、verify-v309-settings、check-v319、check-v318-exit、check-v317-starref、check-l4-wincond 全通过（桌面逻辑未被破坏）。
+
+## 备注
+
+- 技能光效（刀光/冲击波/粒子/速度线）保持夸张风格不改，临时溢出由 body overflow-x:hidden 兜底。
+- 动画坐标全部基于 getBoundingClientRect 相对 .arena 现测现算，卡片缩小后自动跟随，无需改公式。
