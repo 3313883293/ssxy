@@ -58,17 +58,20 @@ const LEVEL_INFO = [
     { title: '🔥 第一关', desc: '烬火信徒 ×2　焦木傀儡 ×1', enemies: ['烬火信徒', '焦木傀儡'], intro: '烬火教团的纵火信徒。焦木傀儡【易燃】受燃烧 dot 伤害×1.5，可用灼华烧它，但小心火势蔓延。' },
     { title: '🔥 第二关', desc: '引火学徒 ×2　焚香祭司 ×1 ＋ 烬火信徒待命', enemies: ['引火学徒', '焚香祭司', '烬火信徒'], intro: '焚香祭司【焚香】会给友军挂「燃烧」并回算力——教团在"喂火"，趁它未使出焚香前速战可得特殊胜利。' },
     { title: '🔥 第三关 · Boss', desc: '焚天祭司·烛央 ×1　焦木傀儡 ×2', enemies: ['焚天祭司·烛央', '焦木傀儡'], intro: '灼华将与你们并肩作战（锁定 1 号位，AI 操控），再选 2 名上场 + 1 名待命。烛央【薪火不息】把场上燃烧吸成【狂炎】而变强（每层+150伤害/-20防），烧得越猛它越疯——是双刃剑。机制细节见其被动。' },
+    // v0.6 张子曦篇（level 7/8）——关卡配置为占位骨架，敌人/特殊胜利待用户后补
+    { title: '🌀 第一关', desc: '烬火信徒 ×2　引火学徒 ×1', enemies: ['烬火信徒', '引火学徒'], intro: '张子曦篇·占位配置（敌人待用户后补）。主题机制「混乱」：目标受击后按本次分配硬币数触发反噬，每次消耗1层并造成 级数×20 真实伤害。' },
+    { title: '🌀 第二关 · Boss', desc: '焚天祭司·烛央 ×1　焦木傀儡 ×2', enemies: ['焚天祭司·烛央', '焦木傀儡'], intro: '张子曦篇·占位 Boss 关（配置/特殊胜利待用户后补）。' },
     { title: '🎯 测试关 · 自选任意角色', desc: '自由搭配全部角色', enemies: [], intro: '自由搭配全部角色（含我方角色），测试技能与机制，没有固定关卡配置。' },
     { title: '🎓 新手教程', desc: '训练木偶 ×1', enemies: ['训练木偶'], intro: '本关将引导你：①选角与站位 ②技能与算力 ③目标选择 ④防御机制。只需选择 1 名角色出战，前半段有教学引导，后半段自由练习。' }
 ];
 
 function selectLevel(level) {
     currentSelectedLevel = level;
-    // v0.310+v0.5：-2 教程关取索引 8（-1 测试关取索引 7，0~6 正式关取自身）
-    const info = LEVEL_INFO[level === -1 ? 7 : level === -2 ? 8 : level];
+    // v0.310+v0.5+v0.6：-2 教程关取索引 10（-1 测试关取索引 9，0~8 正式关取自身；张子曦篇占用索引 7/8 后测试/教程后移）
+    const info = LEVEL_INFO[level === -1 ? 9 : level === -2 ? 10 : level];
     document.getElementById('introTitle').textContent = info.title;
-    // v0.5：关卡介绍显示胜利条件——基础 + 正式关特殊胜利（SPECIAL_CONDITIONS 定义于 battleFlow.js，运行时已全部加载）
-    const special = (level >= 0 && level <= 6 && typeof SPECIAL_CONDITIONS !== 'undefined' && SPECIAL_CONDITIONS[level])
+    // v0.5+v0.6：关卡介绍显示胜利条件——基础 + 正式关特殊胜利（SPECIAL_CONDITIONS 定义于 battleFlow.js，运行时已全部加载）
+    const special = (level >= 0 && level <= 8 && typeof SPECIAL_CONDITIONS !== 'undefined' && SPECIAL_CONDITIONS[level])
         ? `<br>✨ 特殊胜利：${SPECIAL_CONDITIONS[level]}` : '';
     // 出场敌方卡（可点击查看详情，去重显示）
     const enemyCards = (info.enemies || []).filter((v, i, a) => a.indexOf(v) === i)
@@ -199,7 +202,7 @@ function getCleared() {
 }
 // 正式关 n（0~3）解锁：第一关恒解锁，其余需通关上一关（复用 pwgame_cleared）
 function isLevelUnlocked(n) {
-    if (n === 0 || n === 4) return true;   // v0.5：鲁盼旋篇/灼华篇第一关恒解锁
+    if (n === 0 || n === 4 || n === 7) return true;   // v0.5+v0.6：鲁盼旋篇/灼华篇/张子曦篇第一关恒解锁
     return getCleared().includes(n - 1);
 }
 function updateLevelLocks() {
@@ -282,9 +285,70 @@ function updateZhLevelLocks() {
     }
 }
 
+// ==================== 张子曦篇（v0.6）：可收纳版块 + 逐关解锁 + ⭐ 版块🔓解锁张子曦 ====================
+// TODO(用户后补)：ZHANG_UNLOCK_STARS 阈值待定（当前占位 2 星，张子曦篇共 4 星）
+const ZHANG_UNLOCK_STARS = 2;
+function toggleZhangSection() {
+    const body = document.getElementById('zhangSectionBody');
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    if (!open) { updateZhangLevelLocks(); updateZhangUnlock(); }   // 展开时刷新关卡/张子曦解锁状态
+    updateZhangStars();
+}
+function updateZhangStars() {
+    const title = document.getElementById('zhangSectionTitle');
+    const body = document.getElementById('zhangSectionBody');
+    if (title) {
+        const open = body && body.style.display !== 'none';
+        title.textContent = '🌀 张子曦篇 ⭐ ' + getStarCountZhangZiXi() + '/4 ' + (open ? '▾' : '▸');
+    }
+}
+function updateZhangUnlock() {
+    const area = document.getElementById('zhangUnlockArea');
+    if (!area) return;
+    const n = getStarCountZhangZiXi();
+    if (getZhangUnlocked()) {
+        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:2px solid #2ecc71;border-radius:8px;color:#2ecc71;font-weight:bold;text-align:center;">✅ 张子曦已解锁</div>';
+    } else if (n >= ZHANG_UNLOCK_STARS) {
+        area.innerHTML = '<button class="btn-main" style="width:100%;background:#f9ca24;color:#222;margin:10px 0;" onclick="unlockZhang()">🔓 点击解锁张子曦（⭐' + n + '/4）</button>';
+    } else {
+        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:1px dashed #555;border-radius:8px;color:#888;text-align:center;">🔒 集齐 ' + ZHANG_UNLOCK_STARS + ' 星解锁张子曦（当前 ⭐' + n + '/4）</div>';
+    }
+}
+function unlockZhang() {
+    if (getStarCountZhangZiXi() < ZHANG_UNLOCK_STARS) { showModal({ title: '提示', message: '还需集齐 ' + ZHANG_UNLOCK_STARS + ' 颗星（当前 ' + getStarCountZhangZiXi() + '/4）！' }); return; }
+    showModal({
+        title: '解锁张子曦',
+        message: '集齐 ' + getStarCountZhangZiXi() + '/4 星，确定解锁张子曦吗？',
+        type: 'confirm',
+        onConfirm: () => {
+            setZhangUnlocked();
+            updateZhangUnlock();
+            updateZhangStars();
+            showModal({ title: '🎉 解锁成功', message: '张子曦已解锁！现在可在选角界面使用他了。' });
+        }
+    });
+}
+// v0.6：张子曦篇逐关解锁（level 7/8 → zhangCard0~1）
+function updateZhangLevelLocks() {
+    const cleared = getCleared();
+    for (let n = 0; n < 2; n++) {
+        const lv = n + 7;   // 7/8
+        const card = document.getElementById('zhangCard' + n);
+        if (!card) continue;
+        const h3 = card.querySelector('h3');
+        if (!h3.dataset.orig) h3.dataset.orig = h3.textContent;
+        const unlocked = isLevelUnlocked(lv);
+        const done = cleared.includes(lv);
+        card.classList.toggle('level-locked', !unlocked);
+        card.onclick = unlocked ? () => selectLevel(lv) : () => showModal({ title: '提示', message: '🔒 通关上一关后解锁本关！' });
+        h3.textContent = (unlocked ? (done ? '✅ ' : '') : '🔒 ') + h3.dataset.orig;
+    }
+}
+
 function getRoleDefRange(roleName) {
     const defMap = {
-        '模板一': 200, '模板二': 100, '模板三': 300, '鲁盼旋': 200, '灼华': 150,
+        '模板一': 200, '模板二': 100, '模板三': 300, '鲁盼旋': 200, '灼华': 150, '张子曦': 150,
         '持盾警察': 300, '持棍警察': 200, '持枪警察': 100,
         '开车警察': 400, '李雅礼': 0, '云长郡': 200,
         '纸糊稻草人': 0, '铁皮稻草人': 999, '标准稻草人': 200,
@@ -296,7 +360,7 @@ function getRoleDefRange(roleName) {
 
 function getRoleSpeedRange(roleName) {
     const spdMap = {
-        '模板一': '2~6', '模板二': '4~7', '模板三': '1~4', '鲁盼旋': '4~6', '灼华': '3~6',
+        '模板一': '2~6', '模板二': '4~7', '模板三': '1~4', '鲁盼旋': '4~6', '灼华': '3~6', '张子曦': '3~6',
         '持盾警察': '1~3', '持棍警察': '2~5', '持枪警察': '3~7',
         '开车警察': '3~7', '李雅礼': '1~7', '云长郡': '2~6',
         '纸糊稻草人': '1', '铁皮稻草人': '1', '标准稻草人': '1~2',
@@ -306,6 +370,8 @@ function getRoleSpeedRange(roleName) {
     return spdMap[roleName] || '?';
 }
 
-updateLuStars();   // v0.316：页面加载即显示版块标题星数（DOM 已就绪）
-updateZhStars();   // v0.5：灼华篇标题星数
-updateZhUnlock();  // v0.5 改：灼华篇解锁区（⭐≥4 显示🔓）
+updateLuStars();      // v0.316：页面加载即显示版块标题星数（DOM 已就绪）
+updateZhStars();      // v0.5：灼华篇标题星数
+updateZhUnlock();     // v0.5 改：灼华篇解锁区（⭐≥4 显示🔓）
+updateZhangStars();   // v0.6：张子曦篇标题星数
+updateZhangUnlock();  // v0.6：张子曦篇解锁区

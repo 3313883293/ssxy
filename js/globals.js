@@ -35,9 +35,11 @@ let selectedSlots = [];
 
 function getAvailableChars() {
     // v0.316：解锁只认星级标记——鲁盼旋/灼华各管各的（pwgame_lu_unlocked / pwgame_zh_unlocked），不再看 pwgame_cleared
+    // v0.6：张子曦按张子曦篇 ⭐ 版块点击解锁（pwgame_zhang_unlocked）
     const chars = ['模板一', '模板二', '模板三'];
     if (getLuUnlocked()) chars.push('鲁盼旋');
     if (getZhUnlocked()) chars.push('灼华');
+    if (getZhangUnlocked()) chars.push('张子曦');
     return chars;
 }
 
@@ -54,7 +56,7 @@ function getStarMap() {
         let changed = false;
         if (Array.isArray(cleared)) {
             cleared.forEach(level => {
-                if (level >= 0 && level <= 6) {
+                if (level >= 0 && level <= 8) {   // v0.6：张子曦篇 7/8 也追溯补星
                     if (!map[level]) map[level] = {};
                     if (!map[level].base) { map[level].base = true; changed = true; }
                 }
@@ -86,9 +88,20 @@ function getStarCountZh() {
     return n;
 }
 
-// 加星（去重：同关同类型已拿则 no-op），写回 localStorage
+// v0.6：张子曦篇星数（只统计 7/8 关）
+function getStarCountZhangZiXi() {
+    const map = getStarMap();
+    let n = 0;
+    [7, 8].forEach(lv => {
+        if (map[lv] && map[lv].base) n++;
+        if (map[lv] && map[lv].special) n++;
+    });
+    return n;
+}
+
+// 加星（去重：同关同类型已拿则 no-op），写回 localStorage（v0.6：正式关扩到 0~8）
 function addStar(level, type) {
-    if (level < 0 || level > 6 || (type !== 'base' && type !== 'special')) return;
+    if (level < 0 || level > 8 || (type !== 'base' && type !== 'special')) return;
     const map = getStarMap();
     if (!map[level]) map[level] = {};
     if (map[level][type]) return;   // 已拿过，去重
@@ -109,10 +122,17 @@ function getZhUnlocked() {
 function setZhUnlocked() {
     try { localStorage.setItem('pwgame_zh_unlocked', '1'); } catch (e) {}
 }
+// v0.6：张子曦解锁标记（张子曦篇 ⭐ 达标后版块点击解锁，key pwgame_zhang_unlocked）
+function getZhangUnlocked() {
+    try { return localStorage.getItem('pwgame_zhang_unlocked') === '1'; } catch (e) { return false; }
+}
+function setZhangUnlocked() {
+    try { localStorage.setItem('pwgame_zhang_unlocked', '1'); } catch (e) {}
+}
 
 // ==================== 自选敌人状态 ====================
 // v0.309：测试关可自选全部角色（含我方角色）
-const AVAILABLE_ENEMIES = ['模板一', '模板二', '模板三', '鲁盼旋', '灼华', '纸糊稻草人', '铁皮稻草人', '标准稻草人', '灵敏稻草人', '再生稻草人', '持盾警察', '持棍警察', '持枪警察', '开车警察', '李雅礼', '云长郡', '烬火信徒', '焦木傀儡', '引火学徒', '焚香祭司', '焚天祭司·烛央'];
+const AVAILABLE_ENEMIES = ['模板一', '模板二', '模板三', '鲁盼旋', '灼华', '张子曦', '纸糊稻草人', '铁皮稻草人', '标准稻草人', '灵敏稻草人', '再生稻草人', '持盾警察', '持棍警察', '持枪警察', '开车警察', '李雅礼', '云长郡', '烬火信徒', '焦木傀儡', '引火学徒', '焚香祭司', '焚天祭司·烛央'];
 
 // ==================== 当前选中关卡（0/1/2，-1=自选敌人） ====================
 let currentSelectedLevel = 0;
@@ -149,5 +169,7 @@ const PASSIVE_INFO = {
         '薪火不息：回合结束时把场上全体「燃烧」等级之和转为自身「狂炎」层数；每层「狂炎」使【烈焰鞭】/【焚天祭】伤害+150、防御-20',
         '焚尽薪火：死亡时把「狂炎」层数转成残余敌方的「燃烧」等级（临死纵火）',
         '技能循环（AI）：【焚天祭】→【烈焰鞭】→【焚天祭】→【火灵召唤】→【烈焰鞭】'
-    ]
+    ],
+    // v0.6 张子曦（被动待用户后补）
+    '张子曦': []
 };

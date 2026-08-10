@@ -42,7 +42,8 @@ const buffTypeConfig = {
     'burn': { icon: '🔥',  color: '#ff5252' },
     'stun': { icon: '😵',  color: '#fbc02d' },
     'stunPending': { icon: '😵', color: '#fbc02d' },
-    'frenzy': { icon: '🔥', color: '#ff6b81' }   // v0.5 狂炎（焚天祭司·烛央）
+    'frenzy': { icon: '🔥', color: '#ff6b81' },   // v0.5 狂炎（焚天祭司·烛央）
+    'confusion': { icon: '🌀', color: '#9b59b6' }   // v0.6 混乱（张子曦）：受击反噬型 DoT
 };
 
 // 收集角色的 buff 短标签与详情（renderCharacters 与 refreshCardState 共用）
@@ -80,6 +81,10 @@ function collectBuffUI(char) {
             shortText = `${cfg.icon}×${buff.stack}`;
             detailTitle = `${cfg.icon} 「狂炎」${buff.stack}层`;
             detailDesc = '每层使【烈焰鞭】/【焚天祭】伤害+150，每层使防御-20';
+        } else if (buff.type === 'confusion') {
+            shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
+            detailTitle = `${cfg.icon} 「混乱」Lv${buff.level} × ${buff.stack}层`;
+            detailDesc = '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗1层并造成 级数×20 真实伤害';
         }
         tags.push(`<span class="buff-tag" style="color:${cfg.color}">${shortText}</span>`);
         details.push({ icon: cfg.icon, color: cfg.color, title: detailTitle, desc: detailDesc });
@@ -298,18 +303,24 @@ function showResultPage(result) {
     html += `<div style="margin-top:12px;background:#16213e;border-radius:8px;overflow:hidden;">
         <div style="padding:8px 12px;background:#0f3460;color:#e056fd;font-weight:bold;">🔥 Dot伤害明细</div>
         <table style="width:100%;border-collapse:collapse;">`;
+    // v0.6：Dot 明细遍历全部 dotDamageMap key（🔥燃烧 / 🌀混乱），未来新增 DoT 自动分列
+    const dotTypeCfg = { 'burn': { icon: '🔥', label: '燃烧' }, 'confusion': { icon: '🌀', label: '混乱' } };
     const dotRows = [];
     sorted.forEach(c => {
-        const dmg = (c.dotDamageMap && c.dotDamageMap['burn']) || 0;
-        if (dmg > 0) dotRows.push({ name: c.name, teamColor: c.team === 'player' ? '#2ecc71' : '#e74c3c', dmg });
+        if (!c.dotDamageMap) return;
+        Object.keys(dotTypeCfg).forEach(key => {
+            const dmg = c.dotDamageMap[key] || 0;
+            if (dmg > 0) dotRows.push({ name: c.name, teamColor: c.team === 'player' ? '#2ecc71' : '#e74c3c', dmg, label: `${dotTypeCfg[key].icon} ${dotTypeCfg[key].label}` });
+        });
     });
     if (dotRows.length === 0) {
         html += '<tr><td style="padding:10px;text-align:center;color:#666;">本场战斗无Dot伤害</td></tr>';
     } else {
-        html += '<tr style="background:#0f3460;color:#aaa;"><th style="padding:6px 10px;text-align:left;">角色</th><th style="padding:6px 10px;">伤害</th></tr>';
+        html += '<tr style="background:#0f3460;color:#aaa;"><th style="padding:6px 10px;text-align:left;">角色</th><th style="padding:6px 10px;">Dot</th><th style="padding:6px 10px;">伤害</th></tr>';
         dotRows.forEach(r => {
             html += `<tr style="border-top:1px solid #333;">
                 <td style="padding:6px 10px;color:${r.teamColor};">${r.name}</td>
+                <td style="padding:6px 10px;color:#e056fd;">${r.label}</td>
                 <td style="padding:6px 10px;color:#ff6b6b;">${r.dmg}</td>
             </tr>`;
         });
@@ -326,8 +337,8 @@ function showResultPage(result) {
         </div>
     </div>`;
 
-    // v0.312：胜利且非最后一关 → 提供「下一关」入口
-    if (result === '胜利' && battleState.currentLevel >= 0 && (battleState.currentLevel < 3 || (battleState.currentLevel >= 4 && battleState.currentLevel < 6))) {
+    // v0.312：胜利且非最后一关 → 提供「下一关」入口（v0.6：张子曦篇 7→8）
+    if (result === '胜利' && battleState.currentLevel >= 0 && (battleState.currentLevel < 3 || (battleState.currentLevel >= 4 && battleState.currentLevel < 6) || (battleState.currentLevel >= 7 && battleState.currentLevel < 8))) {
         html += `<div class="control-buttons" style="margin-top:15px;">
             <button class="btn-main" onclick="nextLevel()" style="background:#f9ca24;color:#222;">➡️ 下一关</button>
         </div>`;

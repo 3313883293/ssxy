@@ -232,6 +232,19 @@ function createZhuoHua(team, position) {
     return char;
 }
 
+// ==================== 张子曦（「混乱」dot 手，玩家可用角色，v0.6） ====================
+// TODO(用户后补)：张子曦三技能设计 + 被动。当前仅搭「混乱」载体框架，面板数值为 DoT 手基准待调。
+function createZhangZiXi(team, position) {
+    const skills = [
+        new Skill('待定·技能一', 250, 100, 100, 1, 3),   // TODO(用户后补)：张子曦技能一设计
+        new Skill('待定·技能二', 500, 150, 150, 2, 4),   // TODO(用户后补)：张子曦技能二设计
+        new Skill('待定·技能三', 800, 200, 200, 3, 5)    // TODO(用户后补)：张子曦技能三设计
+    ];
+    const char = new Character('张子曦', 1800, 150, [3,6], 1500, 300, skills, team, position);
+    // TODO(用户后补)：张子曦被动（registerPassive）
+    return char;
+}
+
 // ==================== 稻草人系列（测试用） ====================
 function createScarecrowPaper(team, position) {
     const skills = [
@@ -355,6 +368,7 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '云长郡') return createYunChangjun(team, position);
     if (roleName === '训练木偶') return createTrainingDummy(team, position);
     if (roleName === '灼华') return createZhuoHua(team, position);
+    if (roleName === '张子曦') return createZhangZiXi(team, position);
     if (roleName === '烬火信徒') return createAshCultist(team, position);
     if (roleName === '焦木傀儡') return createCharredGolem(team, position);
     if (roleName === '引火学徒') return createFirestarter(team, position);

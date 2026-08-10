@@ -286,6 +286,27 @@ class SkillSystem {
             // ——— 时点广播：造成伤害（用于施加【恶】） ———
             Character.invokePassives('onDamageDealt', battleState, actor, target, actual, logFn);
 
+            // ——— v0.6 「混乱」反噬：目标受击后按本次攻击分配硬币数触发（次数=coins×0.5 向上取整） ———
+            // 每次触发：混乱层数-1，造成 级数×20 真实伤害；无回合末结算、无自然衰减，层数耗尽混乱消失
+            if (target.alive && target.getBuffStack('confusion') > 0) {
+                let chaosTimes = Math.ceil(coins * 0.5);
+                while (chaosTimes > 0 && target.alive && target.getBuffStack('confusion') > 0) {
+                    const chaosLvl = target.getBuffLevel('confusion');   // 先读级数再减层——最后一层减少后 buff 会被清除，后读得 0
+                    target.reduceBuffStack('confusion', 1);
+                    const chaosDmg = chaosLvl * 20;
+                    const chaosActual = target.takeTrueDamage(chaosDmg);
+                    target.dotDamageMap['confusion'] = (target.dotDamageMap['confusion'] || 0) + chaosActual;
+                    logFn(`  🌀 ${target.name} 混乱反噬！Lv${chaosLvl}×20 = ${chaosDmg} 真实伤害，混乱层数-1 (血量:${target.hp})`);
+                    if (window.refreshCardState) refreshCardState(target);
+                    SkillSystem.showDamageNumber(target, chaosDmg, null, allCharsDiv);
+                    chaosTimes--;
+                    if (!target.alive) {
+                        logFn(`  💥 ${target.name} 被混乱反噬致死！`);
+                        target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
+                    }
+                }
+            }
+
             // ——— 时点广播：角色死亡 ———
             if (!target.alive) {
                 Character.invokePassives('onAllyDeath', battleState, target, logFn);

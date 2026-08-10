@@ -290,6 +290,7 @@ const SPECIAL_CONDITIONS = {
     4: '至少 1 名敌方被「燃烧」烧死',   // v0.5 灼华篇
     5: '焚香祭司未使出「焚香」即获胜', // v0.5 灼华篇
     6: '烛央「狂炎」≥12 层时将其击败'  // v0.5 灼华篇
+    // v0.6 张子曦篇 7/8：特殊胜利条件待用户后补（未定义则不显示、不发特殊星）
 };
 
 // 当前状态是否满足本关特殊胜利条件（在胜利瞬间判定）
@@ -498,6 +499,20 @@ function startBattle(level) {
             createCharredGolem('enemy', playerChars.length + 1),
             createZhuYang('enemy', playerChars.length + 2)
         ];
+    } else if (level === 7) {
+        // v0.6 张子曦篇第一关：占位配置（烬火信徒×2 + 引火学徒×1，敌人待用户后补）
+        enemyChars = [
+            createAshCultist('enemy', playerChars.length),
+            createAshCultist('enemy', playerChars.length + 1),
+            createFirestarter('enemy', playerChars.length + 2)
+        ];
+    } else if (level === 8) {
+        // v0.6 张子曦篇第二关：占位 Boss 关（焦木傀儡×2 + 烛央，配置待用户后补）
+        enemyChars = [
+            createCharredGolem('enemy', playerChars.length),
+            createCharredGolem('enemy', playerChars.length + 1),
+            createZhuYang('enemy', playerChars.length + 2)
+        ];
     } else if (level === -2) {
         // 教程关：训练木偶 ×1（演示防御/破防机制）
         enemyChars = [
@@ -594,10 +609,11 @@ function startCustomBattle() {
 // v0.312：胜利结算页「下一关」→ 进下一关介绍页
 function nextLevel() {
     const next = battleState.currentLevel + 1;
-    // v0.5：篇章内推进（鲁盼旋篇 0~3 / 灼华篇 4~6，跨篇章不跳）
+    // v0.5+v0.6：篇章内推进（鲁盼旋篇 0~3 / 灼华篇 4~6 / 张子曦篇 7~8，跨篇章不跳）
     const inLu = battleState.currentLevel >= 0 && battleState.currentLevel < 3;
     const inZh = battleState.currentLevel >= 4 && battleState.currentLevel < 6;
-    if ((inLu || inZh) && typeof selectLevel === 'function') selectLevel(next);
+    const inZhang = battleState.currentLevel >= 7 && battleState.currentLevel < 8;
+    if ((inLu || inZh || inZhang) && typeof selectLevel === 'function') selectLevel(next);
 }
 
 // ==================== 初始化 ====================

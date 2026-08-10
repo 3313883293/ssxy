@@ -1,0 +1,63 @@
+v0.6 更新内容：新 DoT「混乱」（受击反噬型）+ 新角色张子曦 + 张子曦篇（新篇章骨架）
+
+按用户设计的全新 DoT「混乱」（受击反噬型，与「燃烧」的回合末结算完全区分），承载它的是新玩家角色张子曦，并以新篇章「张子曦篇」作为张子曦的星数解锁来源。本次完整实现「混乱」机制 + 张子曦角色框架 + 张子曦篇骨架；张子曦三技能/被动/关卡配置/特殊胜利按用户要求留接口待后补。
+
+## 一、新 DoT「混乱」（SkillSystem.js，本次完整实现）
+
+**用户给定公式**：受到伤害后触发 `分配硬币数 × 0.5（向上取整）` 次。触发时使层数减一，造成 `级数 × 20` 真实伤害。
+
+语义确认：
+- **触发时机**：目标（带混乱者）被攻击命中、普通伤害结算之后（`coinDist.forEach` 内，`onDamageDealt` 广播之后）
+- **分配硬币数** = 该目标本次受击分到的硬币数（非投掷正面数）→ 触发次数确定性，不依赖掷币
+- **每次触发**：先读级数再减层（最后一层减少后 buff 会被清除，须先读）、混乱层数 -1、`级数×20` 真伤（`takeTrueDamage` 穿透防御/减伤）
+- 触发次数 = `Math.ceil(coins × 0.5)`，受剩余层数约束（层数 0 停止）；coins=0 → 0 次不触发
+- **无回合末结算、无自然衰减**——纯受击反噬；层数耗尽混乱消失
+- **统计归属**：反噬是目标自伤，只写 `target.dotDamageMap['confusion']`，不计入攻击者 damageDealt
+- 触发中目标死亡 → `handleDeath()` 走死亡流程（后续次数不再触发）
+
+次数表：coins 1~2→1次、3~4→2次、5~6→3次。
+
+## 二、显示（battleUI.js + glossary.js）
+
+- `buffTypeConfig` 加 `'confusion': { icon: '🌀', color: '#9b59b6' }`（紫色，与火焰区分）
+- `collectBuffUI` 加混乱分支：角标 `🌀Lv×层`，弹窗标题 `🌀 「混乱」Lv×层`，描述「受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗1层并造成 级数×20 真实伤害」
+- **结算页 Dot 明细**：从硬编码只读 `dotDamageMap['burn']` 改为遍历全部 key——🔥燃烧 / 🌀混乱分列（未来新增 DoT 自动分列）
+- glossary 加「混乱」词条（可点击解释）
+
+## 三、新角色张子曦（Roles.js + globals.js + charSelect.js，框架占位）
+
+- `createZhangZiXi(team, position)`：面板 HP1800 / 防150 / 速3~6 / SP1500+300（DoT 手基准，待用户调），三技能**占位**（`待定·技能一/二/三`，TODO 注释），被动不注册（TODO 注释留接口）
+- `createRoleInstance` 分发链 + `getAvailableChars`（张子曦按解锁标记 `pwgame_zhang_unlocked` 入池）+ `PASSIVE_INFO['张子曦']` 占位
+- `getZhangUnlocked/setZhangUnlocked`、`getStarCountZhangZiXi()`（只计张子曦篇 7/8 关）
+- def/speed 表加张子曦；测试关敌人池加张子曦
+
+## 四、张子曦篇（新篇章骨架，charSelect.js + battleFlow.js + index.html）
+
+- **关卡索引重排**：正式关扩到 0~8（张子曦篇占用 7/8），测试关 -1 / 教程关 -2 索引 7/8 → **9/10** 后移
+- 张子曦篇 2 关（level 7/8）：🌀第一关（烬火信徒×2 + 引火学徒，**占位**）、🌀第二关·Boss（焦木傀儡×2 + 烛央，**占位**）；`isLevelUnlocked` 加 n===7 恒解锁；`nextLevel` 加 inZhang 篇章内推进；结算页「下一关」入口扩到 7→8
+- 星级：`getStarMap` 追溯补星扩到 0~8、`addStar` 上限扩到 8；张子曦篇 ⭐/4（基础 + 特殊各 1 星，特殊胜利条件待用户后补——未定义则不显示、不发特殊星）
+- **版块解锁 UI**：`#zhangSectionTitle`/`#zhangSectionBody`/`#zhangUnlockArea` + `toggleZhangSection`/`updateZhangStars`/`updateZhangUnlock`/`unlockZhang`/`updateZhangLevelLocks`，解锁阈值常量 `ZHANG_UNLOCK_STARS = 2`（**待用户调**）
+- `showPage('pageLevel')` 追加张子曦篇星数/解锁/关卡锁定实时刷新
+
+## 五、AI 决策（battleActions.js）
+
+`decidePlayerAI` 留 TODO：张子曦「混乱」类技能收益估算（等 special 类型确定）。
+
+## 验证
+
+新增 check-v06-confusion.js（44 项）：
+- **机制**：coins 0~6 触发次数表（0/1/1/2/2/3/3 次）、每次真伤 = 级×20、层数逐次消耗、层数不足触发到 0 停止、普攻打死不触发、反噬致死走死亡流程
+- **统计**：dotDamageMap['confusion'] 精确累计、攻击者 damageDealt 不含反噬
+- **显示**：buff 角标 🌀Lv×层、弹窗文案、结算页 Dot 明细「燃烧/混乱」两行
+- **框架/篇章**：张子曦创建、解锁入池、def/speed、关卡索引映射（-1→9 / -2→10）、startBattle(7/8)、星级 7/8、解锁
+- 全程无页面异常、无残留浏览器 dialog
+
+回归全过：verify-v050-zh（32）、verify-v320（28）、verify-v316（21）、check-v05-flameanim（16）、check-v05-responsive（15）、check-v051-dotstat（10）。共 44 + 32 + 28 + 21 + 16 + 15 + 10 = 166 项。
+
+## 待用户后补清单
+
+1. 张子曦**三技能**具体设计（名称/SP/伤害/硬币/距离/special 类型）→ 定 special type 后补 `skillEffectLines` + 混乱叠层/叠级/引爆分支 + AI 收益估算
+2. 张子曦**被动**（registerPassive 内容）
+3. 张子曦篇**关卡敌人阵容 / 特殊胜利条件** / 张子曦是否锁槽强制上场
+4. 解锁阈值 `ZHANG_UNLOCK_STARS`（当前占位 2 星）
+5. 张子曦面板数值微调
