@@ -40,3 +40,33 @@ SKILL_SFX_MAP 加 flameThrow:flame / emberRise:ember / fireBomb:bomb。
 
 - 敌方烬火教团火系技能（火球术/祭火/烈焰鞭/焚天祭）仍走通用动画，留待后续
 - 灼华被动（添薪/风助火势）为 buff 逻辑，无需动画
+
+---
+
+## 引爆计入结算统计（并入 v0.51，同日追加）
+
+按用户反馈（「灼华的燃烧引爆怎么没有在结算页面显示为 dot 伤害」），修复引爆（detonate）伤害在结算页统计缺漏。纯统计层修复，战斗机制/数值零改动。
+
+### 问题
+
+结算页有两处伤害统计：
+
+- **主伤害表**：`damageDealt`（各角色造成伤害）、`damageReceived`（受到伤害）
+- **🔥 Dot伤害明细**：`dotDamageMap['burn']`（各角色受到的燃烧 dot 伤害）
+
+回合末「燃烧」结算（battleFlow.js onTurnEnd）会写入 `dotDamageMap['burn']`；但引爆走 `takeTrueDamage` 直接结算真伤，该函数只记 `damageReceived`，**既不进目标 Dot 明细，也没给攻击者灼华加 `damageDealt`** → 引爆伤害在结算页两处都缺（仅日志有「💥 燃烧被引爆」文字）。
+
+### 修复（SkillSystem.js 引爆块）
+
+引爆结算后补两笔统计：
+
+```js
+target.dotDamageMap['burn'] = (target.dotDamageMap['burn'] || 0) + actual;  // 计入目标 Dot 明细
+if (actor && actor.alive) actor.damageDealt += actual;                       // 计入攻击者「造成伤害」
+```
+
+引爆本质是「燃烧」的提前一次性结算（同为燃烧等级×50 真伤），归入 Dot 明细语义一致；引爆后 `clearBuff('burn')` 清空燃烧，后续回合不再结算，**不会与回合末 dot 双算**。
+
+### 验证
+
+新增 check-v051-dotstat.js（10 项，桌面 1280 走查灼华篇第一关）：引爆真伤精确计入 Dot 明细（300 = Lv3×50×2）；攻击者 `damageDealt` 增量 === 目标 `damageReceived` 增量（普通伤害抵消后精确证明引爆计入）；燃烧清零不双算；`onTurnEnd` 回合末燃烧结算回归正常（Lv2 经风助火势 +1 → Lv3 → 150 精确）。回归 verify-v050-zh（32）/ check-v05-flameanim（16）/ verify-v320（28）/ verify-v316（21）/ check-v05-responsive（15）全过（机制零改动）。

@@ -318,6 +318,9 @@ class SkillSystem {
                 if (lvl > 0 && stk > 0) {
                     const detDmg = lvl * 50 * (skill.special.ratio || 2);
                     const actual = target.takeTrueDamage(detDmg);
+                    // v0.51：引爆本质是「燃烧」的提前一次性结算——伤害计入目标 Dot 明细 + 攻击者「造成伤害」统计
+                    target.dotDamageMap['burn'] = (target.dotDamageMap['burn'] || 0) + actual;
+                    if (actor && actor.alive) actor.damageDealt += actual;
                     if (window.refreshCardState) refreshCardState(target);
                     logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害 (血量:${target.hp})`);
                     target.clearBuff('burn');
