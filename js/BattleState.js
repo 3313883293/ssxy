@@ -17,7 +17,11 @@ class BattleState {
         this.summonPool = [];    // 云长郡怨灵召唤池（2持盾2持棍4持枪2车）
         this.specialState = {    // v0.314：特殊胜利状态（每关额外成就，达成即记录、读档不丢失）
             achieved: false,       // 本关特殊胜利是否已达成
-            driverUsedOpen: false  // 第二关：开车警察是否使出过「开创」（过程追踪）
+            driverUsedOpen: false, // 第二关：开车警察是否使出过「开创」（过程追踪）
+            // v0.5 灼华篇特殊胜利追踪：
+            incenseUsed: false,    // 第五关：焚香祭司是否使出过「焚香」
+            burnKill: false,       // 第四关：是否有敌方被「燃烧」dot 烧死
+            zhuYangFrenzyAtDeath: 0  // 第六关：烛央被击败时的狂炎层数快照
         };
     }
 
@@ -95,6 +99,6 @@ class BattleState {
         this.benchEnemy = [];
         this.totalDeaths = 0;
         this.summonPool = [];
-        this.specialState = { achieved: false, driverUsedOpen: false };   // v0.314
+        this.specialState = { achieved: false, driverUsedOpen: false, incenseUsed: false, burnKill: false, zhuYangFrenzyAtDeath: 0 };   // v0.314 + v0.5
     }
 }

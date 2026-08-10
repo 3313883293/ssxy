@@ -182,6 +182,29 @@ class SkillSystem {
         });
         if (window.refreshCardState) refreshCardState(actor);   // 防御/速度/buff 标签与动画同帧刷新（加油/刹车/持盾格挡）
 
+        // ——— v0.5 焚香（焚香祭司）：无目标增益——置特殊胜利标记，除自己外的存活友军「燃烧」等级+1，自身回120算力 ———
+        if (skill.special && skill.special.type === 'incense') {
+            battleState.specialState.incenseUsed = true;
+            let n = 0;
+            battleState.enemyTeam.forEach(c => {
+                if (c.alive && c !== actor) { c.addBuffLevel('burn', 1); n++; }
+            });
+            actor.sp = Math.min(actor.maxSP, actor.sp + 120);
+            logFn(`  🕯️ ${actor.name} 焚香：${n} 名友军「燃烧」等级+1，自身回复120算力`);
+            if (window.refreshCardState) refreshCardState(actor);
+        }
+
+        // ——— v0.5 火灵召唤（烛央）：无目标召唤——生成 1 名烬火信徒入敌方阵（右后方入场） ———
+        if (skill.special && skill.special.type === 'summon') {
+            const minion = createRoleInstance(skill.special.role, actor.team, 99);
+            minion.entryAnim = true;
+            minion.order = 999;
+            battleState.enemyTeam.push(minion);
+            battleState.allCharacters.push(minion);
+            battleState.repositionAll();
+            logFn(`  🔥 ${actor.name} 召唤了烬火信徒：${minion.name}（HP ${minion.maxHp}）`);
+        }
+
         // v0.308：技能音效（Web Audio 合成，按 SKILL_ANIM_CONFIG type 映射专属音）
         if (typeof Sfx !== 'undefined') Sfx.playSkill(skill);
 
@@ -210,6 +233,10 @@ class SkillSystem {
                 if (actor.name === '鲁盼旋') {
                     const rageStacks = actor.getBuffStack('rage');
                     dmg += Math.floor(rageStacks / 2) * 50;
+                }
+                // v0.5 狂炎（焚天祭司·烛央）：每层使技能伤害+150
+                if (actor.getBuffStack('frenzy') > 0) {
+                    dmg += actor.getBuffStack('frenzy') * 150;
                 }
             }
 

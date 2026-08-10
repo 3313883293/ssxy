@@ -107,7 +107,7 @@ function loadAutoBattle() {
     battleState.turnCount = data.turnCount;
     battleState.totalDeaths = data.totalDeaths || 0;
     battleState.summonPool = data.summonPool || [];
-    battleState.specialState = data.specialState || { achieved: false, driverUsedOpen: false };   // v0.314：达成状态读档保留
+    battleState.specialState = Object.assign({ achieved: false, driverUsedOpen: false, incenseUsed: false, burnKill: false, zhuYangFrenzyAtDeath: 0 }, data.specialState || {});   // v0.314+v0.5：达成状态读档保留
     battleEpoch++;
     buildActionQueue();   // 用存档速度重建行动队列（与 startNewRound 排序一致）
     renderCharacters();
@@ -260,6 +260,8 @@ function onTurnEnd() {
                 c.reduceBuffStack('burn', consume);
                 if (c.getBuffStack('burn') <= 0) c.clearBuff('burn');
             }
+            // v0.5 易燃（焦木傀儡）：受到的燃烧 dot 伤害×1.5（仅 dot 结算，引爆不乘）
+            if (c.burnMultiplier !== 1) burnDmg = Math.floor(burnDmg * c.burnMultiplier);
             const actual = c.takeTrueDamage(burnDmg);
             c.dotDamageMap['burn'] = (c.dotDamageMap['burn'] || 0) + actual;
             log(`🔥 ${c.name} 受到${burnDmg}点「燃烧」伤害（Lv${burnLevel}×${burnStack}层），消耗${consume}层，实际${actual} (HP:${c.hp})`);
@@ -268,6 +270,7 @@ function onTurnEnd() {
             SkillSystem.showDamageNumber(c, actual, null, allCharsDiv);
             if (!c.alive) {
                 log(`💥 ${c.name} 被烧死！`);
+                if (c.team === 'enemy') battleState.specialState.burnKill = true;   // v0.5：灼华篇 L0 特殊胜利追踪（敌方被烧死）
                 c.handleDeath();   // 待命补位（放在被烧死日志之后）
                 Character.invokePassives('onAllyDeath', battleState, c, log);
             }
@@ -281,7 +284,10 @@ const SPECIAL_CONDITIONS = {
     0: '我方无人阵亡（无损通关）',
     1: '开车警察未使出「开创」即获胜',
     2: '李雅礼倒戈并存活至胜利',
-    3: '云长郡减伤仍 ≥10% 时将其击败'
+    3: '云长郡减伤仍 ≥10% 时将其击败',
+    4: '至少 1 名敌方被「燃烧」烧死',   // v0.5 灼华篇
+    5: '焚香祭司未使出「焚香」即获胜', // v0.5 灼华篇
+    6: '烛央「狂炎」≥12 层时将其击败'  // v0.5 灼华篇
 };
 
 // 当前状态是否满足本关特殊胜利条件（在胜利瞬间判定）
@@ -299,6 +305,12 @@ function checkSpecialCondition(level) {
             const yun = battleState.enemyTeam.find(c => c.name === '云长郡');
             return !!yun && yun.getHateReduction() >= 10;
         }
+        case 4:   // 灼华篇第一关：至少 1 名敌方被「燃烧」dot 烧死
+            return battleState.specialState.burnKill === true;
+        case 5:   // 灼华篇第二关：焚香祭司整场未使出「焚香」
+            return battleState.specialState.incenseUsed === false;
+        case 6:   // 灼华篇第三关：烛央「狂炎」≥12 层时将其击败
+            return battleState.specialState.zhuYangFrenzyAtDeath >= 12;
     }
     return false;
 }
@@ -308,7 +320,7 @@ function updateWinCondition() {
     const el = document.getElementById('winCondition');
     if (!el) return;
     const lv = battleState.currentLevel;
-    if (lv >= 0 && lv <= 3 && SPECIAL_CONDITIONS[lv]) {
+    if (lv >= 0 && lv <= 6 && SPECIAL_CONDITIONS[lv]) {
         el.innerHTML = `🏆 胜利条件：击败敌方全部角色<br>✨ 特殊胜利：${SPECIAL_CONDITIONS[lv]}`;
     } else {
         el.innerHTML = '🏆 胜利条件：击败敌方全部角色';
@@ -386,7 +398,7 @@ function startBattle(level) {
         if (role === null) return;
         const char = createRoleInstance(role, 'player', idx);
         if (!char) return;
-        if (level === 3 && idx === 3) {
+        if ((level === 3 || level === 6) && idx === 3) {
             benchPlayers.push(char);
             return;
         }
@@ -403,6 +415,15 @@ function startBattle(level) {
             playerChars[luIdx].aiControlled = true;
             const lu = playerChars.splice(luIdx, 1)[0];
             playerChars.push(lu);   // 移到数组末尾 → order/position 最大 → 最前方
+            playerChars.forEach((c, i) => { c.position = i; c.order = i; });
+        }
+    }
+    // v0.5：灼华篇第三关（level 6）锁定灼华站最前方（玩家手动操控，不设 AI）
+    if (level === 6) {
+        const zhIdx = playerChars.findIndex(c => c.name === '灼华');
+        if (zhIdx !== -1) {
+            const zh = playerChars.splice(zhIdx, 1)[0];
+            playerChars.push(zh);   // 移到数组末尾 → order/position 最大 → 最前方
             playerChars.forEach((c, i) => { c.position = i; c.order = i; });
         }
     }
@@ -449,6 +470,30 @@ function startBattle(level) {
             createYunChangjun('enemy', playerChars.length)
         ];
         battleState.summonPool = ['持盾警察', '持盾警察', '持棍警察', '持棍警察', '持枪警察', '持枪警察', '持枪警察', '持枪警察', '开车警察', '开车警察'];
+    } else if (level === 4) {
+        // 灼华篇第一关：烬火信徒×2 + 焦木傀儡×1
+        enemyChars = [
+            createAshCultist('enemy', playerChars.length),
+            createAshCultist('enemy', playerChars.length + 1),
+            createCharredGolem('enemy', playerChars.length + 2)
+        ];
+    } else if (level === 5) {
+        // 灼华篇第二关：引火学徒×2 + 焚香祭司，烬火信徒待命
+        enemyChars = [
+            createFirestarter('enemy', playerChars.length),
+            createFirestarter('enemy', playerChars.length + 1),
+            createIncensePriest('enemy', playerChars.length + 2)
+        ];
+        const benchCultist = createAshCultist('enemy', 99);
+        benchCultist.order = playerChars.length + 3;   // 待命者排在最后，入场后依次填补
+        battleState.benchEnemy = [benchCultist];
+    } else if (level === 6) {
+        // 灼华篇第三关：Boss 烛央（狂炎/薪火不息/焚尽薪火）+ 焦木傀儡×2
+        enemyChars = [
+            createZhuYang('enemy', playerChars.length),
+            createCharredGolem('enemy', playerChars.length + 1),
+            createCharredGolem('enemy', playerChars.length + 2)
+        ];
     } else if (level === -2) {
         // 教程关：训练木偶 ×1（演示防御/破防机制）
         enemyChars = [
@@ -545,7 +590,10 @@ function startCustomBattle() {
 // v0.312：胜利结算页「下一关」→ 进下一关介绍页
 function nextLevel() {
     const next = battleState.currentLevel + 1;
-    if (next <= 3 && typeof selectLevel === 'function') selectLevel(next);
+    // v0.5：篇章内推进（鲁盼旋篇 0~3 / 灼华篇 4~6，跨篇章不跳）
+    const inLu = battleState.currentLevel >= 0 && battleState.currentLevel < 3;
+    const inZh = battleState.currentLevel >= 4 && battleState.currentLevel < 6;
+    if ((inLu || inZh) && typeof selectLevel === 'function') selectLevel(next);
 }
 
 // ==================== 初始化 ====================

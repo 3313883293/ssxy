@@ -276,6 +276,66 @@ function createScarecrowRegen(team, position) {
     return char;
 }
 
+// ==================== 烬火教团（v0.5 灼华篇敌方） ====================
+// 主题：崇拜火焰的教团——焚香给队友挂燃烧、烛央薪火不息吸燃烧成狂炎而变强。
+// 玩家用灼华烧教团既爽也喂火了 Boss：每层狂炎使烛央伤害+150、防御-20（双刃剑）。
+
+function createAshCultist(team, position) {
+    const skills = [
+        new Skill('火球术', 250, 150, 150, 2, 3, null, { type: 'burn', stacks: 2 }),
+        new Skill('火刃', 250, 200, 200, 1, 2)
+    ];
+    return new Character('烬火信徒', 1700, 100, [2,5], 300, 100, skills, team, position);
+}
+
+function createCharredGolem(team, position) {
+    const skills = [
+        new Skill('木甲', 100, 0, 0, 0, 1, { type: 'def', value: 300, duration: 'nextHit' }),
+        new Skill('重锤', 300, 300, 200, 1, 2)
+    ];
+    const char = new Character('焦木傀儡', 3200, 250, [1,3], 300, 80, skills, team, position);
+    char.burnMultiplier = 1.5;   // 易燃：受到的燃烧 dot 伤害 ×1.5
+    return char;
+}
+
+function createFirestarter(team, position) {
+    const skills = [
+        new Skill('燎原', 250, 120, 120, 2, 3),
+        new Skill('引火', 200, 100, 100, 1, 4, null, { type: 'burn', stacks: 1 })
+    ];
+    return new Character('引火学徒', 1500, 80, [4,8], 350, 120, skills, team, position);
+}
+
+function createIncensePriest(team, position) {
+    const skills = [
+        new Skill('焚香', 250, 0, 0, 0, 99, null, { type: 'incense' }),
+        new Skill('祭火', 400, 250, 250, 2, 4, null, { type: 'burn', stacks: 1 })
+    ];
+    const char = new Character('焚香祭司', 2400, 150, [2,4], 500, 150, skills, team, position);
+    char.aiCycle = ['焚香', '祭火', '焚香', '祭火'];
+    return char;
+}
+
+function createZhuYang(team, position) {
+    const skills = [
+        new Skill('烈焰鞭', 300, 400, 400, 1, 3),
+        new Skill('焚天祭', 500, 150, 150, 3, 4, null, { type: 'burn', stacks: 1 }),
+        new Skill('火灵召唤', 350, 0, 0, 0, 99, null, { type: 'summon', role: '烬火信徒' })
+    ];
+    const char = new Character('焚天祭司·烛央', 7000, 180, [3,6], 800, 400, skills, team, position);
+    char.frenzyBuff = true;   // 狂炎持有者：死亡时焚尽薪火（Characters.handleDeath）
+    char.aiCycle = ['焚天祭', '烈焰鞭', '焚天祭', '火灵召唤', '烈焰鞭'];
+    // ——— 薪火不息：回合结束时把场上全体「燃烧」等级之和 → 自身「狂炎」层数（双刃剑核心） ———
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        const sum = bs.allCharacters.filter(c => c.alive).reduce((s, c) => s + c.getBuffLevel('burn'), 0);
+        if (sum > 0) {
+            self.addBuffStack('frenzy', sum);
+            log(`  🔥 ${self.name} 薪火不息：吸收场上${sum}级「燃烧」→「狂炎」${self.getBuffStack('frenzy')}层`);
+        }
+    });
+    return char;
+}
+
 // ==================== 工厂入口 ====================
 function createRoleInstance(roleName, team, position) {
     if (roleName === '模板一') return createTemplateOne(team, position);
@@ -295,5 +355,10 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '云长郡') return createYunChangjun(team, position);
     if (roleName === '训练木偶') return createTrainingDummy(team, position);
     if (roleName === '灼华') return createZhuoHua(team, position);
+    if (roleName === '烬火信徒') return createAshCultist(team, position);
+    if (roleName === '焦木傀儡') return createCharredGolem(team, position);
+    if (roleName === '引火学徒') return createFirestarter(team, position);
+    if (roleName === '焚香祭司') return createIncensePriest(team, position);
+    if (roleName === '焚天祭司·烛央') return createZhuYang(team, position);
     return null;
 }

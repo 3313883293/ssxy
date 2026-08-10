@@ -8,7 +8,9 @@ const GLOSSARY = {
     '恶': { title: '恶', desc: '每层使攻击者对目标无视 50 防御；【十二连·剑斩邪祟】命中时可转化为每层 100 点额外伤害并清零。' },
     '愤怒': { title: '愤怒', desc: '强化状态（上限 5 层）：每 2 层使技能伤害 +50，每 2 层使防御 −50；可消耗 1 层为「燃烧」追加 1 层。' },
     '暂时昏迷': { title: '暂时昏迷', desc: '目标本回合无法行动，回合结束后恢复。' },
-    '昏迷': { title: '暂时昏迷', desc: '目标本回合无法行动，回合结束后恢复。' }
+    '昏迷': { title: '暂时昏迷', desc: '目标本回合无法行动，回合结束后恢复。' },
+    '狂炎': { title: '狂炎', desc: '焚天祭司·烛央 的强化状态：每层使【烈焰鞭】/【焚天祭】伤害+150、防御-20。烛央【薪火不息】回合结束时把场上全体「燃烧」等级之和转为狂炎层数；死亡时【焚尽薪火】把狂炎转成残余敌方的「燃烧」等级。' },
+    '易燃': { title: '易燃', desc: '焦木傀儡 的固有特性：受到的「燃烧」持续伤害×1.5。' }
 };
 
 function escapeRegExp(str) {
@@ -60,6 +62,8 @@ function skillEffectLines(skill) {
         else if (s.type === 'speedDiff') lines.push(`【伤害时】与目标每点速度差，每枚硬币额外+${s.bonus}伤害`);
         else if (s.type === 'burnUp') lines.push(`【命中时】目标「燃烧」等级+${s.levels}；无「燃烧」则施加1层Lv${s.levels}`);
         else if (s.type === 'detonate') lines.push(`【命中时】引爆目标「燃烧」：造成 等级×50×${s.ratio} 真实伤害并清零`);
+        else if (s.type === 'incense') lines.push(`【使用时】除自己外的友军「燃烧」等级+1，自身回复120算力`);
+        else if (s.type === 'summon') lines.push(`【使用时】召唤 1 名${s.role}入场`);
     }
     return lines;
 }

@@ -41,7 +41,8 @@ const buffTypeConfig = {
     'rage': { icon: '💢',  color: '#ff7043' },
     'burn': { icon: '🔥',  color: '#ff5252' },
     'stun': { icon: '😵',  color: '#fbc02d' },
-    'stunPending': { icon: '😵', color: '#fbc02d' }
+    'stunPending': { icon: '😵', color: '#fbc02d' },
+    'frenzy': { icon: '🔥', color: '#ff6b81' }   // v0.5 狂炎（焚天祭司·烛央）
 };
 
 // 收集角色的 buff 短标签与详情（renderCharacters 与 refreshCardState 共用）
@@ -75,6 +76,10 @@ function collectBuffUI(char) {
             shortText = `${cfg.icon}催眠中`;
             detailTitle = `${cfg.icon} 「催眠气体」待生效`;
             detailDesc = '下一回合陷入「暂时昏迷」，无法行动一回合';
+        } else if (buff.type === 'frenzy') {
+            shortText = `${cfg.icon}×${buff.stack}`;
+            detailTitle = `${cfg.icon} 「狂炎」${buff.stack}层`;
+            detailDesc = '每层使【烈焰鞭】/【焚天祭】伤害+150，每层使防御-20';
         }
         tags.push(`<span class="buff-tag" style="color:${cfg.color}">${shortText}</span>`);
         details.push({ icon: cfg.icon, color: cfg.color, title: detailTitle, desc: detailDesc });
@@ -320,7 +325,7 @@ function showResultPage(result) {
     </div>`;
 
     // v0.312：胜利且非最后一关 → 提供「下一关」入口
-    if (result === '胜利' && battleState.currentLevel >= 0 && battleState.currentLevel < 3) {
+    if (result === '胜利' && battleState.currentLevel >= 0 && (battleState.currentLevel < 3 || (battleState.currentLevel >= 4 && battleState.currentLevel < 6))) {
         html += `<div class="control-buttons" style="margin-top:15px;">
             <button class="btn-main" onclick="nextLevel()" style="background:#f9ca24;color:#222;">➡️ 下一关</button>
         </div>`;

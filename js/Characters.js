@@ -34,6 +34,8 @@ class Character {
         this.hateReduction = false; // 部下亡灵之怨恨：受击减伤100%，场上每阵亡1角色-10%（云长郡）
         this.hateReductionCurrent = 100; // 减伤快照（每回合开始判定，回合内死亡不即时生效）
         this.directReduce = 0;   // 直伤减伤（百分比）：黎明级后天能力者·直伤减伤20%（灼华）
+        this.burnMultiplier = 1;   // 易燃（焦木傀儡 1.5）：受到的燃烧 dot 伤害倍率（v0.5）
+        this.frenzyBuff = false;   // 狂炎持有者标记（焚天祭司·烛央）：死亡时焚尽薪火（v0.5）
     }
 
     // —————— 亡灵怨恨减伤快照：每回合开始判定（100% - 累计阵亡数×15%，可为负，负值转为受到伤害加成） ——————
@@ -59,6 +61,7 @@ class Character {
         this.buffs.forEach(b => {
             if (b.type === 'def') total += b.value;
             if (b.type === 'rage') total -= Math.floor(b.stack / 2) * 50;
+            if (b.type === 'frenzy') total -= b.stack * 20;   // 狂炎：每层防御-20（v0.5 烛央）
         });
         return total;
     }
@@ -99,6 +102,18 @@ class Character {
     handleDeath() {
         if (typeof battleState !== 'undefined' && battleState) {
             battleState.totalDeaths++;   // 阵亡计数（云长郡减伤计算）
+            // v0.5：焚尽薪火（烛央）——死亡时把狂炎层数转成残余敌方的燃烧等级（临死纵火）
+            if (this.frenzyBuff) {
+                const fz = this.getBuffStack('frenzy');
+                battleState.specialState.zhuYangFrenzyAtDeath = fz;   // 击败时狂炎层数快照（特殊胜利判定用）
+                if (fz > 0) {
+                    battleState.enemyTeam.forEach(e => {
+                        if (e.alive && e !== this) e.addBuffLevel('burn', fz);
+                    });
+                    if (typeof log === 'function') log(`🔥 ${this.name} 焚尽薪火：${fz}层狂炎转为残余敌方的「燃烧」等级！`);
+                }
+                this.clearBuff('frenzy');
+            }
             if (this.defector && this.team === 'enemy') {
                 battleState.defectToPlayer(this);   // 李雅礼：作为我方单位复活
             }

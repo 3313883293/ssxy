@@ -101,8 +101,9 @@ function createSelectionModule(opts) {
     }
 
     // v0.311：锁定槽（index, roleName）——预填、不可移除不可覆盖。传 (null, null) 清除。调用方设置后需再 init() 生效
-    function setLockedSlot(index, roleName) {
-        lockedSlot = (index === null || index === undefined) ? null : { index, roleName };
+    function setLockedSlot(index, roleName, lockDesc) {
+        // v0.5：lockDesc 第三参自定义锁槽文案（默认 'AI 操控'，灼华篇第三关传 '锁定出战'）
+        lockedSlot = (index === null || index === undefined) ? null : { index, roleName, lockDesc: lockDesc || 'AI 操控' };
     }
 
     function clickSlot(index) {
@@ -174,9 +175,9 @@ function createSelectionModule(opts) {
                 const div = document.createElement('div');
                 div.className = 'char-slot';
                 if (lockedSlot && lockedSlot.index === idx) {
-                    // v0.311：锁定槽（AI 操控）——预填角色、固定边框色、不可点击
+                    // v0.311+v0.5：锁定槽（默认「AI 操控」；灼华篇第三关为「锁定出战」）——预填角色、固定边框色、不可点击
                     div.style.borderColor = opts.fillColor;
-                    div.innerHTML = `<div class="name">🔒 ${lockedSlot.roleName}</div><div class="desc">站位${idx + 1} · AI 操控</div>`;
+                    div.innerHTML = `<div class="name">🔒 ${lockedSlot.roleName}</div><div class="desc">站位${idx + 1} · ${lockedSlot.lockDesc || 'AI 操控'}</div>`;
                     div.style.cursor = 'default';
                 } else if (role === null) {
                     const isPendingSlot = (idx === pendingIndex);

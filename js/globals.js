@@ -50,7 +50,7 @@ function getStarMap() {
         let changed = false;
         if (Array.isArray(cleared)) {
             cleared.forEach(level => {
-                if (level >= 0 && level <= 3) {
+                if (level >= 0 && level <= 6) {
                     if (!map[level]) map[level] = {};
                     if (!map[level].base) { map[level].base = true; changed = true; }
                 }
@@ -71,9 +71,20 @@ function getStarCount() {
     return n;
 }
 
+// v0.5：灼华篇星数（只统计 4/5/6 关，标题显示「🔥 灼华篇 ⭐ x/6」）
+function getStarCountZh() {
+    const map = getStarMap();
+    let n = 0;
+    [4, 5, 6].forEach(lv => {
+        if (map[lv] && map[lv].base) n++;
+        if (map[lv] && map[lv].special) n++;
+    });
+    return n;
+}
+
 // 加星（去重：同关同类型已拿则 no-op），写回 localStorage
 function addStar(level, type) {
-    if (level < 0 || level > 3 || (type !== 'base' && type !== 'special')) return;
+    if (level < 0 || level > 6 || (type !== 'base' && type !== 'special')) return;
     const map = getStarMap();
     if (!map[level]) map[level] = {};
     if (map[level][type]) return;   // 已拿过，去重
@@ -90,7 +101,7 @@ function setLuUnlocked() {
 
 // ==================== 自选敌人状态 ====================
 // v0.309：测试关可自选全部角色（含我方角色）
-const AVAILABLE_ENEMIES = ['模板一', '模板二', '模板三', '鲁盼旋', '灼华', '纸糊稻草人', '铁皮稻草人', '标准稻草人', '灵敏稻草人', '再生稻草人', '持盾警察', '持棍警察', '持枪警察', '开车警察', '李雅礼', '云长郡'];
+const AVAILABLE_ENEMIES = ['模板一', '模板二', '模板三', '鲁盼旋', '灼华', '纸糊稻草人', '铁皮稻草人', '标准稻草人', '灵敏稻草人', '再生稻草人', '持盾警察', '持棍警察', '持枪警察', '开车警察', '李雅礼', '云长郡', '烬火信徒', '焦木傀儡', '引火学徒', '焚香祭司', '焚天祭司·烛央'];
 
 // ==================== 当前选中关卡（0/1/2，-1=自选敌人） ====================
 let currentSelectedLevel = 0;
@@ -117,5 +128,15 @@ const PASSIVE_INFO = {
     ],
     '纸糊稻草人': [], '铁皮稻草人': [], '标准稻草人': [], '灵敏稻草人': [],
     '再生稻草人': ['再生：回合结束时回复500HP'],
-    '训练木偶': ['教程专用演示木偶：两个技能分别演示普通防御与破防（无视防御）']
+    '训练木偶': ['教程专用演示木偶：两个技能分别演示普通防御与破防（无视防御）'],
+    // v0.5 烬火教团
+    '烬火信徒': [],
+    '焦木傀儡': ['易燃：受到的「燃烧」dot 伤害×1.5'],
+    '引火学徒': [],
+    '焚香祭司': ['技能循环（AI）：【焚香】→【祭火】反复；【焚香】给友军「燃烧」等级+1并回复自身算力'],
+    '焚天祭司·烛央': [
+        '薪火不息：回合结束时把场上全体「燃烧」等级之和转为自身「狂炎」层数；每层「狂炎」使【烈焰鞭】/【焚天祭】伤害+150、防御-20',
+        '焚尽薪火：死亡时把「狂炎」层数转成残余敌方的「燃烧」等级（临死纵火）',
+        '技能循环（AI）：【焚天祭】→【烈焰鞭】→【焚天祭】→【火灵召唤】→【烈焰鞭】'
+    ]
 };
