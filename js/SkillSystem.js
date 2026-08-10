@@ -87,6 +87,8 @@ const SKILL_ANIM_DEFAULT = { type: 'strike', color: '#95a5a6', thick: 2, dur: 0.
 class SkillSystem {
     // v0.4：窄屏缩放动画位移。桌面端恒为 1（行为与 v0.320 完全一致）
     static _dispScale() {
+        // v0.42：旋转模式下容器按横屏 844 宽渲染，位移不再缩小（与 _isRotated 布局坐标配套）
+        if (SkillSystem._isRotated()) return 1;
         return (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) ? 0.4 : 1;
     }
 
@@ -324,11 +326,11 @@ class SkillSystem {
     static showDamageNumber(target, damage, coinInfo, allCharsDiv) {
         const card = target.cardElement;
         if (!card) return;
-        const rect = card.getBoundingClientRect();
-        const arenaRect = allCharsDiv.parentElement.getBoundingClientRect();
-        const x = rect.left - arenaRect.left + rect.width / 2;
-        const y = rect.top - arenaRect.top;
         const arena = allCharsDiv.parentElement;
+        const p = SkillSystem._animPoint(card, arena);
+        const s = SkillSystem._animSize(card);
+        const x = p.x + s.w / 2;
+        const y = p.y;
 
         const dmgDiv = document.createElement('div');
         dmgDiv.className = 'damage-number';
@@ -440,10 +442,38 @@ class SkillSystem {
 
     // —— 辅助创建函数 ——
 
+    // v0.42 旋转模式坐标适配：
+    // rotate-mode 下 .arena 被 CSS rotate(90deg)，getBoundingClientRect 返回旋转后的视口 AABB，
+    // 而动画 overlay 挂在 arena 内用布局 left/top 定位 → 必须用「布局坐标」（offset 累加，不受 transform 影响）
+    // 才能与旋转后的卡片自洽。非 rotate-mode 走原 rect 逻辑，行为与旧版完全一致。
+    static _isRotated() {
+        return !!(document.documentElement && document.documentElement.classList.contains('rotate-mode'));
+    }
+    static _layoutPoint(el, base) {
+        let x = 0, y = 0, cur = el;
+        while (cur && cur !== base && cur !== document.body) {
+            x += cur.offsetLeft;
+            y += cur.offsetTop;
+            cur = cur.offsetParent;
+        }
+        return { x, y };
+    }
+    static _animPoint(el, base) {
+        if (SkillSystem._isRotated()) return SkillSystem._layoutPoint(el, base);
+        const r = el.getBoundingClientRect();
+        const a = base.getBoundingClientRect();
+        return { x: r.left - a.left, y: r.top - a.top };
+    }
+    static _animSize(el) {
+        if (SkillSystem._isRotated()) return { w: el.offsetWidth, h: el.offsetHeight };
+        const r = el.getBoundingClientRect();
+        return { w: r.width, h: r.height };
+    }
+
     static _getCardCenter(card, arena) {
-        const r = card.getBoundingClientRect();
-        const a = arena.getBoundingClientRect();
-        return { x: r.left + r.width / 2 - a.left, y: r.top + r.height / 2 - a.top };
+        const p = SkillSystem._animPoint(card, arena);
+        const s = SkillSystem._animSize(card);
+        return { x: p.x + s.w / 2, y: p.y + s.h / 2 };
     }
 
     // 发光线段（actor → target）
@@ -482,21 +512,24 @@ class SkillSystem {
             for (let j = 0; j < c; j++) swords.push({ target: t, angle: Math.random() * 360 });   // 随机方位
         });
 
-        // 注意：角色原位 rect 须在移动前缓存（getBoundingClientRect 含 transform，
-        // 移动后重测会以偏移位置为基准，位移越算越偏——v0.294 教训）
-        const baseRect = actorCard.getBoundingClientRect();
+        // 注意：角色原位须在移动前缓存（动画坐标统一经 _animPoint，不随 transform 漂移——
+        // v0.294 教训；v0.42 旋转模式下布局坐标同样自洽）
+        const bp = SkillSystem._animPoint(actorCard, arena);
+        const bs = SkillSystem._animSize(actorCard);
 
         // 阶段1：向前穿过所有目标——从原位直线冲到目标群对侧（zIndex 50 盖在目标上形成"穿过"感）
-        const rects = targets.map(t => t.cardElement ? t.cardElement.getBoundingClientRect() : null).filter(Boolean);
-        if (rects.length) {
-            const cx = rects.reduce((s, r) => s + r.left + r.width / 2, 0) / rects.length;
-            const cy = rects.reduce((s, r) => s + r.top + r.height / 2, 0) / rects.length;
-            const dir = cx >= baseRect.left + baseRect.width / 2 ? 1 : -1;   // 朝目标方向冲
-            const farX = dir > 0 ? Math.max(...rects.map(r => r.right)) : Math.min(...rects.map(r => r.left));
+        const tgts = targets.map(t => t.cardElement
+            ? { p: SkillSystem._animPoint(t.cardElement, arena), s: SkillSystem._animSize(t.cardElement) }
+            : null).filter(Boolean);
+        if (tgts.length) {
+            const cx = tgts.reduce((s, o) => s + o.p.x + o.s.w / 2, 0) / tgts.length;
+            const cy = tgts.reduce((s, o) => s + o.p.y + o.s.h / 2, 0) / tgts.length;
+            const dir = cx >= bp.x + bs.w / 2 ? 1 : -1;   // 朝目标方向冲
+            const farX = dir > 0 ? Math.max(...tgts.map(o => o.p.x + o.s.w)) : Math.min(...tgts.map(o => o.p.x));
             const passX = farX + dir * 140 * SkillSystem._dispScale();   // 穿过目标群后停在对面（v0.4：窄屏缩小位移）
             actorCard.style.transition = 'transform 0.28s ease-in';
             actorCard.style.zIndex = 50;
-            actorCard.style.transform = `translate(${passX - (baseRect.left + baseRect.width / 2)}px, ${cy - (baseRect.top + baseRect.height / 2)}px)`;
+            actorCard.style.transform = `translate(${passX - (bp.x + bs.w / 2)}px, ${cy - (bp.y + bs.h / 2)}px)`;
         }
 
         // 阶段2：剑痕一次性浮现（12 道同时划出）+ 目标受伤反馈（延迟到此刻播放，与剑痕同步）
@@ -530,12 +563,12 @@ class SkillSystem {
     // （v0.296 弧形光带被用户否决「别用圆做圆弧」——斩击光痕是直线斜劈，不是弧线）
     static _createBlade(targetCard, arena, angleDeg, config, marks, instant = false) {
         if (!targetCard.isConnected) return;
-        const r = targetCard.getBoundingClientRect();
-        const a = arena.getBoundingClientRect();
-        const left0 = r.left - a.left, top0 = r.top - a.top;
+        const p = SkillSystem._animPoint(targetCard, arena);
+        const s = SkillSystem._animSize(targetCard);
+        const left0 = p.x, top0 = p.y;
         const len = 50 + Math.random() * 24;              // 50~74px 光带长
-        const x = left0 + r.width * (0.05 + Math.random() * 0.68);   // 卡片范围内随机落点
-        const y = top0 + r.height * (0.08 + Math.random() * 0.62);
+        const x = left0 + s.w * (0.05 + Math.random() * 0.68);   // 卡片范围内随机落点
+        const y = top0 + s.h * (0.08 + Math.random() * 0.62);
         const angle = Math.round(angleDeg % 360);
         const NS = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(NS, 'svg');
@@ -575,14 +608,16 @@ class SkillSystem {
         if (!actorCard) return;
         const arena = allCharsDiv.parentElement;
         const marks = [];
-        const baseRect = actorCard.getBoundingClientRect();   // 移动前缓存原位（transform 漂移教训）
+        const bp = SkillSystem._animPoint(actorCard, arena);
+        const bs = SkillSystem._animSize(actorCard);
 
         // 阶段1：微微后撤（远离目标方向 42px，0.2s ease-out）
         let dir = 1;
         const t0 = targets[0];
         if (t0 && t0.cardElement) {
-            const tRect = t0.cardElement.getBoundingClientRect();
-            dir = (tRect.left + tRect.width / 2 >= baseRect.left + baseRect.width / 2) ? -1 : 1;
+            const tp = SkillSystem._animPoint(t0.cardElement, arena);
+            const ts = SkillSystem._animSize(t0.cardElement);
+            dir = (tp.x + ts.w / 2 >= bp.x + bs.w / 2) ? -1 : 1;
         }
         actorCard.style.transition = 'transform 0.2s ease-out';
         actorCard.style.transform = `translate(${dir * 42 * SkillSystem._dispScale()}px, 0)`;   // v0.4：窄屏缩小位移
@@ -620,10 +655,11 @@ class SkillSystem {
         const actorCard = actor.cardElement;
         if (!actorCard || !targets[0] || !targets[0].cardElement) return;
         const arena = allCharsDiv.parentElement;
-        const tRect = targets[0].cardElement.getBoundingClientRect();
-        const aRect = actorCard.getBoundingClientRect();
-        const arenaRect = arena.getBoundingClientRect();
-        const dir = (tRect.left + tRect.width / 2 >= aRect.left + aRect.width / 2) ? 1 : -1;
+        const tp = SkillSystem._animPoint(targets[0].cardElement, arena);
+        const ts = SkillSystem._animSize(targets[0].cardElement);
+        const ap = SkillSystem._animPoint(actorCard, arena);
+        const as = SkillSystem._animSize(actorCard);
+        const dir = (tp.x + ts.w / 2 >= ap.x + as.w / 2) ? 1 : -1;
 
         // 剑气：圆弧形光刃（SVG 双层 stroke，蓝刃白芯）——用户指定「剑气本身为圆弧，曲率小」：
         // 月牙形，两端尖、弧背凸向飞行方向（v0.302；v0.300 为竖直线光刃、v0.301 弹道弧被否——弹道改回直线）
@@ -634,9 +670,9 @@ class SkillSystem {
         svg.setAttribute('height', '100');
         svg.setAttribute('viewBox', '0 0 140 100');
         svg.classList.add('sword-wave');
-        const startX = (dir > 0 ? aRect.right : aRect.left) - arenaRect.left;   // 角色卡边缘起手
+        const startX = (dir > 0 ? ap.x + as.w : ap.x);   // 角色卡边缘起手
         // 垂直中心与角色卡片高度中心对齐（v0.305 用户指定）：top = 角色中心 - 剑气高/2
-        const cy = (aRect.top + aRect.height / 2) - arenaRect.top;
+        const cy = ap.y + as.h / 2;
         svg.style.cssText = `left:${startX}px;top:${cy - 50}px;--color:${cfg.color || '#3498db'}`;
         // 二次贝塞尔月牙：左上 → 控制点偏右 → 左下（弧背凸向右 = 飞行方向）
         // v0.305 曲率再小：控制点 x 36 → 30，凸出 12px → 9px（放大后视觉占比更平）
@@ -661,13 +697,13 @@ class SkillSystem {
         // x(t) = v0·t + ½a·t² —— 加速度很高（初速 = 平均速度 1/3，末速 ≈ 平均速度 5/3），起步慢、急速命中
         // 弹道为直线（y 恒定，v0.302 用户澄清：圆弧是剑气形状不是弹道）
         const T = 380;   // 总飞行时长
-        const L = (dir > 0 ? tRect.right : tRect.left) + dir * 40 * SkillSystem._dispScale() - arenaRect.left - startX;   // 总行程（含冲过头 40px；v0.4：窄屏缩小）
+        const L = (dir > 0 ? tp.x + ts.w : tp.x) + dir * 40 * SkillSystem._dispScale() - startX;   // 总行程（含冲过头 40px；v0.4：窄屏缩小）
         const v0 = L / (T * 3);
         const acc = 2 * (L - v0 * T) / (T * T);
         // 穿过目标时刻（运动学反解 v0·t + ½a·t² = 目标中心距离）：命中在飞行中后段，恰是速度最快时
         const dHit = dir > 0
-            ? (tRect.left + tRect.width / 2) - arenaRect.left - startX
-            : startX - (tRect.left + tRect.width / 2);
+            ? (tp.x + ts.w / 2) - startX
+            : startX - (tp.x + ts.w / 2);
         const tHit = (-v0 + Math.sqrt(v0 * v0 + 2 * acc * dHit)) / acc;
         setTimeout(() => {
             const fb = window._slashHitFeedbacks || [];
@@ -698,13 +734,14 @@ class SkillSystem {
         const actorCard = actor.cardElement;
         if (!actorCard || !targets[0] || !targets[0].cardElement) return;
         const arena = allCharsDiv.parentElement;
-        const baseRect = actorCard.getBoundingClientRect();   // 移动前缓存原位（transform 漂移教训）
-        const tRect = targets[0].cardElement.getBoundingClientRect();
-        const arenaRect = arena.getBoundingClientRect();
-        const dir = (tRect.left + tRect.width / 2 >= baseRect.left + baseRect.width / 2) ? 1 : -1;
-        const baseLeft = baseRect.left - arenaRect.left;
+        const bp = SkillSystem._animPoint(actorCard, arena);
+        const bs = SkillSystem._animSize(actorCard);
+        const tp = SkillSystem._animPoint(targets[0].cardElement, arena);
+        const ts = SkillSystem._animSize(targets[0].cardElement);
+        const dir = (tp.x + ts.w / 2 >= bp.x + bs.w / 2) ? 1 : -1;
+        const baseLeft = bp.x;
         // 冲过目标群停在目标对侧 140px（单硬币技能，目标 = targets[0]）
-        const passX = (dir > 0 ? tRect.right : tRect.left) + dir * 140 * SkillSystem._dispScale() - arenaRect.left;   // v0.4：窄屏缩小位移
+        const passX = (dir > 0 ? tp.x + ts.w : tp.x) + dir * 140 * SkillSystem._dispScale();   // v0.4：窄屏缩小位移
         const L = passX - baseLeft;                       // 带符号行程
         const dist = Math.abs(L);
         actorCard.style.zIndex = 50;                      // 盖在目标上形成穿过感
@@ -724,8 +761,8 @@ class SkillSystem {
                 T = Math.sqrt(2 * dist / acc);
                 // 穿过目标中心时刻（运动学反解 ½·a·t² = 目标中心距离）：撞击瞬间受伤反馈 + 速度线 + 冲击波
                 const dHit = dir > 0
-                    ? (tRect.left + tRect.width / 2) - arenaRect.left - baseLeft
-                    : baseLeft - (tRect.left + tRect.width / 2);
+                    ? (tp.x + ts.w / 2) - baseLeft
+                    : baseLeft - (tp.x + ts.w / 2);
                 tHit = (dHit > 0 && dHit < dist) ? Math.sqrt(2 * dHit / acc) : T;
                 setTimeout(() => {
                     const fb = window._slashHitFeedbacks || [];
@@ -787,10 +824,10 @@ class SkillSystem {
 
     // 粒子飘散（emoji 小字随机方向飞散）
     static _createParticles(centerCard, arena, config) {
-        const r = centerCard.getBoundingClientRect();
-        const a = arena.getBoundingClientRect();
-        const cx = r.left + r.width / 2 - a.left;
-        const cy = r.top + r.height * 0.35 - a.top;   // 卡片上部偏中
+        const p = SkillSystem._animPoint(centerCard, arena);
+        const s = SkillSystem._animSize(centerCard);
+        const cx = p.x + s.w / 2;
+        const cy = p.y + s.h * 0.35;   // 卡片上部偏中
         for (let i = 0; i < config.count; i++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = (config.spread || 40) * (0.6 + Math.random() * 0.4);
@@ -807,11 +844,11 @@ class SkillSystem {
 
     // 速度线（开创冲刺用，actor 身后横向飞掠）
     static _createStreaks(actorCard, arena, config) {
-        const r = actorCard.getBoundingClientRect();
-        const a = arena.getBoundingClientRect();
-        const cy = r.top + r.height / 2 - a.top;
+        const p = SkillSystem._animPoint(actorCard, arena);
+        const s = SkillSystem._animSize(actorCard);
+        const cy = p.y + s.h / 2;
         for (let i = 0; i < (config.count || 6); i++) {
-            const x = r.left - a.left + Math.random() * r.width;
+            const x = p.x + Math.random() * s.w;
             const yOff = (Math.random() - 0.5) * r.height * 0.7;
             const streak = document.createElement('div');
             streak.className = 'skill-streak';

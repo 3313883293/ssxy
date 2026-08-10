@@ -892,6 +892,47 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     0%, 100% { transform: rotate(0deg); }
     50%      { transform: rotate(90deg); }   /* 手机图标转 90° 示意「转过来」 */
 }
-@media (max-width: 767px) and (orientation: portrait) and (pointer: coarse) and (hover: none) {
+/* v0.42：提示层不再显示——竖屏触屏改由旋转模式接管（html.rotate-mode 直接把游戏旋转为横屏）。
+   元素保留备用；如需回退为「请旋转」提示，恢复下面这行即可。 */
+/* @media (max-width: 767px) and (orientation: portrait) and (pointer: coarse) and (hover: none) {
     #rotateOverlay { display: flex; }
+} */
+
+/* ===== v0.42：旋转模式（竖屏手机直接横屏显示游戏，无需转手机）=====
+   js/rotate.js 检测竖屏触屏 → html 加 .rotate-mode：
+   .container 旋转 90°，宽 = 100vh（竖屏高→横屏宽），内部强制横屏布局（覆盖 ≤767 竖屏断点）。
+   桌面 / 平板竖屏(>767) / 横屏手机不启用；非 rotate-mode 时本块零副作用。 */
+html.rotate-mode {
+    height: 100%;
+    overflow: hidden;
 }
+html.rotate-mode body {
+    overflow: hidden;
+    background: #0d1117;
+}
+html.rotate-mode .container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 100vh;                       /* 竖屏视口高 = layout 宽，rotate 后 → 视觉高，铺满竖屏全高 */
+    height: 100vw;                      /* 竖屏视口宽 = layout 高，rotate 后 → 视觉宽（如 390×844 → 视觉 390 宽×844 高，全屏） */
+    max-width: none;                    /* 覆盖 max-width:1000px */
+    min-height: 0;                      /* 覆盖 v0.4 基础 min-height:600px（否则 layout 高被顶到 600 → 视觉宽 600 超视口） */
+    padding: 16px;
+    margin: 0;
+    transform: translate(-50%, -50%) rotate(90deg);
+    overflow-y: auto;                   /* rotate 后 layout 纵向 = 视觉横向；内容视觉横向超 390 时容器内滚动 */
+    overflow-x: hidden;
+}
+/* ---- 强制横屏布局：覆盖 ≤767 竖屏断点（卡 3 列/小卡 → 回横屏 140px 卡/宽槽/大标题） ---- */
+html.rotate-mode .character-card { flex: 0 1 140px; width: 140px; padding: 12px; }
+html.rotate-mode .character-card .name { font-size: 1em; }
+html.rotate-mode .hp-text, html.rotate-mode .sp-text { font-size: 0.7em; }
+html.rotate-mode .stats { font-size: 0.75em; }
+html.rotate-mode .position-mark { font-size: 0.62em; top: 2px; right: 8px; }
+html.rotate-mode .intent-badge { font-size: 0.65em; top: -16px; padding: 2px 8px; }
+html.rotate-mode .char-slot { flex: 0 1 140px; min-width: 120px; max-width: 160px; padding: 12px; }
+html.rotate-mode .page.active h1 { font-size: 2.4em; }
+/* 弹窗：旋转后视觉容器宽 ≈844，弹窗固定 400px 不再按竖屏 92vw 缩小 */
+html.rotate-mode .buff-popup, html.rotate-mode .game-modal { width: 400px; max-width: 80vh; }
+html.rotate-mode .buff-popup-body { max-height: 55vh; }

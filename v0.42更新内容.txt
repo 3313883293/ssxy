@@ -1,0 +1,29 @@
+v0.42 更新内容：竖屏手机自动旋转横屏显示（免转手机）
+
+按用户要求（v0.41 之后问「能不能直接让游戏转」），把手机竖屏打开游戏改为自动旋转显示——画面直接横过来，玩家不用把手机横过来。桌面端、平板、横屏手机完全不受影响。
+
+## 新增 旋转模式（js/rotate.js + style.css）
+
+- js/rotate.js：检测「竖屏触屏」（视口≤767 + 宽<高 + pointer:coarse + hover:none）→ html 加 .rotate-mode；resize / orientationchange 实时更新。桌面 / 平板竖屏(>767) / 横屏手机不启用；非 rotate-mode 时本文件零副作用。
+- style.css（.rotate-mode 块）：
+  - `.container { transform: translate(-50%,-50%) rotate(90deg); width:100vh; height:100vw }` → layout 844×390，旋转后视觉 390×844 恰好覆盖竖屏全屏，内容横着呈现，等同横屏手机
+  - 强制横屏布局：战斗卡 140px、选角槽 120~160、大标题、弹窗固定 400px（覆盖 ≤767 竖屏断点，保证旋转后视觉就是横屏）
+  - 内容超视觉视口时容器内滚动（overflow-y:auto）
+  - 关键修复：基础 `.container` 的 `min-height:600px` 会顶掉 `height:100vw`（layout 高变 600 → 旋转后视觉宽 600 超视口，元素被判定在视口外无法点击），rotate-mode 补 `min-height:0` 解决
+- 移除 v0.41 的全屏「请横屏游玩」提示层显示（旋转模式替代其锁定语义；`#rotateOverlay` 元素保留、显示规则禁用，如需回退恢复媒体查询即可）
+
+## 动画坐标适配旋转（js/SkillSystem.js）
+
+旋转后 `getBoundingClientRect()` 返回的是旋转后的 AABB，动画 overlay 定位会错乱。改造：
+- 新增 helper：`_isRotated()` / `_layoutPoint(el, base)`（offsetParent 链累加布局坐标，不受 transform 影响）/ `_animPoint()` / `_animSize()` / `_getCardCenter()`
+- 9 处动画坐标计算（伤害数字、十二连穿过、凭空剑痕、亮剑后撤、剑气、警车×2、粒子、速度线）改用 `_animPoint` / `_animSize`：旋转模式返回 offset 布局坐标，桌面仍走原 `getBoundingClientRect` 逻辑（数值完全不变）
+- `_dispScale()` 旋转模式下返回 1（容器已按横屏 844 宽渲染，无需再缩放位移量）
+
+## 验证
+
+- verify-v042-rotate.js 13 项全过：
+  - A 竖屏触屏 390×844：rotate-mode 启用、容器视觉全屏覆盖（390×844）、选角槽/战斗卡横屏大尺寸、动画 burst 落位与目标卡视觉中心重合（旋转坐标自洽）、真实点击完整攻击流程无页面异常
+  - B 转横屏 844×390：rotate-mode 解除、容器恢复横屏渲染
+  - C 桌面 1280×900：不启用、容器 1000px
+  - D 平板竖屏 800×1100（触屏）：不启用（>767）、无遮罩拦截
+- 回归：verify-v320（28 项）、verify-v316（21 项）全过（桌面机制零改动、坐标改造桌面分支数值不变）
