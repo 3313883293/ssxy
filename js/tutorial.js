@@ -16,6 +16,7 @@ const TUTORIAL_STEPS = [
 const Tutorial = {
     active: false,
     step: null,
+    collapsed: false,   // v0.61：手机端收起态——收成一条标题栏不挡战斗画面（每步展示时自动复位展开）
     isTutorial: () => typeof battleState !== 'undefined' && battleState.currentLevel === -2,
     // 由 confirmLevel 保证仅在教程关(currentSelectedLevel === -2)调用；
     // 此处不能依赖 battleState.currentLevel（选角阶段尚未 startBattle，仍为旧值）
@@ -40,6 +41,7 @@ const Tutorial = {
     show(def) {
         const overlay = document.getElementById('tutorialOverlay');
         if (!overlay) return;
+        this.collapsed = false;   // v0.61：每步展示自动展开，玩家收起只影响当前步
         document.getElementById('tutorialStepNum').textContent =
             `🎓 新手教程 · 步骤 ${TUTORIAL_STEPS.findIndex(s => s.id === def.id) + 1} / ${TUTORIAL_STEPS.length}`;
         document.getElementById('tutorialText').innerHTML = renderGlossaryText(def.text);
@@ -49,6 +51,10 @@ const Tutorial = {
         okBtn.style.display = (def.dismissable || def.end) ? 'block' : 'none';
         this.clearHighlight();
         overlay.style.display = 'block';
+        // v0.61：选角页（步骤①②）在竖屏贴底部空档，避免盖住顶部出战槽位；战斗页保持贴顶部
+        const selectPage = document.getElementById('pageSelectChar');
+        overlay.classList.toggle('tutorial-select', !!(selectPage && selectPage.classList.contains('active')));
+        this.updateCollapseUI();   // v0.61：同步收起态与 ▾/▸ 按钮
         if (def.highlight) {
             // 目标元素可能尚未渲染（如技能按钮），延迟一拍再高亮
             setTimeout(() => this.highlight(def.highlight), 80);
@@ -60,6 +66,18 @@ const Tutorial = {
     },
     clearHighlight() {
         document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
+    },
+    // v0.61：收起/展开切换 + UI 同步（收起态由 #tutorialOverlay.collapsed 驱动 CSS 隐藏正文）
+    toggleCollapse() {
+        this.collapsed = !this.collapsed;
+        this.updateCollapseUI();
+    },
+    updateCollapseUI() {
+        const overlay = document.getElementById('tutorialOverlay');
+        if (!overlay) return;
+        overlay.classList.toggle('collapsed', this.collapsed);
+        const btn = document.getElementById('tutorialToggleBtn');
+        if (btn) btn.textContent = this.collapsed ? '▸' : '▾';
     },
     // 关闭弹窗：强制步骤不可关（做操作才推进）；可关闭步骤点按钮/✕/遮罩关闭
     hide() {
@@ -73,6 +91,7 @@ const Tutorial = {
     },
     end() {
         this.active = false;
+        this.collapsed = false;   // v0.61：复位收起态
         this.clearHighlight();
         const overlay = document.getElementById('tutorialOverlay');
         if (overlay) overlay.style.display = 'none';

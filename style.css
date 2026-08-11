@@ -758,6 +758,11 @@ body {
 }
 #tutorialOverlay #tutorialStepNum { color: #f9ca24; }
 
+/* v0.61：教程弹窗可收起——收起成一条标题栏（正文+确认按钮隐藏），不挡战斗画面；每步展示自动复位展开 */
+.tutorial-toggle-btn { display: none; }   /* 桌面 ≥901 不显示收起按钮，行为与旧版完全一致 */
+#tutorialOverlay.collapsed .buff-popup-body,
+#tutorialOverlay.collapsed .tutorial-ok-wrap { display: none; }
+
 /* ============================================================
    v0.4 手机响应式适配
    桌面端（≥901px）行为与 v0.320 完全一致；≤900px 起响应式。
@@ -795,6 +800,11 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .next-btn { min-height: 48px; }
     .buff-popup, .game-modal { max-height: 92vh; overflow-y: auto; }      /* 横屏手机高度仅 360~430px */
     .buff-popup-body { max-height: min(400px, 55vh); overflow-y: auto; }
+    /* ---- v0.61：教程弹窗缩小（窄、字号小、正文限高可滚动）+ 收起按钮 ---- */
+    #tutorialToggleBtn { display: flex; }
+    #tutorialOverlay { width: min(320px, 44vw); }
+    #tutorialOverlay .buff-popup-header { padding: 10px 14px; font-size: 0.95em; }
+    #tutorialOverlay .buff-popup-body { font-size: 0.84em; padding: 12px 14px; max-height: min(320px, 40vh); }
     #settingsBtn {
         right: calc(14px + env(safe-area-inset-right));
         bottom: calc(14px + env(safe-area-inset-bottom));
@@ -864,7 +874,7 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .buff-popup, .game-modal { width: 92vw; }                 /* 原 max-width:90vw 已兜底，收紧宽度 */
     .buff-popup-body { max-height: min(400px, 55vh); }
     #tutorialOverlay { left: 12px; right: 12px; width: auto; top: 12px; }   /* 右上气泡改近全宽 */
-    #tutorialOverlay .buff-popup-body { font-size: 0.88em; }
+    #tutorialOverlay .buff-popup-body { font-size: 0.82em; padding: 12px 14px; max-height: min(280px, 30vh); }   /* v0.61：限高滚动 */
     #settingsBtn {
         right: calc(14px + env(safe-area-inset-right));
         bottom: calc(14px + env(safe-area-inset-bottom));
@@ -872,6 +882,12 @@ button, .character-card, .char-slot, .roster-card, .level-card,
 
     /* 结算表（battleUI.js showResultPage 内联 padding:8px）：窄屏压缩 */
     #resultContent table td, #resultContent table th { padding: 6px 4px !important; }
+}
+
+/* v0.61：竖屏选角页教程弹窗贴底部空档（仅竖屏触屏手机命中——页面内容通常只占上 1/3、下方大段空白），
+   避免盖住顶部出战槽位（教程步骤①②要点「出战空格」放入）；横屏（页面占满/右上角不挡槽）与战斗页不命中保持贴顶部 */
+@media (max-width: 767px) and (orientation: portrait) {
+    #tutorialOverlay.tutorial-select { top: auto; bottom: 12px; }
 }
 
 /* ===== v0.41：锁定横屏提示层 =====
@@ -927,6 +943,11 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .next-btn { margin-top: 6px; padding: 8px; min-height: 40px; font-size: 0.9em; }
     .target-hint { margin-top: 4px; font-size: 0.85em; }
     .log { margin-top: 6px; max-height: 56px; padding: 6px 8px; font-size: 0.72em; }
+    /* v0.61：教程弹窗在短高横屏（844×390 等）再压缩——更窄更矮、字号更小，避免盖住战斗卡；
+       left:auto 抵消 ≤767 的 left:12px 左锚，改右锚避免 667 宽横屏盖住居中的出战槽位 */
+    #tutorialOverlay { width: min(280px, 40vw); top: 8px; right: 8px; left: auto; }
+    #tutorialOverlay .buff-popup-header { padding: 8px 12px; font-size: 0.9em; }
+    #tutorialOverlay .buff-popup-body { font-size: 0.78em; padding: 10px 12px; max-height: min(260px, 28vh); }
 }
 
 /* ==================== 灼华火焰特效（v0.5） ==================== */

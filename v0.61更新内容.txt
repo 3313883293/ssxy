@@ -1,0 +1,47 @@
+v0.61 更新内容：手机版教程弹窗缩小 + 可收起（不挡战斗画面）
+
+用户反馈「手机版教程关教程太大了遮挡游戏内容」——量测确认横屏手机（844×390）教程弹窗 340×290px，占屏高 74%（盖到 302px），战斗卡几乎全被挡住；竖屏 390×844 占 31%，短横屏 667×375 占 54%。纯表现层改动，机制零改动，桌面 ≥901px 行为与 v0.6 完全一致。
+
+## 一、手机端弹窗缩小（style.css）
+
+三档断点分别压缩教程弹窗（#tutorialOverlay）：
+- **≤900px**：宽度 `min(320px, 44vw)`、头部 padding/字号收紧、正文 0.84em + `max-height: min(320px, 40vh)` 限高可滚动
+- **≤767px 竖屏**：保持近全宽（原 left/right 12px 不动），正文 0.82em + `max-height: min(280px, 30vh)`
+- **≤900px 且 ≤500px 高（横屏短高，如 844×390）**：再压缩——宽 `min(280px, 40vw)`、字号 0.78em、正文 `max-height: min(260px, 28vh)`，左上顶间距收紧
+
+实测降幅：横屏 844 高占比 **74% → 44%**（290→172px，且从右上移窄留出左侧战斗区）；竖屏 390 **31% → 25%**；短横屏 667 **54% → 45%**。
+
+## 二、可收起（index.html + tutorial.js + style.css）
+
+- 教程弹窗头部加 `#tutorialToggleBtn`（`▾` 收起 / `▸` 展开），与 ✕ 并排
+- `Tutorial.collapsed` + `toggleCollapse()` / `updateCollapseUI()`：收起态由 `#tutorialOverlay.collapsed` 驱动 CSS 隐藏正文与「知道了」按钮，弹窗仅剩一条标题栏（高 ≤70px），想看战斗画面时收起、再点展开
+- **每步展示自动复位展开**（`show()` 里 `collapsed=false`），玩家收起只影响当前步，做完对应操作推进到下一步自动展开
+- **强制步骤语义不变**：✕ 仍不可关（非 dismissable/end 步骤 `hide()` 提前返回），但收起可用——不破坏「做操作才推进」的强制引导
+- 收起按钮**仅 ≤900px 显示**（`.tutorial-toggle-btn { display:none }` 桌面隐藏），桌面端零 UI 变化
+
+## 三、按页面智能定位（避免盖住交互元素）
+
+量测发现竖屏选角页弹窗（顶部近全宽）会盖住**顶部居中出战槽位**（教程①要点「出战空格」放入）。改按当前页面 + 横竖屏定位：
+- **竖屏（≤767px 且 portrait）选角页**（步骤①②）：`show()` 检测 `#pageSelectChar.active` 给 overlay 加 `tutorial-select` 类 → 弹窗贴**底部空档**（选角页内容通常只占上 1/3，下方大段空白），槽位/角色卡/确认按钮全部不被盖
+- **战斗页 / 横屏**：保持贴顶部右上角（横屏 844 弹窗在 x556+，槽 x352-492、角色卡 x228-344，天然不相交）
+- **短高横屏 `left:auto` 右锚**：抵消 ≤767 的 `left:12px` 左锚，避免 667 宽横屏盖住居中槽位（844 宽横屏不受 ≤767 影响本就不存在此问题）
+- 横屏 667 窄屏仍有槽位右缘 ~12px 轻微重叠（槽 88% 可点），可接受
+
+## 验证
+
+新增 check-v061-tutorialsize.js（25 项）：
+- 竖屏 390：弹窗完整在视口内、高占比 ≤32%、收起按钮显示、初始展开 ▾、强制步骤①点✕不可关、收起后仅剩标题栏（≤70px）+按钮变 ▸、收起不影响强制步骤、展开恢复、**收起后完成步骤①→步骤②自动展开**
+- 横屏 844：弹窗完整在视口、高占比 ≤55%、宽占比 ≤45%、收起/展开恢复正常
+- 桌面 1280：弹窗宽 340 不变、收起按钮不显示、无页面异常
+- 全程无页面异常
+
+回归全过：verify-v320（28）、verify-v316（21）、verify-v050-zh（32）、check-v06-confusion（44）、check-v05-responsive（15）、check-v05-flameanim（16）、check-v051-dotstat（10）、check-v05-introwin（15）、check-v05-battleinfo（10）、check-v05-zhlock（9）、check-v05-bosspos（9）、check-v05-zhunlock（14）、check-v05-starsep、check-v317-starref、check-v319、check-l4-wincond。
+
+## 附：脚本库中的陈旧脚本（本次未改，v0.5/v0.6 改版后未适配，均在 v0.6 上对照复现同样失败）
+
+- verify-v310-tutorial.js：2 项失败（断言初始池含灼华，v0.5 起灼华改初始不可用需解锁）
+- check-v06-confusion.js：C1 偶发（普攻打死目标混乱不触发，纯时序抖动，v0.6 同样间歇失败）
+- verify-v041-responsive.js：5 项失败（测 v0.5 已回退的 v0.41 锁定横屏提示层 + 旧卡片尺寸）
+- verify-v040-responsive.js：A2 失败（v0.5 后角色栏不再换行的旧断言）
+- check-v05-nextround.js：超时（缺 pwgame_zh_unlocked 前置，v0.5 起灼华需解锁才入池）
+- check-v318-exit.js：选择器歧义（v0.5/v0.6 出现多个「第一关」卡名）
