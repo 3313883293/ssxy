@@ -24,7 +24,8 @@ function decidePlayerAI(actor) {
             // TODO(用户后补)：张子曦「混乱」类技能收益估算——(受击反噬真伤≈ 期望命中次数×级×20 折算)（等 special 类型确定）
             const perTarget = inRange.map(e => {
                 if (e.getHateReduction() > 0 && hasOtherEnemies) return { target: e, exp: -1 };   // 减伤墙最后处理
-                let exp = s.baseDamage + coinsEach * 0.5 * s.bonusDamage + extra - defOf(e);
+                // v0.62 情感激荡：期望伤害加情感基础伤害加成（当前等级档位，覆盖式）
+                let exp = s.baseDamage + (actor.getEmotionDamageBonus ? actor.getEmotionDamageBonus() : 0) + coinsEach * 0.5 * s.bonusDamage + extra - defOf(e);
                 if (s.special && s.special.type === 'detonate') exp += e.getBuffLevel('burn') * 50 * (s.special.ratio || 2);   // 引爆收益取决于目标当前火势
                 if (e.getHateReduction() > 0) exp = exp * (100 - e.getHateReduction()) / 100;
                 return { target: e, exp: Math.max(0, exp) };

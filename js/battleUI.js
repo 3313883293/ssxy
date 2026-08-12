@@ -100,6 +100,19 @@ function refreshCardState(char) {
     const totalDef = char.getTotalDef();
     const statsEl = card.querySelector('.stats');
     if (statsEl) statsEl.innerHTML = `防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}`;
+    // v0.62 情感等级行（>0 显示「情感名 LvN」；鲁盼旋 emotionDisplayName='愤怒'，其余角色默认「情感激荡」；点击弹窗查看效果）：就地同步增删，与 stats 同帧刷新
+    const emoName = char.emotionDisplayName || '情感激荡';
+    const oldEmoEl = card.querySelector('.emotion-line');
+    if (oldEmoEl) oldEmoEl.remove();
+    if (char.emotionLevel > 0) {
+        const emoEl = document.createElement('div');
+        emoEl.className = 'emotion-line';
+        emoEl.textContent = `${emoName} Lv${char.emotionLevel}`;
+        emoEl.title = `点击查看${emoName}效果`;
+        emoEl.addEventListener('click', function(e) { e.stopPropagation(); showEmotionInfo(char); });
+        if (statsEl) statsEl.insertAdjacentElement('afterend', emoEl);
+        else card.appendChild(emoEl);
+    }
     const { tags, details } = collectBuffUI(char);
     const oldBuffEl = card.querySelector('.buff-indicator');
     if (oldBuffEl) oldBuffEl.remove();
@@ -151,6 +164,7 @@ function renderCharacters() {
             <div class="bar-container"><div class="sp-bar" style="width:${(char.sp / char.maxSP) * 100}%"></div></div>
             <div class="sp-text">算力 ${char.sp}/${char.maxSP}</div>
             <div class="stats">防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
+            ${char.emotionLevel > 0 ? `<div class="emotion-line" title="点击查看${char.emotionDisplayName || '情感激荡'}效果">${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}</div>` : ''}
             ${buffDetailItems.length > 0 ? `<div class="buff-indicator" data-buff-char="${char.id}">${buffTags.join('')}</div>` : ''}
         `;
 
@@ -162,6 +176,14 @@ function renderCharacters() {
             buffEl.addEventListener('click', function(e) {
                 e.stopPropagation();
                 showBuffPopup(char, buffDetailItems);
+            });
+        }
+
+        const emoEl = card.querySelector('.emotion-line');
+        if (emoEl) {
+            emoEl.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showEmotionInfo(char);
             });
         }
 
@@ -220,12 +242,40 @@ function closeBuffPopup() {
     document.getElementById('buffPopupOverlay').style.display = 'none';
 }
 
+// v0.62 情感激荡说明弹窗：点卡片上的「情感激荡 LvN」只显示当前等级的实际效果（复用 buff 弹窗样式）
+function showEmotionInfo(char) {
+    const overlay = document.getElementById('buffPopupOverlay');
+    const title = document.getElementById('buffPopupTitle');
+    const body = document.getElementById('buffPopupBody');
+    const lv = char.emotionLevel;
+    const dmg = char.getEmotionDamageBonus();
+    const emoName = char.emotionDisplayName || '情感激荡';   // v0.62 鲁盼旋显示名「愤怒」，仍归属情感激荡机制
+    // v0.62 鲁盼旋「愤怒」：不回复算力、每2级防御-50 → 弹窗显示防御减少；普通情感激荡显示算力回复
+    const effect = char.specialEmotion
+        ? `基础伤害+${dmg} ｜ 防御-${Math.floor(lv / 2) * 50}`
+        : `基础伤害+${dmg} ｜ 算力回复+${char.getEmotionSpBonus()}`;
+    title.textContent = `${char.name} — ${emoName}`;
+    body.innerHTML = `
+        <div class="buff-popup-item" style="border-left-color:#e056fd">
+            <div class="buff-popup-text">
+                <div class="title" style="color:#e056fd">${emoName} Lv${lv}</div>
+                <div class="desc">${effect}</div>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+}
+
 function showSkillInfo(char) {
     const skills = char.skills;
     if (!skills || skills.length === 0) return;
     const parts = [];
     // v0.5：基础数值（面板值，与关卡介绍 renderRoleDetail 头部同源格式；战斗中点角色卡即可查看）
-    parts.push(`📊 基础面板：血量 ${char.maxHp} ｜ 算力 ${char.maxSP}+${char.spRegen}/回 ｜ 防御 ${char.def} ｜ 速度 ${char.speedMin}~${char.speedMax}`);
+    // v0.62 鲁盼旋「愤怒」：不回复算力、每2级防御-50 → 详情面板显示防御减少；普通情感激荡显示算力回复
+    const emoEffect = char.specialEmotion
+        ? `基础伤害+${char.getEmotionDamageBonus()} / 防御-${Math.floor(char.emotionLevel / 2) * 50}`
+        : `基础伤害+${char.getEmotionDamageBonus()} / 算力回复+${char.getEmotionSpBonus()}`;
+    parts.push(`📊 基础面板：血量 ${char.maxHp} ｜ 算力 ${char.maxSP}+${char.spRegen}/回 ｜ 防御 ${char.def} ｜ 速度 ${char.speedMin}~${char.speedMax} ｜ ${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}（${emoEffect}）`);
     // 被动/机制（标在技能前）
     const passives = PASSIVE_INFO[char.name] || [];
     if (passives.length > 0) {

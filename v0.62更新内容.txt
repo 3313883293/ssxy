@@ -1,0 +1,104 @@
+v0.62 更新内容：新增底层机制「情感激荡」（敌我双方所有角色通用）
+
+用户设计新机制「情感激荡」——全角色共有的情绪累积系统：角色通过战斗行为累积「情感等级」（0~8 级），达到阈值获得基础伤害与算力回复加成。作为游戏底层机制，适用于敌我双方所有角色（含训练木偶、测试关、召唤单位）。
+
+## 机制定义（用户定稿）
+
+- **等级**：初始 0 级，封顶 8 级
+- **触发（每项 +1 级）**：
+  - **攻击**（宽松）= 任何一次自己出招，含无目标辅助技能（焚香/加油/召唤）——executeSkill 入口统一 +1
+  - **受击**（严格）= 仅被攻击命中且实际扣血（takeDamage 内 actual>0）；格挡 0 伤害不计；回合末燃烧 dot、混乱反噬自伤、引爆真伤均**不计**受击（takeTrueDamage 不加）
+  - **击杀**（全算）= 目标阵亡，归属致死源：普伤致死→施放者；引爆致死→引爆者；混乱反噬致死→触发攻击者；**回合末燃烧 dot 致死无施放者，无法归属，不触发击杀+1**（仅触发队友死亡）
+  - **队友死亡** = 同阵营在场角色死亡（含召唤的怨灵、倒戈归入己方的李雅礼）；待命区未入场不计；自己死亡不触发自己的
+- **档位效果（覆盖式，只取最新档位不叠加）**：
+  - 达 2 级：基础伤害 +50；达 6 级：基础伤害 +100（取代 +50）
+  - 达 4 级：算力回复 +50；达 8 级：算力回复 +100（取代 +50）
+  - 基础伤害加成作用于技能 baseDamage 段，正常走防御减免；算力回复加成作用于回合末 regenSP（spRegen 之上）
+
+## 改动文件（js/Characters.js、SkillSystem.js、battleFlow.js、battleUI.js、style.css）
+
+- **Characters.js**：构造器加 `emotionLevel=0`（所有创建路径自动获得，无需改工厂）；新增 `gainEmotion(n)`（封顶 8 + 跨 2/4/6/8 档位打日志）、`getEmotionDamageBonus()`、`getEmotionSpBonus()`；`takeDamage` 实际扣血后受击+1；`regenSP` 加回蓝档位加成
+- **SkillSystem.js**：executeSkill 入口出招+1；主伤害循环普伤致死击杀+1；混乱反噬致死击杀+1（归属攻击者）；引爆致死击杀+1（归属引爆者）；基础伤害档位加成；两处 onAllyDeath 广播后触发队友死亡+1
+- **battleFlow.js**：新增 `triggerEmotionOnAllyDeath(deadChar)` helper（遍历同阵营 playerTeam/enemyTeam 存活角色 +1）；燃烧 dot 致死仅触发队友死亡；serializeChar 与读档 rebuild 各加 `emotionLevel` 字段（老存档兜底 0）
+- **battleUI.js + style.css**：角色卡 stats 行下加「情感激荡」等级行（粉紫色纯文字，>0 级显示，refreshCardState 就地同步增删）；角色详情弹窗基础面板行追加「情感激荡 LvN（基础伤害+X / 算力回复+Y）」；战斗日志跨档位提示（纯文字无 emoji）
+
+## 边界决策（已确认）
+
+| 情形 | 判定 |
+|---|---|
+| 辅助/无目标技能出招 | 算攻击 +1 |
+| 格挡 0 伤害受击 | 不算受击 |
+| 燃烧 dot / 混乱反噬 / 引爆受击 | 不算受击 |
+| 普伤/引爆/混乱反噬致死 | 致死源 +1 击杀 |
+| 燃烧 dot 致死 | 无归属，不触发击杀（仅队友死亡） |
+| 队友死亡（含怨灵/倒戈） | 同阵营存活 +1；待命区不计 |
+
+## 验证
+
+新增 check-v062-emotion.js（字段/封顶、四触发、档位伤害回蓝、显示、存档）；回归历史脚本适配情感累积对伤害断言的影响。
+
+## UI 完善（用户反馈「情感激荡可以点击查看效果，卡片上只显示等级」）
+
+- **卡片显示「情感激荡 LvN」全名+等级**（用户指定必须带「情感激荡」四字；粉紫小字、下划线点缀、cursor:pointer、title 提示「点击查看情感激荡效果」）——效果明细收进点击弹窗，卡片行保持简洁不显示加成文字
+- **点击弹窗查看效果**：新增 `showEmotionInfo(char)`（battleUI.js，复用 buffPopupOverlay/buff-popup 样式）——标题「XXX — 情感激荡」，内容**只显示当前等级实际效果**「情感激荡 LvN / 基础伤害+X ｜ 算力回复+Y」（用户指定「点开只显示当前效果」且删去「当前效果」前缀字：不列档位表、不列提升方式）；模板渲染与 refreshCardState 就地重建两处均绑 click（stopPropagation 防误触角色详情）
+- **全名规范**：卡片行与详情弹窗均用「情感激荡」全名（用户上轮指定非简写「情感」）；战斗日志原本即全名
+- 验证：check-v062-emotion.js 适配 + 新增 E4（点击弹窗显示）**34 项全过**；回归 responsive/battleinfo/tutorialsize/v050-zh 全过
+
+## 鲁盼旋「特殊情感激荡」（用户定稿：愤怒 → 特殊情感激荡）
+
+用户指定「把鲁盼旋的愤怒改为特殊情感激荡」，经两轮确认完整设计。鲁盼旋不受通用四触发影响，改为完全自定义的「特殊情感激荡」：
+
+### 机制定义（用户定稿）
+
+- **触发完全替换**（`char.specialEmotion = true` 标记，鲁盼旋专属）：
+  - 停用通用四触发：攻击（出招）/受击（实际扣血）/击杀（致死源归属）/通用队友死亡 均**不再** +1（SkillSystem 4 处触发点、takeDamage 受击、triggerEmotionOnAllyDeath 均加 `!specialEmotion` 守卫）
+  - 改为：回合末按场上「恶」总层数升级情感激荡（被动②）+ 队友死亡 +3 级（被动③）
+- **效果**：每 2 级基础伤害 +100（`Math.floor(emotionLevel/2)*100`，覆盖式，Lv2/4/6/8 = +100/200/300/400）；**不回复算力**（getEmotionSpBonus 返回 0）
+- **保留副作用**：每 2 级防御 -50（getTotalDef 无条件生效，替代原「愤怒」每2层-50防）；被动⑤「目标燃烧≤3层且情感激荡≥1级时消耗1级额外+1燃烧层」（替代原「消耗1层愤怒」）
+- 情感激荡上限 8 级不变
+
+### 改动文件
+
+- **Characters.js**：构造器加 `specialEmotion=false`；`gainEmotion` 加特殊分支（跨 2/4/6/8 档提示「基础伤害+100/200/300/400，防御-50/100/150/200」）；`getEmotionDamageBonus` 特殊分支每2级+100；`getEmotionSpBonus` 特殊返回 0；`takeDamage` 受击触发加守卫；`getTotalDef` 减防副作用**移到 forEach 外**（无条件生效——首版误写进 forEach 回调，buff 为空时不生效，验证 C3 抓出修复）
+- **SkillSystem.js**：executeSkill 入口、普伤/混乱反噬/引爆三处击杀触发加 `!actor.specialEmotion` 守卫；删除「鲁盼旋每2层愤怒+50」加伤（并入情感激荡）
+- **battleFlow.js**：triggerEmotionOnAllyDeath 加 `!c.specialEmotion`（读档经 createRoleInstance 重建鲁盼旋，specialEmotion 自动恢复无需存档）
+- **battleActions.js**：decidePlayerAI 期望计算加 `getEmotionDamageBonus()`（AI 正确评估情感伤害）
+- **Roles.js**：createLuPanxuan 设 `char.specialEmotion=true`；被动②恶→情感激荡升级、被动③队友死亡→+3级、被动⑤消耗1级情感激荡
+- **globals.js**：PASSIVE_INFO 鲁盼旋文案改「情感激荡」，新增「特殊情感激荡」说明行
+- **glossary.js**：「愤怒」词条改「情感激荡」词条；Buff 词条枚举同步
+
+### 验证
+
+新增 check-v062-luemotion.js（通用四触发停用 A、恶升级 B1/队友死亡+3 B2、每2级+100覆盖式 C1/无回蓝 C2/防御副作用 C3、消耗1级额外燃烧 D、日志与文案 E、通用角色不受影响 F）**24 项全过**（首跑 C3 抓出 getTotalDef 副作用在 forEach 内的 bug）；回归 check-v062-emotion 适配 E2（详情面板「情感激荡」被 glossary 词条高亮成 span，改查「情感激荡」+「Lv2」+加成）全过；verify-v316/v050-zh/v320/check-v06-confusion 全过；verify-v312（替补 order）/v310-ai（第三关 hasText 歧义）各 1 项历史遗留，切 v0.61 对比确认非本次引入
+
+## 鲁盼旋情感等级显示为「愤怒」（用户反馈：把鲁盼旋的情感激荡显示为愤怒，仍归属情感激荡，但不在通用词条中显示）
+
+用户确认：鲁盼旋的「情感激荡」**显示名**改为「愤怒」，机制仍归属情感激荡（emotionLevel/specialEmotion/触发/效果/副作用完全不变）；glossary 通用词条保持纯通用。经 AskUserQuestion 确认两歧义：①词条纯通用（移除词条中鲁盼旋专属说明，不新增「愤怒」词条）②鲁盼旋界面「情感激荡」字样全部替换为「愤怒」。
+
+### 改动文件
+
+- **Characters.js**：构造器加 `emotionDisplayName='情感激荡'` 默认显示名；`gainEmotion` 日志改 `${this.emotionDisplayName}`（非特殊角色不变）
+- **Roles.js**：createLuPanxuan 设 `char.emotionDisplayName='愤怒'`；被动②③⑤日志「情感激荡」改 `self.emotionDisplayName`
+- **battleUI.js**：卡片 `.emotion-line`（模板 + refreshCardState 两处）、showEmotionInfo 弹窗标题与内容、showSkillInfo 基础面板行——全部用 `char.emotionDisplayName || '情感激荡'`
+- **globals.js**：PASSIVE_INFO 鲁盼旋描述「情感激荡」→「愤怒」（第三条说明行不写「情感激荡」四字，避免经 renderGlossaryText 触发通用词条高亮）
+- **glossary.js**：「情感激荡」词条移除鲁盼旋专属说明，纯通用（0~8 级/四触发/档位覆盖式）；不新增「愤怒」词条
+
+### 效果
+
+鲁盼旋卡片/弹窗/详情/日志/被动文案全部显示「愤怒 LvN」；因 glossary 无「愤怒」词条，鲁盼旋相关文本不触发任何通用词条高亮；灼华等普通角色仍显示「情感激荡」。
+
+### 验证
+
+check-v062-luemotion.js E 系列改/增 4 项（卡片显示「愤怒 Lv2」、日志含「愤怒」、PASSIVE_INFO 无「情感激荡」、glossary 纯通用）**25 项全过**；check-v062-emotion（灼华仍「情感激荡」）全过；回归 verify-v316/v050-zh/v320/check-v06-confusion 全过
+
+## 鲁盼旋愤怒三修复（用户反馈：愤怒词条无法点击 / 愤怒上限应为5级 / 弹窗不该显示算力回复）
+
+用户指出三点问题，逐一修复：
+
+1. **「愤怒」词条无法点击**——上轮把「不在通用词条中显示」理解偏了（误解为不新增「愤怒」词条）。实际应为：**「情感激荡」通用词条保持纯通用**（不含鲁盼旋专属），**鲁盼旋专属内容放独立「愤怒」词条**并高亮可点击。修复：glossary.js 新增 `'愤怒'` 词条（专属说明：上限5级、每2级+100伤/-50防、不回复算力、回合末恶层数升级、队友死亡+3、可消耗1级追加燃烧）；Buff 词条枚举加「愤怒」；PASSIVE_INFO 渲染后「愤怒」被词条系统高亮可点击（check E6 验证 showGlossary('愤怒')）
+2. **愤怒上限改为 5 级**（用户指定，不同于普通情感激荡的 8 级）：`gainEmotion` 封顶 `specialEmotion ? 5 : 8`；特殊分支档位日志只跨 2/4 档（「基础伤害+100/200，防御-50/100」）；PASSIVE_INFO 第三条注明「愤怒（上限5级）」；Lv5 伤害/防御同 Lv4（floor(5/2)=2）。普通角色情感激荡仍上限 8 级不变
+3. **弹窗/详情面板对鲁盼旋显示防御减少而非算力回复**：showEmotionInfo 弹窗与 showSkillInfo 基础面板行按 `char.specialEmotion` 分支——鲁盼旋显示「基础伤害+X ｜ 防御-Y」（不回复算力、每2级防御-50），普通角色仍「基础伤害+X ｜ 算力回复+Y」
+
+### 验证
+
+check-v062-luemotion.js **30 项全过**（A 加 A5 封顶5、C 改 Lv0/2/4/5=0/100/200/200 + defs 200/150/100/100、E 改 E4 有愤怒词条 + 新增 E5 弹窗防御-50/E6 愤怒词条高亮）；check-v062-emotion（灼华仍情感激荡、弹窗算力回复）全过；回归 verify-v316/v050-zh 全过

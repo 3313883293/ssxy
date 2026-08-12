@@ -36,6 +36,9 @@ class Character {
         this.directReduce = 0;   // 直伤减伤（百分比）：黎明级后天能力者·直伤减伤20%（灼华）
         this.burnMultiplier = 1;   // 易燃（焦木傀儡 1.5）：受到的燃烧 dot 伤害倍率（v0.5）
         this.frenzyBuff = false;   // 狂炎持有者标记（焚天祭司·烛央）：死亡时焚尽薪火（v0.5）
+        this.emotionLevel = 0;   // 情感激荡等级（v0.62）：0~8 级，受击/攻击/击杀/队友死亡各 +1；2/6 级基础伤害、4/8 级算力回复档位加成
+        this.specialEmotion = false;   // 特殊情感激荡（v0.62 鲁盼旋）：触发/效果/副作用完全自定义，不受通用四触发影响
+        this.emotionDisplayName = '情感激荡';   // 情感等级显示名（v0.62 鲁盼旋改「愤怒」：仍归属情感激荡机制，仅用户可见文本换名）
     }
 
     // —————— 亡灵怨恨减伤快照：每回合开始判定（100% - 累计阵亡数×15%，可为负，负值转为受到伤害加成） ——————
@@ -60,9 +63,10 @@ class Character {
         let total = this.def;
         this.buffs.forEach(b => {
             if (b.type === 'def') total += b.value;
-            if (b.type === 'rage') total -= Math.floor(b.stack / 2) * 50;
             if (b.type === 'frenzy') total -= b.stack * 20;   // 狂炎：每层防御-20（v0.5 烛央）
         });
+        // v0.62 鲁盼旋特殊情感激荡副作用：每2级防御-50（替代原「愤怒」每2层-50防；无条件生效，不依赖 buff 存在）
+        if (this.specialEmotion) total -= Math.floor(this.emotionLevel / 2) * 50;
         return total;
     }
 
@@ -90,6 +94,7 @@ class Character {
         this.hp = Math.max(0, this.hp - actual);
         this.damageReceived += actual;
         if (attacker && attacker.alive) attacker.damageDealt += actual;
+        if (actual > 0 && !this.specialEmotion) this.gainEmotion(1);   // v0.62 情感激荡：受击+1（仅实际扣血的攻击命中；格挡 0 伤害不计；鲁盼旋特殊情感不受通用触发）
         if (this.hp <= 0) {
             if (this.isImmortalWhileAlliesAlive()) {
                 this.hp = 1;   // v0.312：队友仍奋战，鲁盼旋锁血
@@ -146,8 +151,50 @@ class Character {
 
     regenSP() {
         if (!this.alive) return;
-        this.sp = Math.min(this.maxSP, this.sp + this.spRegen);
+        // v0.62 情感激荡：达 4 级算力回复+50、达 8 级+100（覆盖式）
+        this.sp = Math.min(this.maxSP, this.sp + this.spRegen + this.getEmotionSpBonus());
         this.actedThisTurn = false;
+    }
+
+    // —————— 情感激荡（v0.62）：敌我通用底层机制 ——————
+    // 提升等级（攻击/受击/击杀/队友死亡时调用）；普通封顶 8 级，鲁盼旋「愤怒」（特殊情感激荡）封顶 5 级（用户指定）；跨过档位时打日志
+    gainEmotion(n) {
+        const before = this.emotionLevel;
+        const cap = this.specialEmotion ? 5 : 8;   // v0.62 鲁盼旋「愤怒」上限 5 级（用户指定），普通情感激荡上限 8 级
+        this.emotionLevel = Math.min(cap, this.emotionLevel + n);
+        if (before >= this.emotionLevel) return;
+        const parts = [];
+        if (this.specialEmotion) {
+            // v0.62 鲁盼旋特殊情感激荡「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
+            if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害+100，防御-50');
+            if (before < 4 && this.emotionLevel >= 4) parts.push('基础伤害+200，防御-100');
+        } else {
+            const dmgBonus = this.getEmotionDamageBonus();
+            const spBonus = this.getEmotionSpBonus();
+            if (this.emotionLevel >= 2 && before < 2) parts.push(`基础伤害+${dmgBonus}`);
+            if (this.emotionLevel >= 4 && before < 4) parts.push(`算力回复+${spBonus}`);
+            if (this.emotionLevel === 6) parts.push('基础伤害加成提升至+100');
+            if (this.emotionLevel === 8) parts.push('算力回复加成提升至+100');
+        }
+        if (parts.length > 0 && typeof log === 'function') {
+            log(`${this.emotionDisplayName}：${this.name} 升至 Lv${this.emotionLevel}（${parts.join('，')}）`);
+        }
+    }
+
+    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」（特殊情感激荡）每2级 +100，上限5级（Lv2/4=+100/200，Lv5 仍+200）
+    getEmotionDamageBonus() {
+        if (this.specialEmotion) return Math.floor(this.emotionLevel / 2) * 100;
+        if (this.emotionLevel >= 6) return 100;
+        if (this.emotionLevel >= 2) return 50;
+        return 0;
+    }
+
+    // 算力回复加成（覆盖式）：普通角色达 4 级 +50、达 8 级 +100；鲁盼旋特殊情感激荡不回蓝
+    getEmotionSpBonus() {
+        if (this.specialEmotion) return 0;
+        if (this.emotionLevel >= 8) return 100;
+        if (this.emotionLevel >= 4) return 50;
+        return 0;
     }
 
     // —————— Buff 操作 ——————

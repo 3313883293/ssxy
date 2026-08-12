@@ -130,6 +130,8 @@ class SkillSystem {
         if (!actor.alive) return;
         actor.sp -= skill.spCost;
         actor.actedThisTurn = true;
+        // v0.62 情感激荡：攻击+1（任何出招均计，含无目标辅助技能如焚香/加油/召唤）；鲁盼旋特殊情感激荡不受通用四触发影响（触发完全替换为回合末恶升级+队友死亡）
+        if (!actor.specialEmotion) actor.gainEmotion(1);
         logFn(`${actor.name}(位置${actor.position}) 使用【${skill.name}】，消耗${skill.spCost}算力`);
         if (window.refreshCardState) refreshCardState(actor);   // 算力条同帧扣减（含 buff/防御标签）
 
@@ -244,12 +246,8 @@ class SkillSystem {
                 effBonus += Math.abs(actor.speed - target.speed) * skill.special.bonus;
             }
             if (coins > 0) {
-                dmg = skill.baseDamage + effectiveCoins * effBonus;
-                // 鲁盼旋：每有2层愤怒使技能伤害+50
-                if (actor.name === '鲁盼旋') {
-                    const rageStacks = actor.getBuffStack('rage');
-                    dmg += Math.floor(rageStacks / 2) * 50;
-                }
+                // v0.62 情感激荡：基础伤害档位加成（覆盖式，达2级+50/达6级+100；鲁盼旋特殊情感激荡每2级+100）——作用于 baseDamage 段，正常走防御减免
+                dmg = (skill.baseDamage + actor.getEmotionDamageBonus()) + effectiveCoins * effBonus;
                 // v0.5 狂炎（焚天祭司·烛央）：每层使技能伤害+150
                 if (actor.getBuffStack('frenzy') > 0) {
                     dmg += actor.getBuffStack('frenzy') * 150;
@@ -280,6 +278,8 @@ class SkillSystem {
             logFn(`  → 对${target.name}(位置${target.position}) 分配${coins}硬币，投掷结果：正${effectiveCoins}/${coins}，造成${actual}伤害 (血量:${target.hp})`);
             if (!target.alive) {
                 logFn(`  💥 ${target.name} 倒下！`);
+                // v0.62 情感激荡：击杀+1（技能普伤致死归属施放者）；鲁盼旋特殊情感激荡不受通用触发
+                if (!actor.specialEmotion) actor.gainEmotion(1);
                 target.handleDeath();   // 倒戈/待命补位（放在伤害与倒下日志之后）
             }
 
@@ -302,6 +302,8 @@ class SkillSystem {
                     chaosTimes--;
                     if (!target.alive) {
                         logFn(`  💥 ${target.name} 被混乱反噬致死！`);
+                        // v0.62 情感激荡：击杀+1（混乱反噬致死归属触发攻击者，用户「全算」）；鲁盼旋特殊情感激荡不受通用触发
+                        if (!actor.specialEmotion) actor.gainEmotion(1);
                         target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
                     }
                 }
@@ -310,6 +312,7 @@ class SkillSystem {
             // ——— 时点广播：角色死亡 ———
             if (!target.alive) {
                 Character.invokePassives('onAllyDeath', battleState, target, logFn);
+                if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(target);   // v0.62 情感激荡：队友死亡+1（同阵营存活角色）
             }
 
             // ——— 时点广播：技能命中（鲁盼旋施加燃烧 / 灼华添薪；仅注册该时点的角色回调） ———
@@ -339,17 +342,20 @@ class SkillSystem {
                 if (lvl > 0 && stk > 0) {
                     const detDmg = lvl * 50 * (skill.special.ratio || 2);
                     const actual = target.takeTrueDamage(detDmg);
-                    // v0.51：引爆本质是「燃烧」的提前一次性结算——伤害计入目标 Dot 明细 + 攻击者「造成伤害」统计
+                    // v0.64：引爆无归属——「燃烧」的提前一次性结算，全部计入目标 Dot 明细（同回合末燃烧，不归属施放者；
+                    //         结算页守恒公式简化为「敌方受到 = 我方造成 + Dot明细总和」）
                     target.dotDamageMap['burn'] = (target.dotDamageMap['burn'] || 0) + actual;
-                    if (actor && actor.alive) actor.damageDealt += actual;
                     if (window.refreshCardState) refreshCardState(target);
                     logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害 (血量:${target.hp})`);
                     target.clearBuff('burn');
                     SkillSystem.showDamageNumber(target, detDmg, null, allCharsDiv);
                     if (!target.alive) {
                         logFn(`  💥 ${target.name} 倒下！`);
+                        // v0.62 情感激荡：击杀+1（引爆致死归属引爆者）；鲁盼旋特殊情感激荡不受通用触发
+                        if (!actor.specialEmotion) actor.gainEmotion(1);
                         target.handleDeath();
                         Character.invokePassives('onAllyDeath', battleState, target, logFn);
+                        if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(target);   // v0.62 情感激荡：队友死亡+1
                     }
                 } else {
                     logFn(`  ${target.name} 没有可引爆的「燃烧」`);

@@ -1002,3 +1002,18 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     60%  { opacity: 0.9; }
     100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
 }
+
+/* --- 情感激荡（v0.62）：角色卡 stats 行下的情感等级行（纯文字粉紫色，非 buff 标签） --- */
+.emotion-line {
+    color: #e056fd;
+    font-size: 0.85em;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: underline dotted;
+}
+.emotion-line:hover { opacity: 0.8; }

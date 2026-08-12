@@ -64,6 +64,8 @@ function createLuPanxuan(team, position) {
         new Skill('十二连·剑斩邪祟', 800,  300, 100, 12, 3, null, { type: 'evilDrain', bonus: 100 })   // v0.293：加成伤害与恶加伤 50→100
     ];
     const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
+    char.specialEmotion = true;   // v0.62 特殊情感激荡：触发/效果/副作用完全自定义，不受通用四触发影响（被动②③⑤接管）
+    char.emotionDisplayName = '愤怒';   // v0.62 显示名：鲁盼旋的情感等级显示为「愤怒」，仍归属情感激荡机制（仅用户可见文本换名）
     // ——— 被动零：惩恶之火 — 本阵营角色受伤时伤害来源获得 1 层【恶】（v0.309 按敌我阵营区分） ———
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
         if (actual > 0 && target.team === self.team) {
@@ -82,39 +84,35 @@ function createLuPanxuan(team, position) {
         }
     });
 
-    // ——— 被动二：回合结束，获得等同于场上恶总层数的愤怒 ———
+    // ——— 被动二（v0.62 特殊情感激荡①）：回合结束，获得等同于场上「恶」总层数的情感激荡等级（替代原「恶→愤怒」） ———
     char.registerPassive('onTurnEnd', (self, bs, log) => {
         let totalEvil = 0;
         bs.allCharacters.forEach(c => { if (c.alive) totalEvil += c.getBuffStack('e'); });
         if (totalEvil > 0) {
-            self.addBuffStack('rage', totalEvil, 1);
-            const rageBuff = self.buffs.find(b => b.type === 'rage');
-            if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
-            log(`💢 ${self.name}(位置${self.position}) 从场上${totalEvil}层「恶」获得${totalEvil}层「愤怒」（上限5层）`);
+            self.gainEmotion(totalEvil);   // 情感激荡等级+恶层数（上限8级，跨2/4/6/8档位由 gainEmotion 打提示）
+            log(`💢 ${self.name}(位置${self.position}) 从场上${totalEvil}层「恶」获得${totalEvil}级「${self.emotionDisplayName}」`);
         }
     });
 
-    // ——— 被动三：本阵营角色死亡获得 3 层愤怒（v0.309 按敌我阵营区分） ———
+    // ——— 被动三（v0.62 特殊情感激荡②）：本阵营角色死亡获得 3 级情感激荡（v0.309 按敌我阵营区分，替代原「+3愤怒」） ———
     char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
         if (deadChar.team === self.team && self !== deadChar) {
-            self.addBuffStack('rage', 3, 1);
-            const rageBuff = self.buffs.find(b => b.type === 'rage');
-            if (rageBuff && rageBuff.stack > 5) rageBuff.stack = 5;
-            log(`  💢 ${self.name}(位置${self.position}) 获得3层「愤怒」（上限5层）`);
+            self.gainEmotion(3);
+            log(`  💢 ${self.name}(位置${self.position}) 友方阵亡，${self.emotionDisplayName}+3级`);
         }
     });
 
     // ——— 被动四：技能命中后施加燃烧（分配硬币数级） ———
-    //          若目标燃烧 ≤3 层，消耗 1 层愤怒额外施加 1 层燃烧
+    //          若目标燃烧 ≤3 层，消耗 1 级情感激荡额外施加 1 层燃烧（v0.62 替代原「消耗1层愤怒」）
     char.registerPassive('onSkillHit', (self, bs, actor, target, coins, log) => {
         if (self !== actor) return;  // 仅技能施放者自己触发
         if (target.alive) {
             target.addBuffLevel('burn', coins);
             log(`  🔥 ${target.name} 获得${coins}级「燃烧」`);
-            if (target.getBuffStack('burn') <= 3 && self.getBuffStack('rage') > 0) {
-                self.reduceBuffStack('rage', 1);
+            if (target.getBuffStack('burn') <= 3 && self.emotionLevel > 0) {
+                self.emotionLevel = Math.max(0, self.emotionLevel - 1);   // 直接扣等级（不能 gainEmotion(-1)，其 before>=after 直接 return）
                 target.addBuffStack('burn', 1, 1);
-                log(`  🔥 消耗1层「愤怒」，${target.name} 额外获得1层「燃烧」`);
+                log(`  🔥 消耗1级「${self.emotionDisplayName}」，${target.name} 额外获得1层「燃烧」`);
             }
         }
     });

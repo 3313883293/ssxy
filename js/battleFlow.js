@@ -33,8 +33,18 @@ function serializeChar(c) {
         intentSkill: c.intentSkill || null,
         dotDamageMap: c.dotDamageMap || {},
         damageDealt: c.damageDealt || 0, damageReceived: c.damageReceived || 0,
-        actedThisTurn: !!c.actedThisTurn
+        actedThisTurn: !!c.actedThisTurn,
+        emotionLevel: c.emotionLevel || 0   // v0.62 情感激荡等级随存档保留
     };
+}
+
+// v0.62 情感激荡：队友死亡 → 同阵营在场存活角色各 +1 级（待命区 bench 不计；自己死亡不触发自己的；鲁盼旋特殊情感激荡不受通用触发）
+function triggerEmotionOnAllyDeath(deadChar) {
+    if (typeof battleState === 'undefined' || !battleState) return;
+    const teamArr = deadChar.team === 'player' ? battleState.playerTeam : battleState.enemyTeam;
+    teamArr.forEach(c => {
+        if (c.alive && c !== deadChar && !c.specialEmotion) c.gainEmotion(1);
+    });
 }
 
 function saveAutoBattle() {
@@ -88,7 +98,8 @@ function loadAutoBattle() {
             intentSkill: snap.intentSkill || null,
             dotDamageMap: snap.dotDamageMap || {},
             damageDealt: snap.damageDealt || 0, damageReceived: snap.damageReceived || 0,
-            actedThisTurn: !!snap.actedThisTurn
+            actedThisTurn: !!snap.actedThisTurn,
+            emotionLevel: snap.emotionLevel || 0   // v0.62 情感激荡等级读档恢复（老存档兜底 0）
         });
         return inst;
     };
@@ -275,6 +286,7 @@ function onTurnEnd() {
                 if (c.team === 'enemy') battleState.specialState.burnKill = true;   // v0.5：灼华篇 L0 特殊胜利追踪（敌方被烧死）
                 c.handleDeath();   // 待命补位（放在被烧死日志之后）
                 Character.invokePassives('onAllyDeath', battleState, c, log);
+                triggerEmotionOnAllyDeath(c);   // v0.62 情感激荡：队友死亡+1；燃烧 dot 致死无施放者，不触发击杀+1
             }
         }
     });
