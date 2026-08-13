@@ -71,8 +71,9 @@ class Character {
             if (b.type === 'def') total += b.value;
             if (b.type === 'frenzy') total -= b.stack * 20;   // 狂炎：每层防御-20（v0.5 烛央）
         });
-        // v0.62 鲁盼旋「愤怒」副作用：每2级防御-50（无条件生效，不依赖 buff 存在）；云长郡「怨恨」无副作用（v0.66 用户指定）
+        // v0.62 鲁盼旋「愤怒」副作用：每2级防御-50；v0.661 云长郡「怨恨」副作用：每3级防御-50（无条件生效，不依赖 buff 存在）
         if (this.specialEmotionType === 'anger') total -= Math.floor(this.emotionLevel / 2) * 50;
+        if (this.specialEmotionType === 'hate') total -= Math.floor(this.emotionLevel / 3) * 50;
         return total;
     }
 
@@ -173,7 +174,10 @@ class Character {
         const parts = [];
         if (this.specialEmotion) {
             if (this.specialEmotionType === 'hate') {
-                // v0.66 云长郡「怨恨」：无档位加成/无副作用，减伤连续每级-15%；跌破0%（Lv7 起）转受击加伤时打提示
+                // v0.66 云长郡「怨恨」：减伤连续每级-15%（跌破0% Lv7 起转受击加伤）；v0.661 每3级基础伤害+50/防御-50（覆盖式，上限10级只跨 3/6/9 档）
+                if (before < 3 && this.emotionLevel >= 3) parts.push('基础伤害+50，防御-50');
+                if (before < 6 && this.emotionLevel >= 6) parts.push('基础伤害+100，防御-100');
+                if (before < 9 && this.emotionLevel >= 9) parts.push('基础伤害+150，防御-150');
                 if (before < 7 && this.emotionLevel >= 7) parts.push('减伤跌破0%，转为受击加伤');
             } else {
                 // v0.62 鲁盼旋「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
@@ -193,9 +197,10 @@ class Character {
         }
     }
 
-    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」每2级 +100（Lv2/4=+100/200，Lv5 仍+200）；云长郡「怨恨」无伤害加成（v0.66 纯减伤曲线）
+    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」每2级 +100（Lv2/4=+100/200，Lv5 仍+200）；云长郡「怨恨」每3级 +50（v0.661 Lv3/6/9=+50/100/150，Lv10 仍+150）
     getEmotionDamageBonus() {
         if (this.specialEmotionType === 'anger') return Math.floor(this.emotionLevel / 2) * 100;
+        if (this.specialEmotionType === 'hate') return Math.floor(this.emotionLevel / 3) * 50;
         if (this.specialEmotion) return 0;
         if (this.emotionLevel >= 6) return 100;
         if (this.emotionLevel >= 2) return 50;
@@ -210,11 +215,13 @@ class Character {
         return 0;
     }
 
-    // v0.66 情感效果一行文本（卡片弹窗/详情面板共用）：怨恨显示减伤/加伤曲线（无副作用），愤怒显示伤害+防御副作用，普通显示伤害+算力回复
+    // v0.66 情感效果一行文本（卡片弹窗/详情面板共用）：怨恨显示减伤/加伤曲线 + 每3级伤害/防御档位（v0.661），愤怒显示伤害+防御副作用，普通显示伤害+算力回复
     getEmotionEffectLine() {
         if (this.specialEmotionType === 'hate') {
             const r = 100 - this.emotionLevel * 15;
-            return r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破0%，转受击加伤 ${-r}%`;
+            const reducText = r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破0%，转受击加伤 ${-r}%`;
+            const tier = Math.floor(this.emotionLevel / 3) * 50;
+            return tier > 0 ? `${reducText} ｜ 基础伤害+${tier} ｜ 防御-${tier}` : reducText;
         }
         if (this.specialEmotion) {
             return `基础伤害+${this.getEmotionDamageBonus()} ｜ 防御-${Math.floor(this.emotionLevel / 2) * 50}`;
