@@ -1046,3 +1046,8 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     text-decoration: underline dotted;
 }
 .emotion-line:hover { opacity: 0.8; }
+/* v0.651：0 级弱化显示——开战即见系统存在、可点击查看机制；>0 级恢复粉紫醒目 */
+.emotion-line.emotion-zero {
+    opacity: 0.55;
+    color: #9a9aa0;
+}

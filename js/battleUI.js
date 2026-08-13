@@ -104,15 +104,14 @@ function refreshCardState(char) {
     const emoName = char.emotionDisplayName || '情感激荡';
     const oldEmoEl = card.querySelector('.emotion-line');
     if (oldEmoEl) oldEmoEl.remove();
-    if (char.emotionLevel > 0) {
-        const emoEl = document.createElement('div');
-        emoEl.className = 'emotion-line';
-        emoEl.textContent = `${emoName} Lv${char.emotionLevel}`;
-        emoEl.title = `点击查看${emoName}效果`;
-        emoEl.addEventListener('click', function(e) { e.stopPropagation(); showEmotionInfo(char); });
-        if (statsEl) statsEl.insertAdjacentElement('afterend', emoEl);
-        else card.appendChild(emoEl);
-    }
+    // v0.651：0 级也显示（弱化类 .emotion-zero）——开战即见情感激荡系统、点击可看机制；>0 级保持粉紫醒目原样式
+    const emoEl = document.createElement('div');
+    emoEl.className = 'emotion-line' + (char.emotionLevel > 0 ? '' : ' emotion-zero');
+    emoEl.textContent = `${emoName} Lv${char.emotionLevel}`;
+    emoEl.title = `点击查看${emoName}效果`;
+    emoEl.addEventListener('click', function(e) { e.stopPropagation(); showEmotionInfo(char); });
+    if (statsEl) statsEl.insertAdjacentElement('afterend', emoEl);
+    else card.appendChild(emoEl);
     const { tags, details } = collectBuffUI(char);
     const oldBuffEl = card.querySelector('.buff-indicator');
     if (oldBuffEl) oldBuffEl.remove();
@@ -164,7 +163,7 @@ function renderCharacters() {
             <div class="bar-container"><div class="sp-bar" style="width:${(char.sp / char.maxSP) * 100}%"></div></div>
             <div class="sp-text">算力 ${char.sp}/${char.maxSP}</div>
             <div class="stats">防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
-            ${char.emotionLevel > 0 ? `<div class="emotion-line" title="点击查看${char.emotionDisplayName || '情感激荡'}效果">${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}</div>` : ''}
+            <div class="emotion-line${char.emotionLevel > 0 ? '' : ' emotion-zero'}" title="点击查看${char.emotionDisplayName || '情感激荡'}效果">${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}</div>
             ${buffDetailItems.length > 0 ? `<div class="buff-indicator" data-buff-char="${char.id}">${buffTags.join('')}</div>` : ''}
         `;
 

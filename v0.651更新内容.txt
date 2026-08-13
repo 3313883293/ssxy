@@ -1,0 +1,25 @@
+v0.651 更新内容：情感激荡 0 级也显示
+
+## 背景
+
+用户「让情感激荡0级也显示」——原卡片 `.emotion-line` 仅在等级 >0 时显示（battleUI.js 两处 `char.emotionLevel > 0` 条件），玩家升级前看不到该系统的存在。改动后**开战即见**：所有角色 0 级也显示情感行，可点击了解机制。纯显示层改动，机制/数值零改动。
+
+## 改动（battleUI.js 两处 + style.css 一处）
+
+1. **battleUI.js refreshCardState**（卡片就地刷新路径）：去掉 `if (char.emotionLevel > 0)` 包裹，0 级也创建 `.emotion-line`，0 级额外加弱化类 `emotion-zero`（`className = 'emotion-line' + (lv>0 ? '' : ' emotion-zero')`）。
+2. **battleUI.js renderCharacters 模板**（卡片初始渲染路径）：去掉 `emotionLevel > 0 ? … : ''` 三元，始终渲染情感行，0 级加 `emotion-zero` 类。
+3. **style.css**：新增 `.emotion-line.emotion-zero { opacity: 0.55; color: #9a9aa0; }` —— 0 级灰紫半透明弱化显示，不喧宾夺主；>0 级保持粉紫醒目原样式。
+
+**未动**：详情面板（showSkillInfo）与情感弹窗（showEmotionInfo）原本就显示 Lv0（含基础伤害+0 / 算力回复），保持不变。点击 0 级情感行同样弹出机制说明（「情感激荡 Lv0」「基础伤害+0 ｜ 算力回复+…」）。
+
+## 效果
+
+- 战斗一开始，敌我所有角色卡片下方显示「情感激荡 Lv0」（灰紫弱化），玩家立刻知道有情感系统、点击可查机制；
+- 情感升至 >0 后恢复粉紫醒目样式（与 v0.62 一致）；
+- 教程关训练木偶 Lv0 时也会显示（不影响教程 emotion 步，彼时已 Lv≥1）。
+
+## 验证
+
+- 新增 `check-v0651-emotionzero.js` **15 项全过**：开战 6 名角色全部显示「情感激荡 Lv0」+ emotion-zero 类、>0 级恢复「情感激荡 LvN」无 emotion-zero、点击 0 级弹窗 Lv0+基础伤害+0、详情面板含 Lv0、手机端 844×390 卡片有情感行且完整在视口、全程无异常。
+- 回归全过：check-v062-emotion / check-v063-emotion-tutorial / check-v065-tutorial / verify-v310-tutorial / verify-v320 / verify-v316 / check-v061-tutorialsize。
+- 机制/数值/localStorage 零改动。
