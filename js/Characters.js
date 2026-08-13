@@ -39,6 +39,7 @@ class Character {
         this.emotionLevel = 0;   // 情感激荡等级（v0.62）：0~8 级，受击/攻击/击杀/队友死亡各 +1；2/6 级基础伤害、4/8 级算力回复档位加成
         this.specialEmotion = false;   // 特殊情感激荡（v0.62 鲁盼旋）：触发/效果/副作用完全自定义，不受通用四触发影响
         this.emotionDisplayName = '情感激荡';   // 情感等级显示名（v0.62 鲁盼旋改「愤怒」：仍归属情感激荡机制，仅用户可见文本换名）
+        this.specialEmotionType = '';   // v0.66 特殊情感激荡类型：'anger'（鲁盼旋愤怒）| 'hate'（云长郡怨恨）| ''（普通情感激荡）；区分 cap/效果/副作用
     }
 
     // —————— 亡灵怨恨减伤快照：每回合开始判定（100% - 累计阵亡数×15%，可为负，负值转为受到伤害加成） ——————
@@ -48,8 +49,13 @@ class Character {
 
     updateHateReduction() {
         if (!this.hateReduction) return;
-        const deaths = (typeof battleState !== 'undefined' && battleState) ? battleState.totalDeaths : 0;
-        this.hateReductionCurrent = 100 - deaths * 15;
+        if (this.specialEmotionType === 'hate') {
+            // v0.66 云长郡「怨恨」：减伤 = 100 − 怨恨等级×15（上限10级），跌破0%转受击加伤（「负转加伤」融合进怨恨）
+            this.hateReductionCurrent = 100 - this.emotionLevel * 15;
+        } else {
+            const deaths = (typeof battleState !== 'undefined' && battleState) ? battleState.totalDeaths : 0;
+            this.hateReductionCurrent = 100 - deaths * 15;
+        }
     }
 
     // 每回合重随机实际速度（在最小~最大速度区间内）：最小速度是加油/刹车改变的核心属性，
@@ -65,8 +71,8 @@ class Character {
             if (b.type === 'def') total += b.value;
             if (b.type === 'frenzy') total -= b.stack * 20;   // 狂炎：每层防御-20（v0.5 烛央）
         });
-        // v0.62 鲁盼旋特殊情感激荡副作用：每2级防御-50（替代原「愤怒」每2层-50防；无条件生效，不依赖 buff 存在）
-        if (this.specialEmotion) total -= Math.floor(this.emotionLevel / 2) * 50;
+        // v0.62 鲁盼旋「愤怒」副作用：每2级防御-50（无条件生效，不依赖 buff 存在）；云长郡「怨恨」无副作用（v0.66 用户指定）
+        if (this.specialEmotionType === 'anger') total -= Math.floor(this.emotionLevel / 2) * 50;
         return total;
     }
 
@@ -160,14 +166,20 @@ class Character {
     // 提升等级（攻击/受击/击杀/队友死亡时调用）；普通封顶 8 级，鲁盼旋「愤怒」（特殊情感激荡）封顶 5 级（用户指定）；跨过档位时打日志
     gainEmotion(n) {
         const before = this.emotionLevel;
-        const cap = this.specialEmotion ? 5 : 8;   // v0.62 鲁盼旋「愤怒」上限 5 级（用户指定），普通情感激荡上限 8 级
+        // v0.66 特殊情感激荡上限：鲁盼旋「愤怒」5 级、云长郡「怨恨」10 级（均用户指定）、普通情感激荡 8 级
+        const cap = this.specialEmotion ? (this.specialEmotionType === 'hate' ? 10 : 5) : 8;
         this.emotionLevel = Math.min(cap, this.emotionLevel + n);
         if (before >= this.emotionLevel) return;
         const parts = [];
         if (this.specialEmotion) {
-            // v0.62 鲁盼旋特殊情感激荡「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
-            if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害+100，防御-50');
-            if (before < 4 && this.emotionLevel >= 4) parts.push('基础伤害+200，防御-100');
+            if (this.specialEmotionType === 'hate') {
+                // v0.66 云长郡「怨恨」：无档位加成/无副作用，减伤连续每级-15%；跌破0%（Lv7 起）转受击加伤时打提示
+                if (before < 7 && this.emotionLevel >= 7) parts.push('减伤跌破0%，转为受击加伤');
+            } else {
+                // v0.62 鲁盼旋「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
+                if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害+100，防御-50');
+                if (before < 4 && this.emotionLevel >= 4) parts.push('基础伤害+200，防御-100');
+            }
         } else {
             const dmgBonus = this.getEmotionDamageBonus();
             const spBonus = this.getEmotionSpBonus();
@@ -181,20 +193,33 @@ class Character {
         }
     }
 
-    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」（特殊情感激荡）每2级 +100，上限5级（Lv2/4=+100/200，Lv5 仍+200）
+    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」每2级 +100（Lv2/4=+100/200，Lv5 仍+200）；云长郡「怨恨」无伤害加成（v0.66 纯减伤曲线）
     getEmotionDamageBonus() {
-        if (this.specialEmotion) return Math.floor(this.emotionLevel / 2) * 100;
+        if (this.specialEmotionType === 'anger') return Math.floor(this.emotionLevel / 2) * 100;
+        if (this.specialEmotion) return 0;
         if (this.emotionLevel >= 6) return 100;
         if (this.emotionLevel >= 2) return 50;
         return 0;
     }
 
-    // 算力回复加成（覆盖式）：普通角色达 4 级 +50、达 8 级 +100；鲁盼旋特殊情感激荡不回蓝
+    // 算力回复加成（覆盖式）：普通角色达 4 级 +50、达 8 级 +100；特殊情感激荡（愤怒/怨恨）均不回蓝
     getEmotionSpBonus() {
         if (this.specialEmotion) return 0;
         if (this.emotionLevel >= 8) return 100;
         if (this.emotionLevel >= 4) return 50;
         return 0;
+    }
+
+    // v0.66 情感效果一行文本（卡片弹窗/详情面板共用）：怨恨显示减伤/加伤曲线（无副作用），愤怒显示伤害+防御副作用，普通显示伤害+算力回复
+    getEmotionEffectLine() {
+        if (this.specialEmotionType === 'hate') {
+            const r = 100 - this.emotionLevel * 15;
+            return r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破0%，转受击加伤 ${-r}%`;
+        }
+        if (this.specialEmotion) {
+            return `基础伤害+${this.getEmotionDamageBonus()} ｜ 防御-${Math.floor(this.emotionLevel / 2) * 50}`;
+        }
+        return `基础伤害+${this.getEmotionDamageBonus()} ｜ 算力回复+${this.getEmotionSpBonus()}`;
     }
 
     // —————— Buff 操作 ——————

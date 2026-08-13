@@ -65,6 +65,7 @@ function createLuPanxuan(team, position) {
     ];
     const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
     char.specialEmotion = true;   // v0.62 特殊情感激荡：触发/效果/副作用完全自定义，不受通用四触发影响（被动②③⑤接管）
+    char.specialEmotionType = 'anger';   // v0.66 特殊情感激荡类型：鲁盼旋 = 愤怒（cap 5、每2级伤害+100/防御-50）
     char.emotionDisplayName = '愤怒';   // v0.62 显示名：鲁盼旋的情感等级显示为「愤怒」，仍归属情感激荡机制（仅用户可见文本换名）
     // ——— 被动零：惩恶之火 — 本阵营角色受伤时伤害来源获得 1 层【恶】（v0.309 按敌我阵营区分） ———
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
@@ -129,7 +130,17 @@ function createYunChangjun(team, position) {
         new Skill('手枪威慑', 100, 200, 200, 3, 6)
     ];
     const char = new Character('云长郡', 8000, 200, [2,6], 800, 300, skills, team, position);
-    char.hateReduction = true;   // 被动·部下亡灵之怨恨：受击减伤100%，场上每阵亡1角色-10%
+    char.hateReduction = true;   // 部下亡灵之怨恨（v0.66 减伤改由「怨恨」情感激荡等级驱动）
+    char.specialEmotion = true;   // v0.66 特殊情感激荡：不受通用四触发（受击/攻击/击杀/队友死亡），触发由下方 onAllyDeath 被动接管
+    char.specialEmotionType = 'hate';   // v0.66 怨恨：减伤 = 100 − 等级×15（上限10级），跌破0%转受击加伤；无副作用
+    char.emotionDisplayName = '怨恨';   // v0.66 显示名：云长郡的情感等级显示为「怨恨」
+    // ——— 怨恨触发：同阵营角色阵亡（含云长郡召唤的警察怨灵）→ 怨恨+1 级 ———
+    char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
+        if (deadChar.team === self.team && self !== deadChar) {
+            self.gainEmotion(1);
+            log(`  💢 ${self.name}(位置${self.position}) 同阵营${deadChar.name}阵亡，「${self.emotionDisplayName}」+1级`);
+        }
+    });
     return char;
 }
 

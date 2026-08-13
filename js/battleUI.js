@@ -247,12 +247,9 @@ function showEmotionInfo(char) {
     const title = document.getElementById('buffPopupTitle');
     const body = document.getElementById('buffPopupBody');
     const lv = char.emotionLevel;
-    const dmg = char.getEmotionDamageBonus();
-    const emoName = char.emotionDisplayName || '情感激荡';   // v0.62 鲁盼旋显示名「愤怒」，仍归属情感激荡机制
-    // v0.62 鲁盼旋「愤怒」：不回复算力、每2级防御-50 → 弹窗显示防御减少；普通情感激荡显示算力回复
-    const effect = char.specialEmotion
-        ? `基础伤害+${dmg} ｜ 防御-${Math.floor(lv / 2) * 50}`
-        : `基础伤害+${dmg} ｜ 算力回复+${char.getEmotionSpBonus()}`;
+    const emoName = char.emotionDisplayName || '情感激荡';   // v0.62 鲁盼旋「愤怒」/v0.66 云长郡「怨恨」，仍归属情感激荡机制
+    // v0.66：特殊情感（愤怒/怨恨）与普通情感统一一行文本（getEmotionEffectLine）；怨恨显示减伤/加伤曲线
+    const effect = char.getEmotionEffectLine();
     title.textContent = `${char.name} — ${emoName}`;
     body.innerHTML = `
         <div class="buff-popup-item" style="border-left-color:#e056fd">
@@ -270,10 +267,8 @@ function showSkillInfo(char) {
     if (!skills || skills.length === 0) return;
     const parts = [];
     // v0.5：基础数值（面板值，与关卡介绍 renderRoleDetail 头部同源格式；战斗中点角色卡即可查看）
-    // v0.62 鲁盼旋「愤怒」：不回复算力、每2级防御-50 → 详情面板显示防御减少；普通情感激荡显示算力回复
-    const emoEffect = char.specialEmotion
-        ? `基础伤害+${char.getEmotionDamageBonus()} / 防御-${Math.floor(char.emotionLevel / 2) * 50}`
-        : `基础伤害+${char.getEmotionDamageBonus()} / 算力回复+${char.getEmotionSpBonus()}`;
+    // v0.66：特殊情感（愤怒/怨恨）与普通情感统一一行文本（getEmotionEffectLine）；怨恨显示减伤/加伤曲线
+    const emoEffect = char.getEmotionEffectLine();
     parts.push(`📊 基础面板：血量 ${char.maxHp} ｜ 算力 ${char.maxSP}+${char.spRegen}/回 ｜ 防御 ${char.def} ｜ 速度 ${char.speedMin}~${char.speedMax} ｜ ${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}（${emoEffect}）`);
     // 被动/机制（标在技能前）
     const passives = PASSIVE_INFO[char.name] || [];
