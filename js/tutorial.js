@@ -1,19 +1,26 @@
-// tutorial.js - 新手教程教学引导状态机（v0.310 教程关 level === -2）
+// tutorial.js - 新手教程教学引导状态机（v0.310 教程关 level === -2；v0.65 扩为 12 步）
 // 前半段强制引导：每步弹窗 + 目标高亮，做对应操作即自动推进（游戏流程天然强制）；
-// 后半段（⑧）解除强制，自由练习到胜利。
+// 后半段（⑫）解除强制，自由练习到胜利。
+// v0.65 全面优化：能实操的机制（硬币/算力/速度/防御/意图徽章/情感/结算）文本讲透；
+//           无法实操的机制（Buff/燃烧/混乱/被动/替补）用图文讲解步（⑨ buff-dot、⑪ bench）覆盖。
 const TUTORIAL_STEPS = [
-    { id: 'char-select',    text: '① 本关只需选【1 名角色】出战。三个模板的定位：<br>· 模板一【均衡】— 中速中防，伤害稳定递增<br>· 模板二【高速远程】— 全场最快(速4~7)、多段连击，但较脆(防100)<br>· 模板三【近战爆发】— 防御最高(防300)、高耗高伤，贴身距离1<br>点下方【角色卡】→ 再点出战空格放入', highlight: '.roster-card' },
+    { id: 'char-select',    text: '① 本关只需选<b>1 名角色</b>出战。三模板定位：<br>模板一【均衡】中速中防 / 模板二【高速远程】速4~7较脆 / 模板三【近战爆发】防300高伤贴身<br>点<b>角色卡</b>可看完整面板(血量/算力/防御/速度)与技能详情 → 再点下方出战空格放入', highlight: '.roster-card' },
     { id: 'confirm',        text: '② 选择好出战角色后，点击【确认出战】进入战斗', highlight: null },
-    { id: 'start-round',    text: '③ 点击【▶ 开始回合】，进入行动阶段', highlight: '#nextRoundBtn' },
-    { id: 'pick-skill',     text: '④ 从下方技能按钮选一个技能——注意上方显示消耗算力与攻击距离', highlight: '.skill-btn' },
-    { id: 'pick-target',    text: '⑤ 点击射程内的敌方角色卡选目标（目标数 = 硬币数）；点错再点一下可取消', highlight: '.character-card.selectable' },
+    { id: 'start-round',    text: '③ 点击【▶ 开始回合】开始本回合。<b>速度决定行动顺序</b>——速度高的先出手；回合开始敌方头顶会显示 <b>🔮 预计使用</b> 徽章，预告它本回合将用的技能，可用来预判布防', highlight: '#nextRoundBtn' },
+    { id: 'pick-skill',     text: '④ 从下方技能按钮选一个技能。每个技能标注：<b>基础伤害 + 每枚硬币加成</b>、<b>硬币数</b>(掷硬币，正面越多伤害越高，也决定最多选几个目标)、<b>攻击距离</b>、<b>消耗算力</b>(不足无法使用)', highlight: '.skill-btn' },
+    { id: 'pick-target',    text: '⑤ 点击射程内的敌方角色卡选目标（<b>目标数 = 硬币数</b>）；点错再点一下可取消。部分技能会附加<b>状态效果</b>(如燃烧、恶)，卡片下方会出现彩色角标，点击可查看详情', highlight: '.character-card.selectable' },
     { id: 'confirm-action', text: '⑥ 选好目标后，点击【✅ 确认】执行技能', highlight: '#confirmTargetBtn' },
-    { id: 'defense',        text: '⑦ 看敌方出手——【普通示范】会被你的防御(200)减免伤害，【破防示范】无视防御直接命中', highlight: null, dismissable: true },
-    // v0.63：情感激荡教学步——玩家出招+1、受击+1 后展示（防御步与跳过回合步之间插入）；
+    { id: 'defense',        text: '⑦ 看敌方出手——<b>【普通示范】</b>会被你的防御减免(伤害不足防御时完全「格挡」为0)；<b>【破防示范】</b>无视防御直接命中。此外还有<b>真实伤害</b>(如燃烧)，无视防御与减伤直接扣血', highlight: null, dismissable: true },
+    // v0.63：情感激荡教学步——玩家出招+1、受击+1 后展示（防御步与状态步之间插入）；
     //        敌我通用机制（训练木偶也累积）；文本按玩家实际情感等级动态生成（模板三防高受击0不触发，等级可能只有1）
     { id: 'emotion',        text: emotionTutorialText, highlight: '.emotion-line', dismissable: true, okAdvance: true },
-    { id: 'skip-turn',      text: '⑨ 不想出手时，点【⏭ 跳过本回合】直接结束本角色行动——这里试一次', highlight: '#skipTurnBtn' },
-    { id: 'free',           text: '⑩ 教学完成！自由战斗到胜利吧——战斗中随时感受情感激荡的加成', highlight: null, end: true }
+    // v0.65：新增「状态与持续伤害」图文讲解步——Buff/燃烧/混乱/被动在教程关无法实操演示，用图文讲清；
+    //        插在 emotion(⑧) 与 skip-turn 之间，emotion 点「知道了」→ okAdvance 自动推进到此步，无需新钩子
+    { id: 'buff-dot',       text: '⑨ 📚 <b>状态与持续伤害</b>：很多技能会附加状态(Buff)——卡片下方出现彩色角标，点击可看详情。常见有：<b>「燃烧」</b>(每回合末造成 等级×50 真实伤害)、<b>「恶」</b>(每层无视对方防御)、<b>「混乱」</b>(被攻击时反噬真实伤害)、昏迷(跳过行动)。此外<b>被动</b>——部分角色自带被动，战斗中自动触发，可在角色详情查看', highlight: null, dismissable: true, okAdvance: true },
+    { id: 'skip-turn',      text: '⑩ 不想出手时，点【⏭ 跳过本回合】直接结束本角色行动——这里试一次', highlight: '#skipTurnBtn' },
+    // v0.65：新增「替补与待命」图文讲解步——待命/替补机制进教程（用户指定），图文讲清即可
+    { id: 'bench',          text: '⑪ 🚑 <b>替补与待命</b>：部分关卡的敌人带「＋X 待命」——前方角色阵亡后，替补会在<b>下一回合开始</b>入场补位；我方个别关卡也有待命区。注意：要<b>击败全部敌人(含替补)</b>才算胜利', highlight: null, dismissable: true, okAdvance: true },
+    { id: 'free',           text: '⑫ 教学完成！自由战斗到胜利吧——胜利后<b>结算页</b>可查看伤害统计、Dot 明细与完整战斗日志', highlight: null, end: true }
 ];
 
 // v0.63：情感激荡教学弹窗文本（读取玩家出战角色实际情感等级，精确显示 Lv1/Lv2 两种情况）
@@ -28,7 +35,7 @@ function emotionTutorialText() {
         `你的角色${lvPart}<br>` +
         `看<b>训练木偶</b>的卡片——它也有「情感激荡」！（敌方同样会累积）<br>` +
         `等级加成：Lv2 基础伤害 +50、Lv4 算力回复 +50（覆盖式）。<br>` +
-        `点【知道了】继续 → 下一课「跳过回合」`;
+        `点【知道了】继续 → 下一课「状态与持续伤害」`;
 }
 
 const Tutorial = {
@@ -63,6 +70,8 @@ const Tutorial = {
         document.getElementById('tutorialStepNum').textContent =
             `🎓 新手教程 · 步骤 ${TUTORIAL_STEPS.findIndex(s => s.id === def.id) + 1} / ${TUTORIAL_STEPS.length}`;
         document.getElementById('tutorialText').innerHTML = renderGlossaryText(typeof def.text === 'function' ? def.text() : def.text);
+        // v0.65：点状步骤进度条（桌面 ≥901 显示；手机端 display:none 保高度预算）
+        this.renderProgress();
         // 结束步（自由练习）：解除强制，弹窗可手动关闭
         if (def.end) this.active = false;
         const okBtn = document.getElementById('tutorialOkBtn');
@@ -84,6 +93,15 @@ const Tutorial = {
     },
     clearHighlight() {
         document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
+    },
+    // v0.65：点状步骤进度条——每步一个圆点，当前步 .current 金色高亮、已过步 .done（手机端 ≤900 隐藏）
+    renderProgress() {
+        const bar = document.getElementById('tutorialProgress');
+        if (!bar) return;
+        const idx = TUTORIAL_STEPS.findIndex(s => s.id === this.step);
+        bar.innerHTML = TUTORIAL_STEPS.map((s, i) =>
+            `<span class="dot${i === idx ? ' current' : (i < idx ? ' done' : '')}"></span>`
+        ).join('');
     },
     // v0.61：收起/展开切换 + UI 同步（收起态由 #tutorialOverlay.collapsed 驱动 CSS 隐藏正文）
     toggleCollapse() {

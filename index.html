@@ -186,7 +186,8 @@
         </div>
     </div>
     <!-- 新手教程弹窗（v0.310 教程关教学引导；右上角气泡不遮挡操作，强制步骤做对应操作才推进；
-         v0.61 手机端缩小+可收起：头部 ▾/▸ 切换按钮，收起成一条标题栏不挡战斗画面，每步展示自动展开） -->
+         v0.61 手机端缩小+可收起：头部 ▾/▸ 切换按钮，收起成一条标题栏不挡战斗画面，每步展示自动展开；
+         v0.65 新增点状步骤进度条 #tutorialProgress，手机端 ≤900 隐藏） -->
     <div id="tutorialOverlay" style="display:none;">
         <div class="buff-popup">
             <div class="buff-popup-header">
@@ -196,6 +197,7 @@
                     <span class="buff-popup-close" onclick="Tutorial.hide()">✕</span>
                 </span>
             </div>
+            <div id="tutorialProgress" class="tutorial-progress"></div>
             <div id="tutorialText" class="buff-popup-body"></div>
             <div class="tutorial-ok-wrap" style="padding:0 16px 14px;text-align:center;">
                 <button id="tutorialOkBtn" class="btn-main" style="display:none;" onclick="Tutorial.hide()">知道了</button>

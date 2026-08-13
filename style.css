@@ -490,6 +490,7 @@ body {
     z-index: 999;
     backdrop-filter: blur(4px);
 }
+#glossaryPopupOverlay { z-index: 2100; }   /* v0.65：词条弹窗盖过教程弹窗(2000)，从教程弹窗点词条不被遮挡 */
 .buff-popup {
     background: #16213e;
     border: 2px solid #f9ca24;
@@ -735,10 +736,15 @@ body {
     line-height: 1.4;
 }
 
-/* v0.310：新手教程教学高亮（弹窗指向目标） */
+/* v0.310：新手教程教学高亮（弹窗指向目标）；v0.65：改呼吸动画——box-shadow 由动画脉冲驱动，
+   动画无法覆盖 !important，故去掉原 box-shadow 行（基类无 box-shadow 时动画值直接生效） */
 .tutorial-highlight {
     outline: 3px solid #f9ca24 !important;
-    box-shadow: 0 0 14px rgba(249, 202, 36, 0.6) !important;
+    animation: tutorialPulse 1.6s ease-in-out infinite;
+}
+@keyframes tutorialPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(249, 202, 36, 0.45); }
+    50% { box-shadow: 0 0 24px rgba(249, 202, 36, 0.95); }
 }
 
 /* v0.310：新手教程弹窗——右上角气泡，遮罩层 pointer-events:none 不拦截背后操作 */
@@ -762,6 +768,26 @@ body {
 .tutorial-toggle-btn { display: none; }   /* 桌面 ≥901 不显示收起按钮，行为与旧版完全一致 */
 #tutorialOverlay.collapsed .buff-popup-body,
 #tutorialOverlay.collapsed .tutorial-ok-wrap { display: none; }
+
+/* v0.65：点状步骤进度条——每步一个圆点，当前步金色发光放大、已过步金色、未达步淡金；收起态一并隐藏 */
+.tutorial-progress {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 16px 8px;
+}
+.tutorial-progress .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(249, 202, 36, 0.25);
+}
+.tutorial-progress .dot.done { background: #f9ca24; }
+.tutorial-progress .dot.current {
+    background: #f9ca24;
+    box-shadow: 0 0 8px rgba(249, 202, 36, 0.9);
+    transform: scale(1.4);
+}
+#tutorialOverlay.collapsed .tutorial-progress { display: none; }
 
 /* ============================================================
    v0.4 手机响应式适配
@@ -802,9 +828,12 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .buff-popup-body { max-height: min(400px, 55vh); overflow-y: auto; }
     /* ---- v0.61：教程弹窗缩小（窄、字号小、正文限高可滚动）+ 收起按钮 ---- */
     #tutorialToggleBtn { display: flex; }
+    #tutorialProgress { display: none; }   /* v0.65：手机端隐藏点状进度条，弹窗高度零增量（保 check-v061 竖屏 ≤32%/横屏 ≤55%） */
     #tutorialOverlay { width: min(320px, 44vw); }
-    #tutorialOverlay .buff-popup-header { padding: 10px 14px; font-size: 0.95em; }
+    #tutorialOverlay .buff-popup-header { padding: 8px 14px; font-size: 0.95em; }
     #tutorialOverlay .buff-popup-body { font-size: 0.84em; padding: 12px 14px; max-height: min(320px, 40vh); }
+    /* v0.65：图文步「知道了」按钮再压缩——带按钮的图文步(emotion/buff-dot/bench)在短高横屏的高度预算兜底（≤55% vh） */
+    #tutorialOverlay #tutorialOkBtn { min-height: 36px; padding: 6px 18px; font-size: 0.92em; }
     #settingsBtn {
         right: calc(14px + env(safe-area-inset-right));
         bottom: calc(14px + env(safe-area-inset-bottom));

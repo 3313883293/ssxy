@@ -1,0 +1,41 @@
+v0.65 更新内容：新手教程全面优化（12 步 + 图文讲解步 + 进度条 + 词条 + 弹窗体验）
+
+## 背景
+
+用户要求「优化教程」，四方面都要：内容覆盖、步骤流程、UI 弹窗体验、文本文案，并把全部底层机制教进教程。已确认三项决策：
+1. **不改训练木偶素材** —— 天然演示不了的机制（Buff/燃烧/混乱/被动/替补）用图文讲解弹窗覆盖；能演示的机制（硬币/算力/速度/防御/破防/意图徽章/情感/结算）实操演示并增强文本。
+2. **精简版 12 步**（原 10 步 → 12 步）。
+3. **替补机制进教程**（图文）。
+
+**本次改造机制/数值零改动**，仅 tutorial.js / index.html / style.css 三文件 + 验证脚本适配。
+
+## 改动
+
+### 1. js/tutorial.js — 12 步状态机
+- 步骤由 10 步扩为 12 步，中间插入两个 **图文讲解步**（`dismissable:true + okAdvance:true` 成对，点「知道了」经 okAdvance 链自动推进，无需新钩子）：
+  - **⑨ buff-dot「状态与持续伤害」**：燃烧（回合末等级×50 真伤）/ 恶（每层无视防御）/ 混乱（受击反噬真伤）/ 昏迷（跳过行动）+ 被动系统 —— 教程关无法实操演示，图文讲透。
+  - **⑪ bench「替补与待命」**：部分关卡敌人带「＋X 待命」、前方阵亡后替补下一回合入场、我方个别关卡有待命区、要击败全部敌人（含替补）才算胜利。
+- 文本全面增强：
+  - ③「速度决定行动顺序」+ 回合开始敌方头顶 🔮预计使用 徽章预告技能（可预判布防）。
+  - ④ 技能标注拆解：基础伤害 + 每枚硬币加成、硬币数（掷币正面越多伤害越高、决定最多目标数）、攻击距离、消耗算力。
+  - ⑤ 部分技能附加状态效果（燃烧/恶），卡片下方彩色角标可点击查看详情。
+  - ⑦ 防御不足时完全「格挡」为 0；另增「真实伤害」（如燃烧）无视防御与减伤。
+  - ⑧ 情感激荡末行预告改「下一课「状态与持续伤害」」（原「跳过回合」）。
+  - ⑫ 结算页可查看伤害统计、Dot 明细与完整战斗日志。
+- 新增 `renderProgress()`：点状步骤进度条（当前步 .current 金色发光、已过 .done），`show()` 内调用；步骤号「X / 12」由 `TUTORIAL_STEPS.length` 自动。
+
+### 2. index.html — 进度条 DOM
+- `#tutorialOverlay` 的头部与正文之间加 `<div id="tutorialProgress" class="tutorial-progress"></div>`（不加 .buff-popup-close 类，避免破坏 check-v061 A5 索引）。
+
+### 3. style.css — UI 增强
+- **高亮呼吸动画**：`.tutorial-highlight` 去 `box-shadow` 的 `!important`（动画无法覆盖 !important），改 `@keyframes tutorialPulse` 金色光晕脉冲（1.6s infinite）。
+- **点状进度条**：`.tutorial-progress` + `.dot/.done/.current`（6px 圆点，current 金色发光放大）；`#tutorialOverlay.collapsed .tutorial-progress` 收起态一并隐藏。
+- **词条层叠修复**：`#glossaryPopupOverlay { z-index: 2100 }`（原 999 < 教程 2000，从教程弹窗点词条被教程盖住；buff-dot 步 4 个词条放大暴露面）。
+- **手机端（≤900px）**：`#tutorialProgress { display: none }` 高度零增量（保 check-v061 竖屏 ≤32%/横屏 ≤55%）；图文步「知道了」按钮再压缩（`#tutorialOkBtn` min-height 36px）+ 头部 padding 10px→8px —— 带按钮图文步（emotion/buff-dot/bench）在短高横屏 ≤55% vh 兜底。
+
+## 验证
+
+- 新增 `check-v065-tutorial.js` 29 项全过：结构（12 步/id 顺序/图文步成对/编号①~⑫）、推进链（emotion→buff-dot(9/12)→skip-turn(10/12)→跳过→bench(11/12)→free(12/12)）、showSkip（图文步无跳过按钮）、进度条（桌面 12 点 current/done、手机 display:none）、词条（buff-dot ≥2 且含燃烧/混乱）、emotion 文本预告、手机端弹窗 ≤55% vh、全程无异常。
+- 适配 `verify-v310-tutorial.js`（emotion→buff-dot→skip-turn 双 ok 点击 + 跳过→bench→free）+ `check-v063-emotion-tutorial.js`（8/12、E 节双推进、length 12；B3 加 mock 掷币固定正面消除模板一被普通示范格挡的运气依赖）—— 全过。
+- 回归 `check-v061-tutorialsize.js`（竖屏390/横屏844/桌面1280）、`verify-v320.js`、`verify-v316.js`、`check-v06-confusion.js` 全过。
+- 机制/数值/localStorage 零改动，桌面端 ≥901 行为与 v0.64 完全一致。
