@@ -71,7 +71,7 @@ function createLuPanxuan(team, position) {
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
         if (actual > 0 && target.team === self.team) {
             attacker.addBuffStack('e', 1, 1);
-            log(`  🔥 ${attacker.name} 获得1层「恶」`);
+            log(`  🔥 ${attacker.name} 获得 1 层「恶」`);
         }
     });
 
@@ -81,7 +81,7 @@ function createLuPanxuan(team, position) {
             const before = self.sp;
             self.sp = Math.min(self.maxSP, self.sp + 200);
             const gained = self.sp - before;
-            if (gained > 0) log(`♻️ ${self.name}(位置${self.position}) 未使用技能，回复${gained}算力 (算力 ${self.sp}/${self.maxSP})`);
+            if (gained > 0) log(`♻️ ${self.name}（位置${self.position}）未使用技能，回复 ${gained} 算力（算力：${self.sp}/${self.maxSP}）`);
         }
     });
 
@@ -91,7 +91,7 @@ function createLuPanxuan(team, position) {
         bs.allCharacters.forEach(c => { if (c.alive) totalEvil += c.getBuffStack('e'); });
         if (totalEvil > 0) {
             self.gainEmotion(totalEvil);   // 情感激荡等级+恶层数（上限8级，跨2/4/6/8档位由 gainEmotion 打提示）
-            log(`💢 ${self.name}(位置${self.position}) 从场上${totalEvil}层「恶」获得${totalEvil}级「${self.emotionDisplayName}」`);
+            log(`💢 ${self.name}（位置${self.position}）从场上 ${totalEvil} 层「恶」获得 ${totalEvil} 级「${self.emotionDisplayName}」`);
         }
     });
 
@@ -99,7 +99,7 @@ function createLuPanxuan(team, position) {
     char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
         if (deadChar.team === self.team && self !== deadChar) {
             self.gainEmotion(3);
-            log(`  💢 ${self.name}(位置${self.position}) 友方阵亡，${self.emotionDisplayName}+3级`);
+            log(`  💢 ${self.name}（位置${self.position}）友方阵亡，${self.emotionDisplayName} +3 级`);
         }
     });
 
@@ -109,11 +109,11 @@ function createLuPanxuan(team, position) {
         if (self !== actor) return;  // 仅技能施放者自己触发
         if (target.alive) {
             target.addBuffLevel('burn', coins);
-            log(`  🔥 ${target.name} 获得${coins}级「燃烧」`);
+            log(`  🔥 ${target.name} 获得 ${coins} 级「燃烧」`);
             if (target.getBuffStack('burn') <= 3 && self.emotionLevel > 0) {
                 self.emotionLevel = Math.max(0, self.emotionLevel - 1);   // 直接扣等级（不能 gainEmotion(-1)，其 before>=after 直接 return）
                 target.addBuffStack('burn', 1, 1);
-                log(`  🔥 消耗1级「${self.emotionDisplayName}」，${target.name} 额外获得1层「燃烧」`);
+                log(`  🔥 消耗 1 级「${self.emotionDisplayName}」，${target.name} 额外获得 1 层「燃烧」`);
             }
         }
     });
@@ -138,7 +138,7 @@ function createYunChangjun(team, position) {
     char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
         if (deadChar.team === self.team && self !== deadChar) {
             self.gainEmotion(1);
-            log(`  💢 ${self.name}(位置${self.position}) 同阵营${deadChar.name}阵亡，「${self.emotionDisplayName}」+1级`);
+            log(`  💢 ${self.name}（位置${self.position}）同阵营${deadChar.name}阵亡，「${self.emotionDisplayName}」 +1 级`);
         }
     });
     return char;
@@ -235,7 +235,7 @@ function createZhuoHua(team, position) {
                 n++;
             }
         });
-        if (n > 0) log(`  🌬️ 风助火势：${n} 名敌方单位「燃烧」等级+1`);
+        if (n > 0) log(`  🌬️ 风助火势：${n} 名敌方单位「燃烧」等级 +1`);
     });
 
     return char;
@@ -292,7 +292,7 @@ function createScarecrowRegen(team, position) {
         if (self.alive && self.hp < self.maxHp) {
             const heal = 500;
             self.hp = Math.min(self.maxHp, self.hp + heal);
-            log(`🌿 ${self.name}(位置${self.position}) 再生恢复${heal}血量 (血量 ${self.hp}/${self.maxHp})`);
+            log(`🌿 ${self.name}（位置${self.position}）再生恢复${heal}血量（血量：${self.hp}/${self.maxHp}）`);
         }
     });
     return char;

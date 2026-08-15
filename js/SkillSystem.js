@@ -132,7 +132,7 @@ class SkillSystem {
         actor.actedThisTurn = true;
         // v0.62 情感激荡：攻击+1（任何出招均计，含无目标辅助技能如焚香/加油/召唤）；鲁盼旋特殊情感激荡不受通用四触发影响（触发完全替换为回合末恶升级+队友死亡）
         if (!actor.specialEmotion) actor.gainEmotion(1);
-        logFn(`${actor.name}(位置${actor.position}) 使用【${skill.name}】，消耗${skill.spCost}算力`);
+        logFn(`${actor.name}（位置${actor.position}）使用【${skill.name}】，消耗${skill.spCost}算力`);
         if (window.refreshCardState) refreshCardState(actor);   // 算力条同帧扣减（含 buff/防御标签）
 
         // v0.314：第二关特殊胜利追踪——开车警察使出「开创」即记为已用过（怨灵车同名，仅第四关出现，不影响第二关判定）
@@ -196,7 +196,7 @@ class SkillSystem {
                 return;
             }
             actor.addBuff({ ...b });
-            logFn(`  ${actor.name} ${b.value > 0 ? '+' : ''}${b.value} ${b.type === 'speed' ? '速度' : '防御'}(持续${b.duration === 'nextHit' ? '至下次受击' : b.duration + '回合'})`);
+            logFn(`  ${actor.name} ${b.value > 0 ? '+' : ''}${b.value} ${b.type === 'speed' ? '速度' : '防御'}（持续${b.duration === 'nextHit' ? '至下次受击' : b.duration + '回合'}）`);
         });
         if (window.refreshCardState) refreshCardState(actor);   // 防御/速度/buff 标签与动画同帧刷新（加油/刹车/持盾格挡）
 
@@ -208,7 +208,7 @@ class SkillSystem {
                 if (c.alive && c !== actor) { c.addBuffLevel('burn', 1); n++; }
             });
             actor.sp = Math.min(actor.maxSP, actor.sp + 120);
-            logFn(`  🕯️ ${actor.name} 焚香：${n} 名友军「燃烧」等级+1，自身回复120算力`);
+            logFn(`  🕯️ ${actor.name} 焚香：${n} 名友军「燃烧」等级 +1，自身回复 120 算力`);
             if (window.refreshCardState) refreshCardState(actor);
         }
 
@@ -275,7 +275,7 @@ class SkillSystem {
 
             if (storedDef !== null) target.def = storedDef;
 
-            logFn(`  → 对${target.name}(位置${target.position}) 分配${coins}硬币，投掷结果：正${effectiveCoins}/${coins}，造成${actual}伤害 (血量:${target.hp})`);
+            logFn(`  → ${target.name}（位置${target.position}）分得 ${coins} 枚硬币，正 ${effectiveCoins}/${coins}，造成 ${actual} 伤害（血量：${target.hp}）`);
             if (!target.alive) {
                 logFn(`  💥 ${target.name} 倒下！`);
                 // v0.62 情感激荡：击杀+1（技能普伤致死归属施放者）；鲁盼旋特殊情感激荡不受通用触发
@@ -296,7 +296,7 @@ class SkillSystem {
                     const chaosDmg = chaosLvl * 20;
                     const chaosActual = target.takeTrueDamage(chaosDmg);
                     target.dotDamageMap['confusion'] = (target.dotDamageMap['confusion'] || 0) + chaosActual;
-                    logFn(`  🌀 ${target.name} 混乱反噬！Lv${chaosLvl}×20 = ${chaosDmg} 真实伤害，混乱层数-1 (血量:${target.hp})`);
+                    logFn(`  🌀 ${target.name} 混乱反噬！Lv${chaosLvl}×20 = ${chaosDmg} 真实伤害，混乱层数-1（血量：${target.hp}）`);
                     if (window.refreshCardState) refreshCardState(target);
                     SkillSystem.showDamageNumber(target, chaosDmg, null, allCharsDiv);
                     chaosTimes--;
@@ -321,17 +321,17 @@ class SkillSystem {
             // ——— 技能特殊效果：一技能施加燃烧层数 ———
             if (skill.special && skill.special.type === 'burn') {
                 target.addBuffStack('burn', skill.special.stacks || 1, 1);
-                logFn(`  🔥 ${target.name} 获得${skill.special.stacks || 1}层「燃烧」（技能效果）`);
+                logFn(`  🔥 ${target.name} 获得 ${skill.special.stacks || 1} 层「燃烧」（技能效果）`);
             }
 
             // ——— 特殊效果：煽风——提升目标「燃烧」等级（无燃烧则直接点燃 Lv） ———
             if (skill.special && skill.special.type === 'burnUp') {
                 if (target.getBuffStack('burn') > 0) {
                     target.addBuffLevel('burn', skill.special.levels);
-                    logFn(`  🔥 ${target.name}「燃烧」等级+${skill.special.levels}（现 Lv${target.getBuffLevel('burn')}）`);
+                    logFn(`  🔥 ${target.name}「燃烧」等级 +${skill.special.levels}（现 Lv ${target.getBuffLevel('burn')}）`);
                 } else {
                     target.addBuffStack('burn', 1, skill.special.levels);
-                    logFn(`  🔥 ${target.name} 被点燃：获得1层 Lv${skill.special.levels}「燃烧」`);
+                    logFn(`  🔥 ${target.name} 被点燃：获得 1 层 Lv ${skill.special.levels}「燃烧」`);
                 }
             }
 
@@ -346,7 +346,7 @@ class SkillSystem {
                     //         结算页守恒公式简化为「敌方受到 = 我方造成 + Dot明细总和」）
                     target.dotDamageMap['burn'] = (target.dotDamageMap['burn'] || 0) + actual;
                     if (window.refreshCardState) refreshCardState(target);
-                    logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害 (血量:${target.hp})`);
+                    logFn(`  💥 ${target.name} 的「燃烧」被引爆！Lv${lvl}×50×${skill.special.ratio} = ${detDmg} 真实伤害（血量：${target.hp}）`);
                     target.clearBuff('burn');
                     SkillSystem.showDamageNumber(target, detDmg, null, allCharsDiv);
                     if (!target.alive) {
@@ -371,7 +371,7 @@ class SkillSystem {
             // ——— 三技能：清零目标恶 ———
             if (skill.special && skill.special.type === 'evilDrain') {
                 const ev = target.getBuffStack('e');
-                if (ev > 0) { target.clearBuff('e'); logFn(`  ✨ ${target.name} 的${ev}层「恶」被清零`); }
+                if (ev > 0) { target.clearBuff('e'); logFn(`  ✨ ${target.name} 的 ${ev} 层「恶」被清零`); }
             }
 
             // v0.289：技能对目标专属动画（斩击线/弹道/冲击波/雾气等），与伤害数字同帧

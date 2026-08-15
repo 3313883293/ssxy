@@ -38,7 +38,6 @@ function updateCharBars(char) {
 const buffTypeConfig = {
     'def':  { icon: '🛡️', color: '#4fc3f7' },
     'e':    { icon: '😈',  color: '#ab47bc' },
-    'rage': { icon: '💢',  color: '#ff7043' },
     'burn': { icon: '🔥',  color: '#ff5252' },
     'stun': { icon: '😵',  color: '#fbc02d' },
     'stunPending': { icon: '😵', color: '#fbc02d' },
@@ -59,16 +58,12 @@ function collectBuffUI(char) {
             detailDesc = '持续至下一次受击';
         } else if (buff.type === 'e') {
             shortText = `${cfg.icon}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「恶」${buff.stack}层`;
-            detailDesc = '每层使攻击者对目标无视防御50';
-        } else if (buff.type === 'rage') {
-            shortText = `${cfg.icon}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「愤怒」${buff.stack}层（上限5）`;
-            detailDesc = '每2层使技能伤害+50，每2层使防御-50';
+            detailTitle = `${cfg.icon} 「恶」${buff.stack} 层`;
+            detailDesc = '每层使鲁盼旋对其无视 50 防御';
         } else if (buff.type === 'burn') {
             shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「燃烧」Lv${buff.level} × ${buff.stack}层`;
-            detailDesc = `回合末造成 ${buff.level}×50 = ${buff.level * 50} 真实伤害；每5级消耗1层，不足按剩余层数×5级结算`;
+            detailTitle = `${cfg.icon} 「燃烧」Lv ${buff.level} × ${buff.stack} 层`;
+            detailDesc = `回合末造成 ${buff.level}×50 = ${buff.level * 50} 真实伤害；每 5 级消耗 1 层，不足按剩余层数×5 级结算`;
         } else if (buff.type === 'stun') {
             shortText = `${cfg.icon}昏迷`;
             detailTitle = `${cfg.icon} 「暂时昏迷」`;
@@ -79,12 +74,12 @@ function collectBuffUI(char) {
             detailDesc = '下一回合陷入「暂时昏迷」，无法行动一回合';
         } else if (buff.type === 'frenzy') {
             shortText = `${cfg.icon}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「狂炎」${buff.stack}层`;
+            detailTitle = `${cfg.icon} 「狂炎」${buff.stack} 层`;
             detailDesc = '每层使【烈焰鞭】/【焚天祭】伤害+150，每层使防御-20';
         } else if (buff.type === 'confusion') {
             shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「混乱」Lv${buff.level} × ${buff.stack}层`;
-            detailDesc = '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗1层并造成 级数×20 真实伤害';
+            detailTitle = `${cfg.icon} 「混乱」Lv ${buff.level} × ${buff.stack} 层`;
+            detailDesc = '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗 1 层并造成 级数×20 真实伤害';
         }
         tags.push(`<span class="buff-tag" style="color:${cfg.color}">${shortText}</span>`);
         details.push({ icon: cfg.icon, color: cfg.color, title: detailTitle, desc: detailDesc });
@@ -99,7 +94,7 @@ function refreshCardState(char) {
     updateCharBars(char);
     const totalDef = char.getTotalDef();
     const statsEl = card.querySelector('.stats');
-    if (statsEl) statsEl.innerHTML = `防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}`;
+    if (statsEl) statsEl.innerHTML = `防御${totalDef}${totalDef !== char.def ? `（基础${char.def}）` : ''} 速度${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}`;
     // v0.62 情感等级行（>0 显示「情感名 LvN」；鲁盼旋 emotionDisplayName='愤怒'，其余角色默认「情感激荡」；点击弹窗查看效果）：就地同步增删，与 stats 同帧刷新
     const emoName = char.emotionDisplayName || '情感激荡';
     const oldEmoEl = card.querySelector('.emotion-line');
@@ -107,7 +102,7 @@ function refreshCardState(char) {
     // v0.651：0 级也显示（弱化类 .emotion-zero）——开战即见情感激荡系统、点击可看机制；>0 级保持粉紫醒目原样式
     const emoEl = document.createElement('div');
     emoEl.className = 'emotion-line' + (char.emotionLevel > 0 ? '' : ' emotion-zero');
-    emoEl.textContent = `${emoName} Lv${char.emotionLevel}`;
+    emoEl.textContent = `${emoName} Lv ${char.emotionLevel}`;
     emoEl.title = `点击查看${emoName}效果`;
     emoEl.addEventListener('click', function(e) { e.stopPropagation(); showEmotionInfo(char); });
     if (statsEl) statsEl.insertAdjacentElement('afterend', emoEl);
@@ -162,8 +157,8 @@ function renderCharacters() {
             <div class="hp-text">血量 ${char.hp}/${char.maxHp}</div>
             <div class="bar-container"><div class="sp-bar" style="width:${(char.sp / char.maxSP) * 100}%"></div></div>
             <div class="sp-text">算力 ${char.sp}/${char.maxSP}</div>
-            <div class="stats">防${totalDef}${totalDef !== char.def ? `(基础${char.def})` : ''} 速${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
-            <div class="emotion-line${char.emotionLevel > 0 ? '' : ' emotion-zero'}" title="点击查看${char.emotionDisplayName || '情感激荡'}效果">${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}</div>
+            <div class="stats">防御${totalDef}${totalDef !== char.def ? `（基础${char.def}）` : ''} 速度${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
+            <div class="emotion-line${char.emotionLevel > 0 ? '' : ' emotion-zero'}" title="点击查看${char.emotionDisplayName || '情感激荡'}效果">${char.emotionDisplayName || '情感激荡'} Lv ${char.emotionLevel}</div>
             ${buffDetailItems.length > 0 ? `<div class="buff-indicator" data-buff-char="${char.id}">${buffTags.join('')}</div>` : ''}
         `;
 
@@ -254,7 +249,7 @@ function showEmotionInfo(char) {
     body.innerHTML = `
         <div class="buff-popup-item" style="border-left-color:#e056fd">
             <div class="buff-popup-text">
-                <div class="title" style="color:#e056fd">${emoName} Lv${lv}</div>
+                <div class="title" style="color:#e056fd">${emoName} Lv ${lv}</div>
                 <div class="desc">${effect}</div>
             </div>
         </div>
@@ -269,7 +264,7 @@ function showSkillInfo(char) {
     // v0.5：基础数值（面板值，与关卡介绍 renderRoleDetail 头部同源格式；战斗中点角色卡即可查看）
     // v0.66：特殊情感（愤怒/怨恨）与普通情感统一一行文本（getEmotionEffectLine）；怨恨显示减伤/加伤曲线
     const emoEffect = char.getEmotionEffectLine();
-    parts.push(`📊 基础面板：血量 ${char.maxHp} ｜ 算力 ${char.maxSP}+${char.spRegen}/回 ｜ 防御 ${char.def} ｜ 速度 ${char.speedMin}~${char.speedMax} ｜ ${char.emotionDisplayName || '情感激荡'} Lv${char.emotionLevel}（${emoEffect}）`);
+    parts.push(`📊 基础面板：血量 ${char.maxHp} ｜ 算力 ${char.maxSP} ｜ 算力回复 ${char.spRegen}/回合 ｜ 防御 ${char.def} ｜ 速度 ${char.speedMin}~${char.speedMax} ｜ ${char.emotionDisplayName || '情感激荡'} Lv ${char.emotionLevel}（${emoEffect}）`);
     // 被动/机制（标在技能前）
     const passives = PASSIVE_INFO[char.name] || [];
     if (passives.length > 0) {

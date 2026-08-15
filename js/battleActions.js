@@ -90,7 +90,7 @@ function playerTurn(actor) {
         battleState.getAliveEnemies().some(enemy => Math.abs(actor.position - enemy.position) <= skill.attackRange)
     );
     if (!canAnySkillHit) {
-        log(`${actor.name}(位置${actor.position}) 所有技能均无法攻击到目标，自动跳过`);
+        log(`${actor.name}（位置${actor.position}）所有技能均无法攻击到目标，自动跳过`);
         actor.actedThisTurn = false;
         battleState.currentActor = null;
         battleState.selectedSkill = null;
@@ -113,10 +113,10 @@ function resetActionUI() {
 }
 
 function drawPlayerActions(actor) {
-    let html = `<p><strong>${actor.name}(位置${actor.position})</strong> 的回合，选择技能：</p><div class="skill-buttons">`;
+    let html = `<p><strong>${actor.name}（位置${actor.position}）</strong>的回合，选择技能：</p><div class="skill-buttons">`;
     actor.skills.forEach((skill, index) => {
         const disabled = actor.sp < skill.spCost ? 'disabled' : '';
-        html += `<button class="skill-btn" data-skill-index="${index}" ${disabled}>${skill.name} (${skill.spCost}算力)</button>`;
+        html += `<button class="skill-btn" data-skill-index="${index}" ${disabled}>${skill.name}（${skill.spCost}算力）</button>`;
     });
     html += `</div>`;
     // v0.310：跳过回合 = 教学步骤⑧之一——强制教学阶段(④⑤⑥⑦)隐藏按钮，⑧起作为教学步骤显示，⑨自由练习起可正常跳过
@@ -295,7 +295,7 @@ function enemyTurn(actor) {
     if (chosenSkill.special && chosenSkill.special.type === 'stun') {
         targets = [targets[Math.floor(Math.random() * targets.length)]];
     }
-    log(`${actor.name} 使用 ${chosenSkill.name}，目标：${targets.map(t => t.name + '(' + t.position + ')').join(', ')}`);
+    log(`${actor.name} 使用 ${chosenSkill.name}，目标：${targets.map(t => t.name + '（' + t.position + '）').join(', ')}`);
     const epoch = battleEpoch;
     setTimeout(() => {
         if (epoch !== battleEpoch) return;   // v0.313：读档/重开后丢弃旧回合回调

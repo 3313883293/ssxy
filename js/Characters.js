@@ -127,7 +127,7 @@ class Character {
                     battleState.enemyTeam.forEach(e => {
                         if (e.alive && e !== this) e.addBuffLevel('burn', fz);
                     });
-                    if (typeof log === 'function') log(`🔥 ${this.name} 焚尽薪火：${fz}层狂炎转为残余敌方的「燃烧」等级！`);
+                    if (typeof log === 'function') log(`🔥 ${this.name} 焚尽薪火：${fz} 层狂炎转为残余敌方的「燃烧」等级！`);
                 }
                 this.clearBuff('frenzy');
             }
@@ -175,25 +175,25 @@ class Character {
         if (this.specialEmotion) {
             if (this.specialEmotionType === 'hate') {
                 // v0.66 云长郡「怨恨」：减伤连续每级-15%（跌破0% Lv7 起转受击加伤）；v0.661 每3级基础伤害+50/防御-50（覆盖式，上限10级只跨 3/6/9 档）
-                if (before < 3 && this.emotionLevel >= 3) parts.push('基础伤害+50，防御-50');
-                if (before < 6 && this.emotionLevel >= 6) parts.push('基础伤害+100，防御-100');
-                if (before < 9 && this.emotionLevel >= 9) parts.push('基础伤害+150，防御-150');
-                if (before < 7 && this.emotionLevel >= 7) parts.push('减伤跌破0%，转为受击加伤');
+                if (before < 3 && this.emotionLevel >= 3) parts.push('基础伤害 +50，防御 -50');
+                if (before < 6 && this.emotionLevel >= 6) parts.push('基础伤害 +100，防御 -100');
+                if (before < 9 && this.emotionLevel >= 9) parts.push('基础伤害 +150，防御 -150');
+                if (before < 7 && this.emotionLevel >= 7) parts.push('减伤跌破 0%，转为受击加伤');
             } else {
                 // v0.62 鲁盼旋「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
-                if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害+100，防御-50');
-                if (before < 4 && this.emotionLevel >= 4) parts.push('基础伤害+200，防御-100');
+                if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害 +100，防御 -50');
+                if (before < 4 && this.emotionLevel >= 4) parts.push('基础伤害 +200，防御 -100');
             }
         } else {
             const dmgBonus = this.getEmotionDamageBonus();
             const spBonus = this.getEmotionSpBonus();
-            if (this.emotionLevel >= 2 && before < 2) parts.push(`基础伤害+${dmgBonus}`);
-            if (this.emotionLevel >= 4 && before < 4) parts.push(`算力回复+${spBonus}`);
-            if (this.emotionLevel === 6) parts.push('基础伤害加成提升至+100');
-            if (this.emotionLevel === 8) parts.push('算力回复加成提升至+100');
+            if (this.emotionLevel >= 2 && before < 2) parts.push(`基础伤害 +${dmgBonus}`);
+            if (this.emotionLevel >= 4 && before < 4) parts.push(`算力回复 +${spBonus}`);
+            if (this.emotionLevel === 6) parts.push('基础伤害加成提升至 +100');
+            if (this.emotionLevel === 8) parts.push('算力回复加成提升至 +100');
         }
         if (parts.length > 0 && typeof log === 'function') {
-            log(`${this.emotionDisplayName}：${this.name} 升至 Lv${this.emotionLevel}（${parts.join('，')}）`);
+            log(`${this.emotionDisplayName}：${this.name} 升至 Lv ${this.emotionLevel}（${parts.join('，')}）`);
         }
     }
 
@@ -219,14 +219,14 @@ class Character {
     getEmotionEffectLine() {
         if (this.specialEmotionType === 'hate') {
             const r = 100 - this.emotionLevel * 15;
-            const reducText = r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破0%，转受击加伤 ${-r}%`;
+            const reducText = r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破 0%，转受击加伤 ${-r}%`;
             const tier = Math.floor(this.emotionLevel / 3) * 50;
-            return tier > 0 ? `${reducText} ｜ 基础伤害+${tier} ｜ 防御-${tier}` : reducText;
+            return tier > 0 ? `${reducText} ｜ 基础伤害 +${tier} ｜ 防御 -${tier}` : reducText;
         }
         if (this.specialEmotion) {
-            return `基础伤害+${this.getEmotionDamageBonus()} ｜ 防御-${Math.floor(this.emotionLevel / 2) * 50}`;
+            return `基础伤害 +${this.getEmotionDamageBonus()} ｜ 防御 -${Math.floor(this.emotionLevel / 2) * 50}`;
         }
-        return `基础伤害+${this.getEmotionDamageBonus()} ｜ 算力回复+${this.getEmotionSpBonus()}`;
+        return `基础伤害 +${this.getEmotionDamageBonus()} ｜ 算力回复 +${this.getEmotionSpBonus()}`;
     }
 
     // —————— Buff 操作 ——————

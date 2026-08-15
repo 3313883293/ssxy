@@ -277,7 +277,7 @@ function onTurnEnd() {
             if (c.burnMultiplier !== 1) burnDmg = Math.floor(burnDmg * c.burnMultiplier);
             const actual = c.takeTrueDamage(burnDmg);
             c.dotDamageMap['burn'] = (c.dotDamageMap['burn'] || 0) + actual;
-            log(`🔥 ${c.name} 受到${burnDmg}点「燃烧」伤害（Lv${burnLevel}×${burnStack}层），消耗${consume}层，实际${actual} (血量:${c.hp})`);
+            log(`🔥 ${c.name} 受到 ${burnDmg} 点「燃烧」伤害（Lv${burnLevel}×${burnStack} 层），消耗 ${consume} 层，实际${actual}（血量：${c.hp}）`);
             // v0.286：燃烧掉血同帧更新血条并飘伤害数字；v0.288 连 buff 标签一起刷新
             if (window.refreshCardState) refreshCardState(c);
             SkillSystem.showDamageNumber(c, actual, null, allCharsDiv);

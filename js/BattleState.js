@@ -65,7 +65,7 @@ class BattleState {
         else this.enemyTeam.push(replacement);
         this.allCharacters.push(replacement);
         this.repositionAll();
-        if (typeof log === 'function') log(`🚑 ${replacement.name} 已候补，将于下一回合开始入场！`);
+        if (typeof log === 'function') log(`🚑 ${replacement.name} 待命补位，将于下一回合开始入场！`);
     }
 
     // 候补单位（pendingEntry，下一回合入场）计入存活：必须把后备也消灭才能获胜（v0.288 曾改为不计入被否决，保留"全灭才算赢"）
