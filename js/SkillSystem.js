@@ -85,6 +85,37 @@ const SKILL_ANIM_CONFIG = {
         impact: { color: '#ff7979', size: 120, dur: 0.6 },
         particles: { count: 12, icon: '💥', spread: 110 }
     },
+    // —— 王庄明（v0.674 专属演出）——
+    '抵抗': {
+        type: 'aura', color: '#4fc3f7', dur: 0.85, size: 115, border: '4px solid #4fc3f7',
+        text: '🛡️'
+    },
+    '纵焚烈火': {
+        type: 'flameThrow', color: '#e67e22', thick: 4, dur: 0.55,
+        impact: { color: '#ff9f43', size: 80, dur: 0.5 },
+        particles: { count: 7, icon: '🔥', spread: 70 }
+    },
+    '守护': {
+        type: 'guardAura', color: '#f1c40f', dur: 0.9, size: 120, border: '4px solid #f1c40f',
+        text: '🛡️'
+    },
+    // —— 曹佳梦（v0.674 专属演出）——
+    '手枪散射': {
+        type: 'tripleShot', color: '#ffd166', thick: 3, dur: 0.25,
+        impact: { color: '#ffd166', size: 55, dur: 0.4 }
+    },
+    '精准狙击': {
+        type: 'snipe', color: '#7bed9f', thick: 2, dur: 0.3,
+        impact: { color: '#7bed9f', size: 90, dur: 0.6 }
+    },
+    '创大运吧': {
+        type: 'luckyDice', color: '#f9ca24', dur: 1.0, size: 120, border: '4px solid #f9ca24'
+    },
+    '陨星落下': {
+        type: 'meteorFall', color: '#ff6b81', thick: 6, dur: 0.9,
+        impact: { color: '#ff7979', size: 150, dur: 0.8 },
+        particles: { count: 14, icon: '💥', spread: 120 }
+    },
 };
 const SKILL_ANIM_DEFAULT = { type: 'strike', color: '#95a5a6', thick: 2, dur: 0.25 };
 
@@ -576,6 +607,33 @@ class SkillSystem {
                 SkillSystem._createParticles(actor.cardElement, arena, config.particles);
             }
         }
+        // v0.674 王庄明「守护」：金色双层护盾——内环先亮、外环后亮 + 盾牌粒子涟漪
+        if (config.type === 'guardAura') {
+            const inner = { ...config, size: Math.round((config.size || 120) * 0.72), dur: (config.dur || 0.9) * 0.65, border: '3px solid ' + config.color };
+            SkillSystem._createAura(actor.cardElement, arena, inner);
+            setTimeout(() => { if (actor.cardElement) SkillSystem._createAura(actor.cardElement, arena, config); }, 120);
+            if (config.text) {
+                SkillSystem._createParticles(actor.cardElement, arena, { count: 8, icon: config.text, spread: 50, upward: true });
+            }
+        }
+        // v0.674 曹佳梦「创大运吧」：金色赌运光环 + 骰子/星光粒子腾升
+        if (config.type === 'luckyDice') {
+            SkillSystem._createAura(actor.cardElement, arena, config);
+            SkillSystem._createParticles(actor.cardElement, arena, { count: 8, icon: '🎲', spread: 55, upward: true });
+            SkillSystem._createParticles(actor.cardElement, arena, { count: 10, icon: '✨', spread: 40, upward: true });
+        }
+        // v0.674 曹佳梦「陨星落下」：天际光柱坠落（配合目标侧大爆炸）
+        if (config.type === 'meteorFall') {
+            const aRect = actor.cardElement.getBoundingClientRect();
+            const arenaRect = arena.getBoundingClientRect();
+            const x = aRect.left - arenaRect.left + aRect.width / 2;
+            const beam = document.createElement('div');
+            beam.className = 'meteor-beam';
+            beam.style.left = (x - 13) + 'px';
+            beam.style.top = '0px';
+            arena.appendChild(beam);
+            setTimeout(() => beam.remove(), 800);
+        }
         if (config.type === 'carRush') return;   // 开创（v0.307）：速度线由 _carRush 在撞击目标时刻统一触发
         if (config.streaks) {
             SkillSystem._createStreaks(actor.cardElement, arena, config.streaks);
@@ -594,6 +652,34 @@ class SkillSystem {
 
         if (config.type === 'strike' || config.type === 'beam' || config.type === 'snap') {
             SkillSystem._createStrikeLine(actor.cardElement, target.cardElement, arena, config);
+        }
+        // v0.674 曹佳梦「手枪散射」：三连发——枪口闪光 + 弹道线各 3 次（间隔 90ms），命中冲击波
+        if (config.type === 'tripleShot') {
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    if (!target.cardElement || !actor.cardElement) return;
+                    SkillSystem._createMuzzleFlash(actor.cardElement, arena, config.color);
+                    SkillSystem._createStrikeLine(actor.cardElement, target.cardElement, arena, { ...config, dur: 0.12 });
+                }, i * 90);
+            }
+            if (config.impact) SkillSystem._createBurst(target.cardElement, arena, config.impact);
+        }
+        // v0.674 曹佳梦「精准狙击」：细长激光线（亮青）贯穿 + 枪口大闪光 + 命中强冲击
+        if (config.type === 'snipe') {
+            SkillSystem._createStrikeLine(actor.cardElement, target.cardElement, arena, { ...config, thick: 2, dur: 0.35 });
+            SkillSystem._createStrikeLine(actor.cardElement, target.cardElement, arena, { ...config, thick: 6, dur: 0.18, color: 'rgba(123,237,159,0.35)' });
+            if (actor.cardElement) SkillSystem._createMuzzleFlash(actor.cardElement, arena, '#ffffff');
+            if (config.impact) SkillSystem._createBurst(target.cardElement, arena, config.impact);
+        }
+        // v0.674 曹佳梦「陨星落下」：目标处大爆炸 + 大量粒子 + 全屏震动
+        if (config.type === 'meteorFall') {
+            if (config.impact) SkillSystem._createBurst(target.cardElement, arena, config.impact);
+            if (config.particles) SkillSystem._createParticles(target.cardElement, arena, config.particles);
+            const c = document.querySelector('.container');
+            if (c) {
+                c.classList.add('screen-shake');
+                setTimeout(() => c.classList.remove('screen-shake'), 520);
+            }
         }
         if (config.type === 'multi') {
             const step = config.dur * 1000 / config.count;

@@ -1,0 +1,43 @@
+v0.674 更新内容：新角色专属动画与合成音效（王庄明 / 曹佳梦）
+
+## 背景
+
+用户要求「给新角色来点特殊动画和音效」——王庄明与曹佳梦此前沿用默认演出，本次为全部 7 个技能配置专属动画（复用现有 DOM/CSS 动画原语组合）与 Web Audio 合成音效（零音频文件，延续 v0.308 方案）。
+
+## 新增演出
+
+**王庄明**
+| 技能 | 动画 | 音效 |
+|---|---|---|
+| 抵抗 | 蓝色护盾光环（同持盾格挡，aura）| shieldUp：护盾嗡鸣（低频正弦起振+上扫噪声）|
+| 纵焚烈火 | 火焰弹道（复用灼华燃木火球）| flame（既有）|
+| 守护 | 金色双层护盾（内环先亮+外环错时+🛡️粒子涟漪，新 guardAura 类型）| guardUp：金盾钟鸣（方波金属泛音+八度共鸣）|
+
+**曹佳梦**
+| 技能 | 动画 | 音效 |
+|---|---|---|
+| 手枪散射 | 三连发：枪口闪光+弹道线×3（间隔 90ms）+命中冲击（新 tripleShot 类型）| tripleShot：三连发「啪-啪-啪」|
+| 精准狙击 | 细长激光线贯穿（亮青双线：细主光+粗辉光）+枪口大白闪+强冲击（新 snipe 类型）| snipe：爆音——高频 crack+长尾呼啸|
+| 创大运吧 | 金色赌运光环+🎲/✨粒子腾升（新 luckyDice 类型）| dice：骰子叮铃（三连上行三角波）|
+| 陨星落下 | 天际光柱坠落（.meteor-beam）+目标大爆炸+大量💥粒子+全屏震动（.screen-shake，新 meteorFall 类型）| meteor：陨石坠落（锯齿长下坠+低通轰鸣+延迟大爆轰）|
+
+## 改动文件
+
+1. **js/SkillSystem.js**：SKILL_ANIM_CONFIG 新增 7 技能配置；playSkillAnimation 新增 guardAura（双层护盾）/luckyDice（赌运光环）/meteorFall（光柱）分支；playSkillTargetAnimation 新增 tripleShot（三连发）/snipe（激光线）/meteorFall（爆炸+震屏）分支。
+2. **js/audio.js**：SFX_TABLE 新增 shieldUp/guardUp/tripleShot/snipe/dice/meteor 六音效；SKILL_SFX_MAP 加 guardAura→guardUp、tripleShot/snipe/luckyDice/meteorFall 映射；AURA_SFX_BY_SKILL 加 抵抗→shieldUp。
+3. **style.css**：新增 .meteor-beam（渐变光柱+坠落动画）、.screen-shake（容器震屏 keyframes）。
+4. **js/globals.js**：GAME_VERSION → v0.674。
+
+## 自动适配（零改动）
+
+- 新动画类型全部走非延迟伤害反馈（伤害数字即时显示，动画并行），不进 delayedHit 列表，不影响既有演出时序；
+- 纵焚烈火复用 flameThrow（专属演出型），灼华系逻辑自动适配；
+- 音效全部 try/catch 合成，headless/静音环境静默跳过，不影响游戏逻辑。
+
+## 验证
+
+新增 `check-v0674-newanim.js`：
+- A 配置：SKILL_ANIM_CONFIG 含 7 个新技能（类型正确）。
+- B 音效：SFX_TABLE 含 6 个新音效；Sfx.playSkill 映射（抵抗→shieldUp、守护→guardUp、手枪散射→tripleShot、精准狙击→snipe、创大运吧→dice、陨星落下→meteor，经 _log 探针断言）。
+- C 动画链路：渲染场景逐一执行 7 个技能——无页面异常；陨星触发 .meteor-beam 光柱与 .screen-shake 震屏元素；三连发产生多次枪口闪光。
+- D 回归：check-v0673-caojiameng（27 项，动画零机制改动）+ check-v0670-guardnerf（11 项）。

@@ -88,19 +88,32 @@ const SFX_TABLE = {
     bomb: (c) => { sfxTone(c, { type: 'sawtooth', f0: 120, f1: 30, dur: 0.6, vol: 0.5 }); sfxNoise(c, { dur: 0.5, vol: 0.45, f0: 1200, f1: 80, type: 'lowpass' }); sfxTone(c, { type: 'sine', f0: 60, f1: 25, dur: 0.7, vol: 0.35, when: 0.25 }); },
     // 回合开始：双音提示
     round: (c) => { sfxTone(c, { type: 'square', f0: 440, dur: 0.08, vol: 0.07 }); sfxTone(c, { type: 'square', f0: 660, dur: 0.1, vol: 0.07, when: 0.09 }); },
+    // v0.674 王庄明「抵抗」：护盾嗡鸣（低频正弦起振 + 柔和上扫噪声）
+    shieldUp: (c) => { sfxTone(c, { type: 'sine', f0: 220, f1: 440, dur: 0.4, vol: 0.2 }); sfxNoise(c, { dur: 0.3, vol: 0.08, f0: 800, f1: 2000 }); },
+    // v0.674 王庄明「守护」：金盾钟鸣（方波金属泛音 + 八度共鸣）
+    guardUp: (c) => { sfxTone(c, { type: 'square', f0: 660, f1: 620, dur: 0.5, vol: 0.15 }); sfxTone(c, { type: 'sine', f0: 1320, dur: 0.4, vol: 0.06, when: 0.02 }); },
+    // v0.674 曹佳梦「手枪散射」：三连发「啪-啪-啪」（三次高频噪声短促）
+    tripleShot: (c) => { for (let i = 0; i < 3; i++) sfxNoise(c, { dur: 0.06, vol: 0.25, f0: 3500, f1: 900, when: i * 0.09 }); },
+    // v0.674 曹佳梦「精准狙击」：爆音——高频 crack + 长尾呼啸（远距离贯穿感）
+    snipe: (c) => { sfxNoise(c, { dur: 0.1, vol: 0.4, f0: 5000, f1: 1500 }); sfxNoise(c, { dur: 0.4, vol: 0.15, f0: 2000, f1: 300, when: 0.05 }); },
+    // v0.674 曹佳梦「创大运吧」：骰子叮铃（三连上行三角波，赌运响起）
+    dice: (c) => { [880, 1047, 1319].forEach((f, i) => sfxTone(c, { type: 'triangle', f0: f, dur: 0.1, vol: 0.15, when: i * 0.08 })); },
+    // v0.674 曹佳梦「陨星落下」：陨石坠落——锯齿长下坠 + 低通轰鸣 + 延迟大爆轰
+    meteor: (c) => { sfxTone(c, { type: 'sawtooth', f0: 200, f1: 40, dur: 0.8, vol: 0.35 }); sfxNoise(c, { dur: 0.7, vol: 0.3, f0: 2000, f1: 100, type: 'lowpass', when: 0.15 }); sfxTone(c, { type: 'sine', f0: 50, f1: 20, dur: 0.9, vol: 0.5, when: 0.7 }); },
     // 胜利：上行琶音 C E G C
     victory: (c) => { [523, 659, 784, 1047].forEach((f, i) => sfxTone(c, { type: 'triangle', f0: f, dur: 0.22, vol: 0.2, when: i * 0.13 })); },
     // 失败：低沉下滑
     defeat: (c) => { sfxTone(c, { type: 'sawtooth', f0: 300, f1: 110, dur: 1.0, vol: 0.2 }); },
 };
 
-// 技能动画 type → 音效名（aura 按技能名细分加油/刹车/持盾格挡）
+// 技能动画 type → 音效名（aura 按技能名细分加油/刹车/持盾格挡；v0.674 新角色专属演出）
 const SKILL_SFX_MAP = {
     slash: 'slash', slashSingle: 'slashSingle', swordWave: 'swordWave', carRush: 'carRush',
     multi: 'multi', strike: 'strike', snap: 'snap', gas: 'gas',
-    flameThrow: 'flame', emberRise: 'ember', fireBomb: 'bomb'   // v0.5 灼华火焰特效
+    flameThrow: 'flame', emberRise: 'ember', fireBomb: 'bomb',   // v0.5 灼华火焰特效
+    guardAura: 'guardUp', tripleShot: 'tripleShot', snipe: 'snipe', luckyDice: 'dice', meteorFall: 'meteor'   // v0.674
 };
-const AURA_SFX_BY_SKILL = { 加油: 'buffUp', 刹车: 'buffDown', 持盾格挡: 'bash' };
+const AURA_SFX_BY_SKILL = { 加油: 'buffUp', 刹车: 'buffDown', 持盾格挡: 'bash', 抵抗: 'shieldUp' };   // v0.674 王庄明抵抗
 
 // ==================== 全局对象 ====================
 
