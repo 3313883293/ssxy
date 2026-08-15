@@ -789,6 +789,13 @@ body {
 }
 #tutorialOverlay.collapsed .tutorial-progress { display: none; }
 
+/* v0.662：战斗页弹窗 flex 限高——JS（tutorial.js syncPosition）按角色卡顶动态设 .buff-popup 的
+   max-height 并加 .tutorial-clipped：头部/按钮固定、正文压缩内部滚动，保证弹窗永不遮住角色卡
+   （修复竖屏步骤⑧遮卡 50%、667 横屏图文步遮木偶卡）。max-height:none 仅限 .tutorial-clipped 生效——
+   卡片与弹窗水平不相交（如 844 横屏）时保持各断点正文上限，弹窗不高耸遮住底部操作面板 */
+#tutorialOverlay.tutorial-battle .buff-popup { display: flex; flex-direction: column; overflow: hidden; }
+#tutorialOverlay.tutorial-clipped .buff-popup-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; max-height: none; }
+
 /* ============================================================
    v0.4 手机响应式适配
    桌面端（≥901px）行为与 v0.320 完全一致；≤900px 起响应式。
@@ -914,9 +921,12 @@ button, .character-card, .char-slot, .roster-card, .level-card,
 }
 
 /* v0.61：竖屏选角页教程弹窗贴底部空档（仅竖屏触屏手机命中——页面内容通常只占上 1/3、下方大段空白），
-   避免盖住顶部出战槽位（教程步骤①②要点「出战空格」放入）；横屏（页面占满/右上角不挡槽）与战斗页不命中保持贴顶部 */
+   避免盖住顶部出战槽位（教程步骤①要点「出战空格」放入）；横屏（页面占满/右上角不挡槽）与战斗页不命中保持贴顶部
+   v0.662：仅步骤①（char-select）贴底——步骤②起贴顶。点角色卡后详情面板展开会把「确认出战」按钮
+   推入贴底弹窗下方，框体拦截点击（实测按钮被遮 77%、玩家点不到），改贴顶后按钮始终可点 */
 @media (max-width: 767px) and (orientation: portrait) {
     #tutorialOverlay.tutorial-select { top: auto; bottom: 12px; }
+    #tutorialOverlay.tutorial-select:not([data-step="char-select"]) { top: 12px; bottom: auto; }
 }
 
 /* ===== v0.41：锁定横屏提示层 =====
@@ -973,10 +983,12 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     .target-hint { margin-top: 4px; font-size: 0.85em; }
     .log { margin-top: 6px; max-height: 56px; padding: 6px 8px; font-size: 0.72em; }
     /* v0.61：教程弹窗在短高横屏（844×390 等）再压缩——更窄更矮、字号更小，避免盖住战斗卡；
-       left:auto 抵消 ≤767 的 left:12px 左锚，改右锚避免 667 宽横屏盖住居中的出战槽位 */
-    #tutorialOverlay { width: min(280px, 40vw); top: 8px; right: 8px; left: auto; }
+       left:auto 抵消 ≤767 的 left:12px 左锚，改右锚避免 667 宽横屏盖住居中的出战槽位
+       v0.662：再收窄（40vw→36vw、280→240）——667×375 下弹窗仍压住居中的木偶卡/出战槽位边缘 */
+    #tutorialOverlay { width: min(240px, 36vw); top: 8px; right: 8px; left: auto; }
     #tutorialOverlay .buff-popup-header { padding: 8px 12px; font-size: 0.9em; }
-    #tutorialOverlay .buff-popup-body { font-size: 0.78em; padding: 10px 12px; max-height: min(260px, 28vh); }
+    /* v0.662：正文上限收紧（28vh→24vh）+ 战斗页 flex 限高接管，双保险不遮卡 */
+    #tutorialOverlay .buff-popup-body { font-size: 0.78em; padding: 10px 12px; max-height: min(240px, 24vh); }
 }
 
 /* ==================== 灼华火焰特效（v0.5） ==================== */

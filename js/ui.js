@@ -20,4 +20,7 @@ function showPage(id) {
         if (typeof updateZhangUnlock === 'function') updateZhangUnlock();
         if (typeof updateZhangLevelLocks === 'function') updateZhangLevelLocks();
     }
+    // v0.662：页面切换后重算教程弹窗贴边位置/限高——「确认出战」时弹窗带着选角页 .tutorial-select
+    //         贴底类残留在战斗页显示（步骤③），切换完成后立即按新页面修正；弹窗未显示时 syncPosition 自动跳过
+    if (typeof Tutorial !== 'undefined' && Tutorial.syncPosition) Tutorial.syncPosition();
 }

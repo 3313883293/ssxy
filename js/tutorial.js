@@ -78,13 +78,58 @@ const Tutorial = {
         okBtn.style.display = (def.dismissable || def.end) ? 'block' : 'none';
         this.clearHighlight();
         overlay.style.display = 'block';
-        // v0.61：选角页（步骤①②）在竖屏贴底部空档，避免盖住顶部出战槽位；战斗页保持贴顶部
-        const selectPage = document.getElementById('pageSelectChar');
-        overlay.classList.toggle('tutorial-select', !!(selectPage && selectPage.classList.contains('active')));
+        // v0.61：选角页（步骤①）在竖屏贴底部空档，避免盖住顶部出战槽位；战斗页保持贴顶部
+        // v0.662：贴边/限高统一收进 syncPosition()（页面切换/尺寸变化后也可重算，修复弹窗遮挡）
         this.updateCollapseUI();   // v0.61：同步收起态与 ▾/▸ 按钮
+        this.syncPosition();       // v0.662：重算贴边位置与战斗页限高
         if (def.highlight) {
             // 目标元素可能尚未渲染（如技能按钮），延迟一拍再高亮
             setTimeout(() => this.highlight(def.highlight), 80);
+        }
+    },
+    // v0.662：弹窗位置/限高同步（修复手机端教程关遮挡问题）：
+    // ① 竖屏选角页仅步骤①贴底（此时「确认出战」在弹窗上方，不冲突）；步骤②起改贴顶——
+    //    点角色卡后详情面板展开会把「确认出战」按钮推入贴底弹窗下方，框体拦截点击（真实玩家点不到）；
+    // ② 战斗页（≤900 触屏布局）弹窗动态限高至与它水平相交的第一张角色卡顶边，正文压缩内部滚动，
+    //    保证弹窗永不遮住角色卡（修复竖屏步骤⑧情感激荡弹窗遮卡 50%、667 横屏图文步遮木偶卡）；
+    // ③ 由 show()、ui.js showPage()、窗口 resize/orientationchange、收起/展开统一调用，
+    //    页面切换后立即重算（修复步骤③弹窗带 .tutorial-select 残留贴底的时序问题）。
+    syncPosition() {
+        const overlay = document.getElementById('tutorialOverlay');
+        if (!overlay || overlay.style.display === 'none') return;
+        const def = TUTORIAL_STEPS.find(s => s.id === this.step) || null;
+        const selectPage = document.getElementById('pageSelectChar');
+        const battlePage = document.getElementById('pageBattle');
+        const onSelect = !!(selectPage && selectPage.classList.contains('active'));
+        const onBattle = !!(battlePage && battlePage.classList.contains('active'));
+        if (def) overlay.dataset.step = def.id;
+        overlay.classList.toggle('tutorial-select', onSelect && def && def.id === 'char-select');
+        overlay.classList.toggle('tutorial-battle', onBattle);
+        const popup = overlay.querySelector('.buff-popup');
+        if (!popup) return;
+        if (onBattle && window.innerWidth <= 900) {
+            // 与弹窗水平相交的卡片中取最靠上者：弹窗限高到其顶边，保证垂直方向永不遮卡；
+            // 无相交（如 844 横屏卡片居左、弹窗居右）则不限高，正文可完整展示
+            const ovBox = overlay.getBoundingClientRect();
+            const cards = [...document.querySelectorAll('.all-characters .character-card')]
+                .filter(c => c.getBoundingClientRect().height > 0);
+            let limit = null;
+            cards.forEach(c => {
+                const b = c.getBoundingClientRect();
+                const hOverlap = Math.min(b.right, ovBox.right) - Math.max(b.left, ovBox.left);
+                if (hOverlap > 4) {
+                    const l = Math.floor(b.top - ovBox.top - 4);
+                    limit = limit === null ? l : Math.min(limit, l);
+                }
+            });
+            popup.style.maxHeight = (limit !== null)
+                ? Math.max(80, Math.min(limit, Math.round(window.innerHeight * 0.5))) + 'px'
+                : '';
+            // 限高激活时解除正文固定上限（改由 flex 收缩滚动）；未激活保持断点正文上限，不高耸遮底部面板
+            overlay.classList.toggle('tutorial-clipped', limit !== null);
+        } else {
+            popup.style.maxHeight = '';
+            overlay.classList.remove('tutorial-clipped');
         }
     },
     highlight(selector) {
@@ -107,6 +152,7 @@ const Tutorial = {
     toggleCollapse() {
         this.collapsed = !this.collapsed;
         this.updateCollapseUI();
+        this.syncPosition();   // v0.662：展开时重算战斗页限高，避免遮卡
     },
     updateCollapseUI() {
         const overlay = document.getElementById('tutorialOverlay');
@@ -132,6 +178,14 @@ const Tutorial = {
         this.collapsed = false;   // v0.61：复位收起态
         this.clearHighlight();
         const overlay = document.getElementById('tutorialOverlay');
-        if (overlay) overlay.style.display = 'none';
+        if (overlay) {
+            overlay.style.display = 'none';
+            const popup = overlay.querySelector('.buff-popup');
+            if (popup) popup.style.maxHeight = '';   // v0.662：清理战斗页限高，避免残留影响后续弹窗
+        }
     }
 };
+
+// v0.662：窗口尺寸/横竖屏切换后重算弹窗贴边位置与限高（贴边断点可能随视口变化）
+window.addEventListener('resize', () => Tutorial.syncPosition());
+window.addEventListener('orientationchange', () => setTimeout(() => Tutorial.syncPosition(), 120));
