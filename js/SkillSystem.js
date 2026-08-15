@@ -504,8 +504,14 @@ class SkillSystem {
         if (skill.special && skill.special.type === 'meteor' && meteorMain && actor.alive) {
             // 与主目标同公式（含厌倦通用基础加成）：(1250 + 厌倦加成) + 正面×1000，再按距离等比衰减
             const baseDmg = skill.baseDamage + actor.getEmotionDamageBonus() + meteorHeads * skill.bonusDamage;
-            [...battleState.allCharacters].forEach(c => {
-                if (!c.alive || c === meteorMain) return;
+            // v0.675 修复：陨石雨光柱——每个受击单位（含主目标与施放者）头顶坠落一道，错开出现
+            const arenaEl = allCharsDiv.parentElement;
+            const allUnits = [...battleState.allCharacters].filter(c => c.alive);
+            allUnits.forEach((c, idx) => {
+                if (c.cardElement) SkillSystem._meteorBeam(c.cardElement, arenaEl, idx * 70);
+            });
+            allUnits.forEach(c => {
+                if (c === meteorMain) return;   // 主目标已在循环内满伤结算
                 const dist = Math.abs(c.position - meteorMain.position);
                 const mult = 1 - 0.25 * dist;
                 if (mult <= 0) {
@@ -530,6 +536,22 @@ class SkillSystem {
             if (window.refreshCardState) refreshCardState(actor);
             logFn(`  🎲 ${actor.name} 的「厌倦」归零（强化三已释放）`);
         }
+    }
+
+    // v0.675 陨石雨光柱：在指定角色卡头顶生成从天际坠落的橙红光柱（陨星落下的坠落点视觉）
+    static _meteorBeam(card, arena, delay = 0) {
+        setTimeout(() => {
+            if (!card || !arena || !arena.isConnected) return;
+            const cRect = card.getBoundingClientRect();
+            const arenaRect = arena.getBoundingClientRect();
+            const x = cRect.left - arenaRect.left + cRect.width / 2;
+            const beam = document.createElement('div');
+            beam.className = 'meteor-beam';
+            beam.style.left = (x - 13) + 'px';
+            beam.style.top = '-80px';
+            arena.appendChild(beam);
+            setTimeout(() => beam.remove(), 850);
+        }, delay);
     }
 
     static showDamageNumber(target, damage, coinInfo, allCharsDiv) {
@@ -622,18 +644,8 @@ class SkillSystem {
             SkillSystem._createParticles(actor.cardElement, arena, { count: 8, icon: '🎲', spread: 55, upward: true });
             SkillSystem._createParticles(actor.cardElement, arena, { count: 10, icon: '✨', spread: 40, upward: true });
         }
-        // v0.674 曹佳梦「陨星落下」：天际光柱坠落（配合目标侧大爆炸）
-        if (config.type === 'meteorFall') {
-            const aRect = actor.cardElement.getBoundingClientRect();
-            const arenaRect = arena.getBoundingClientRect();
-            const x = aRect.left - arenaRect.left + aRect.width / 2;
-            const beam = document.createElement('div');
-            beam.className = 'meteor-beam';
-            beam.style.left = (x - 13) + 'px';
-            beam.style.top = '0px';
-            arena.appendChild(beam);
-            setTimeout(() => beam.remove(), 800);
-        }
+        // v0.674 曹佳梦「陨星落下」：天际光柱由 meteor 结算段对全场每个受击单位生成（陨石雨），
+        //      此处不再生成（v0.675 修复：原光柱错误出现在施放者头顶而非坠落点）
         if (config.type === 'carRush') return;   // 开创（v0.307）：速度线由 _carRush 在撞击目标时刻统一触发
         if (config.streaks) {
             SkillSystem._createStreaks(actor.cardElement, arena, config.streaks);

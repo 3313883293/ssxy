@@ -1088,11 +1088,12 @@ button, .character-card, .char-slot, .roster-card, .level-card,
 
 /* ==================== v0.674 新角色专属演出（王庄明 / 曹佳梦） ==================== */
 
-/* 陨星落下：天际光柱——从 arena 顶部坠落的橙红渐变光柱，配合目标处大爆炸与震屏 */
+/* 陨星落下：天际光柱——从 arena 顶部坠落的橙红渐变光柱（v0.675：高度随 arena 自适应，不再固定 640px 溢出） */
 .meteor-beam {
     position: absolute;
     width: 26px;
-    height: 640px;
+    height: calc(100% + 80px);
+    top: -80px;
     border-radius: 13px;
     z-index: 12;
     pointer-events: none;
