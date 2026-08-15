@@ -55,19 +55,19 @@ function collectBuffUI(char) {
             const sign = buff.value > 0 ? '+' : '';
             shortText = `${cfg.icon}${sign}${buff.value}`;
             detailTitle = `${cfg.icon} 【防御临时变动】${sign}${buff.value}`;
-            detailDesc = '持续至下一次受击';
+            detailDesc = '持续至下次受击时';
         } else if (buff.type === 'e') {
             shortText = `${cfg.icon}×${buff.stack}`;
             detailTitle = `${cfg.icon} 「恶」${buff.stack} 层`;
-            detailDesc = '每层使鲁盼旋对其无视 50 防御';
+            detailDesc = '伤害计算时，每层使鲁盼旋对其无视 50 防御';
         } else if (buff.type === 'burn') {
             shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
             detailTitle = `${cfg.icon} 「燃烧」Lv ${buff.level} × ${buff.stack} 层`;
-            detailDesc = `回合末造成 ${buff.level}×50 = ${buff.level * 50} 真实伤害；每 5 级消耗 1 层，不足按剩余层数×5 级结算`;
+            detailDesc = `回合结束时造成 ${buff.level}×50 = ${buff.level * 50} 真实伤害；每 5 级消耗 1 层，不足按剩余层数×5 级结算`;
         } else if (buff.type === 'stun') {
             shortText = `${cfg.icon}昏迷`;
             detailTitle = `${cfg.icon} 「暂时昏迷」`;
-            detailDesc = '本回合无法行动（下一回合恢复）';
+            detailDesc = '轮到行动时无法行动，跳过本次行动后解除';
         } else if (buff.type === 'stunPending') {
             shortText = `${cfg.icon}催眠中`;
             detailTitle = `${cfg.icon} 「催眠气体」待生效`;
@@ -75,7 +75,7 @@ function collectBuffUI(char) {
         } else if (buff.type === 'frenzy') {
             shortText = `${cfg.icon}×${buff.stack}`;
             detailTitle = `${cfg.icon} 「狂炎」${buff.stack} 层`;
-            detailDesc = '每层使【烈焰鞭】/【焚天祭】伤害+150，每层使防御-20';
+            detailDesc = '伤害计算时每层使【烈焰鞭】/【焚天祭】伤害+150，防御计算时每层防御-20';
         } else if (buff.type === 'confusion') {
             shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
             detailTitle = `${cfg.icon} 「混乱」Lv ${buff.level} × ${buff.stack} 层`;

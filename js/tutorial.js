@@ -16,10 +16,10 @@ const TUTORIAL_STEPS = [
     { id: 'emotion',        text: emotionTutorialText, highlight: '.emotion-line', dismissable: true, okAdvance: true },
     // v0.65：新增「状态与持续伤害」图文讲解步——Buff/燃烧/混乱/被动在教程关无法实操演示，用图文讲清；
     //        插在 emotion(⑧) 与 skip-turn 之间，emotion 点「知道了」→ okAdvance 自动推进到此步，无需新钩子
-    { id: 'buff-dot',       text: '⑨ 📚 <b>状态与持续伤害</b>：很多技能会附加状态（Buff）——卡片下方出现彩色角标，点击可看详情。常见有：<b>「燃烧」</b>（每回合末造成 等级×50 真实伤害）、<b>「恶」</b>（每层使鲁盼旋无视对方 50 防御）、<b>「混乱」</b>（被攻击时反噬真实伤害）、「昏迷」（跳过行动）。此外，<b>被动</b>——部分角色自带被动，战斗中自动触发，可在角色详情查看', highlight: null, dismissable: true, okAdvance: true },
+    { id: 'buff-dot',       text: '⑨ 📚 <b>状态与持续伤害</b>：很多技能会附加状态（Buff）——卡片下方出现彩色角标，点击可看详情。常见有：<b>「燃烧」</b>（回合结束时造成 等级×50 真实伤害）、<b>「恶」</b>（伤害计算时每层使鲁盼旋无视对方 50 防御）、<b>「混乱」</b>（被攻击时反噬真实伤害）、「昏迷」（轮到行动时跳过）。此外，<b>被动</b>——部分角色自带被动，战斗中自动触发，可在角色详情查看', highlight: null, dismissable: true, okAdvance: true },
     { id: 'skip-turn',      text: '⑩ 不想出手时，点【⏭ 跳过本回合】直接结束本角色行动——这里试一次', highlight: '#skipTurnBtn' },
     // v0.65：新增「待命与补位」图文讲解步——待命/补位机制进教程（用户指定），图文讲清即可
-    { id: 'bench',          text: '⑪ 🚑 <b>待命与补位</b>：部分关卡的敌人带「＋X 待命」——前方角色阵亡后，待命角色会在<b>下一回合开始</b>入场补位；我方个别关卡也有待命区。注意：要<b>击败全部敌人（含待命角色）</b>才算胜利', highlight: null, dismissable: true, okAdvance: true },
+    { id: 'bench',          text: '⑪ 🚑 <b>待命与补位</b>：部分关卡的敌人带「＋X 待命」——前方角色死亡后，待命角色会在<b>下一回合开始</b>入场补位；我方个别关卡也有待命区。注意：要<b>击败全部敌人（含待命角色）</b>才算胜利', highlight: null, dismissable: true, okAdvance: true },
     { id: 'free',           text: '⑫ 教学完成！自由战斗到胜利吧——胜利后<b>结算页</b>可查看伤害统计、Dot 明细与完整战斗日志', highlight: null, end: true }
 ];
 
