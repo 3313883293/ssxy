@@ -478,7 +478,8 @@ class SkillSystem {
             // 保证「造成伤害」与「剑痕/剑气命中/撞击/火球命中/爆炸」视觉同步
             const slashCfg = SKILL_ANIM_CONFIG[skill.name];
             const delayedHit = slashCfg && (slashCfg.type === 'slash' || slashCfg.type === 'slashSingle' || slashCfg.type === 'swordWave' || slashCfg.type === 'carRush'
-                || slashCfg.type === 'flameThrow' || slashCfg.type === 'emberRise' || slashCfg.type === 'fireBomb');
+                || slashCfg.type === 'flameThrow' || slashCfg.type === 'emberRise' || slashCfg.type === 'fireBomb'
+                || slashCfg.type === 'luckyDice');   // v0.679 创大运吧：伤害反馈延迟到开车警察卡撞击时刻
             if (delayedHit) {
                 if (slashCfg.type === 'carRush') window._slashCarDamage = actual;   // 开创：实际伤害驱动加速度（伤害越高加速度越高）
                 (window._slashHitFeedbacks = window._slashHitFeedbacks || []).push(
@@ -607,6 +608,73 @@ class SkillSystem {
         });
     }
 
+    // v0.679 创大运吧演出（用户指定）：把场上开车警察的卡片直接拿过来，然后创（冲撞）向目标——
+    // 开车警察卡被吸附到曹佳梦面前（0.25s 平移）→ 加速冲出穿过目标（运动学同开创，停在目标对侧）→
+    // 撞击瞬间播放伤害反馈 + 冲击波 + 🎲 粒子 → 开车警察卡滑回原位（纯演出，开车警察机制不受影响）
+    static _luckyDice(actor, targets, allCharsDiv) {
+        const actorCard = actor.cardElement;
+        if (!actorCard || !targets[0] || !targets[0].cardElement) return;
+        const arena = allCharsDiv.parentElement;
+        const police = battleState.allCharacters.find(c => c.alive && c.name === '开车警察' && c.cardElement);
+        if (!police) return;   // 场上无开车警察：无借卡演出（自身侧骰子光环保留）
+        const policeCard = police.cardElement;
+        const bp = SkillSystem._animPoint(actorCard, arena);
+        const bs = SkillSystem._animSize(actorCard);
+        const tp = SkillSystem._animPoint(targets[0].cardElement, arena);
+        const ts = SkillSystem._animSize(targets[0].cardElement);
+
+        // 1) 拿过来：开车警察卡平移到曹佳梦面前
+        const pBase = SkillSystem._animPoint(policeCard, arena);
+        const dxToActor = (bp.x + bs.w / 2) - (pBase.x + policeCard.offsetWidth / 2);
+        policeCard.style.zIndex = 50;
+        policeCard.style.transition = 'transform 0.25s ease-in';
+        policeCard.style.transform = `translate(${dxToActor.toFixed(1)}px, 0)`;
+
+        // 2) 创过去：从曹佳梦面前加速冲出，穿过目标停在目标对侧
+        setTimeout(() => {
+            policeCard.style.transition = 'none';
+            const dir = (tp.x + ts.w / 2 >= bp.x + bs.w / 2) ? 1 : -1;
+            const passX = (dir > 0 ? tp.x + ts.w : tp.x) + dir * 140 * SkillSystem._dispScale();
+            const L = passX - (bp.x + bs.w / 2);   // 从曹佳梦中心出发的带符号行程
+            const dist = Math.max(60, Math.abs(L));
+            const acc = 6000;   // 固定加速度（快速创出）
+            const T = Math.sqrt(2 * dist / acc);
+            // 穿过目标中心时刻：撞击反馈（伤害数字/硬币/受击音效）+ 冲击波 + 骰子粒子
+            const dHit = dir > 0
+                ? (tp.x + ts.w / 2) - (bp.x + bs.w / 2)
+                : (bp.x + bs.w / 2) - (tp.x + ts.w / 2);
+            const tHit = (dHit > 0 && dHit < dist) ? Math.sqrt(2 * dHit / acc) : T;
+            setTimeout(() => {
+                const fb = window._slashHitFeedbacks || [];
+                window._slashHitFeedbacks = [];
+                fb.forEach(f => f());
+                SkillSystem._createBurst(targets[0].cardElement, arena, { color: '#f9ca24', size: 85, dur: 0.5 });
+                SkillSystem._createParticles(targets[0].cardElement, arena, { count: 8, icon: '🎲', spread: 60 });
+            }, tHit * 1000);
+            const t0 = Date.now();
+            const timer = setInterval(() => {
+                const t = (Date.now() - t0) / 1000;
+                if (t >= T) {
+                    clearInterval(timer);
+                    policeCard.style.transform = `translate(${(dxToActor + L).toFixed(1)}px, 0)`;
+                    // 3) 归位：0.35s 后开车警察卡滑回原位
+                    setTimeout(() => {
+                        policeCard.style.transition = 'transform 0.3s ease-out';
+                        policeCard.style.transform = 'translate(0, 0)';
+                        setTimeout(() => {
+                            policeCard.style.transition = '';
+                            policeCard.style.zIndex = '';
+                        }, 320);
+                    }, 350);
+                    return;
+                }
+                const x = 0.5 * acc * t * t * Math.sign(L);   // 初速 0、加速度高：起步慢 → 爆发创出
+                policeCard.style.transform = `translate(${(dxToActor + x).toFixed(1)}px, 0)`;
+            }, 16);
+        }, 260);
+        window._actionAnimDelay = 1500;   // 拿卡(0.25s)+创出+归位，重渲染延迟同步
+    }
+
     // 距离分级颤动：距离 0 剧烈 / 1 中等 / 2 轻微 / ≥3 微颤（CSS 动画类，900ms 后移除）
     static _hitShakeByDist(card, dist) {
         const cls = 'meteor-hit-' + Math.min(3, dist);
@@ -719,7 +787,12 @@ class SkillSystem {
     static playSkillTargetAnimation(actor, target, skill, allCharsDiv) {
         const config = SKILL_ANIM_CONFIG[skill.name];
         if (!config) return;   // 未知技能不播放动画（不含降级，模板角色按需单独配置）
-        // 专属演出型（十二连/亮剑/剑气/开创/灼华火焰）：目标侧特效由各自流程统一管理，避免重复出招
+        // v0.679 创大运吧：把开车警察卡拿过来创过去（专属演出，先于通用特效处理并提前返回）
+        if (config.type === 'luckyDice') {
+            SkillSystem._luckyDice(actor, [target], allCharsDiv);
+            return;
+        }
+        // 专属演出型（十二连/亮剑/剑气/开创/灼华火焰/陨星）：目标侧特效由各自流程统一管理，避免重复出招
         if (config.type === 'slash' || config.type === 'slashSingle' || config.type === 'swordWave' || config.type === 'carRush'
             || config.type === 'flameThrow' || config.type === 'emberRise' || config.type === 'fireBomb') return;
         const arena = allCharsDiv.parentElement;
