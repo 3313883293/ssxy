@@ -124,7 +124,9 @@ class Character {
     // v0.669 王庄明「守护」转移（静态）：同阵营存在存活且带「守护」层数的王庄明时，
     // 队友（守护者本人除外）即将失去血量 → 防止之，改为守护者自身受到"对应数值的无来源普通伤害"
     // （完整走防御/减伤结算），守护层数-1；一切伤害（普通/真伤/dot/混乱反噬）均转移；
-    // 转移伤害无来源（attacker=null）：不计入攻击者 damageDealt、不触发击杀归属；
+    // v0.669 显示修正（用户指定）：转移伤害不再裸扣血，而是临时生成一个虚拟技能指向守护者，
+    // 走完整技能结算——伤害数字/血条刷新/受击音效/死亡爆发全部正常显示；
+    // 无来源 = 虚拟攻击者不入队（其 damageDealt 不计入任何结算统计、不触发击杀归属）；
     // 返回 0 表示本次伤害已被转移（受击方不掉血）；返回原值表示未转移
     static guardTransfer(target, dmg) {
         if (dmg <= 0 || !target.alive) return dmg;
@@ -136,14 +138,18 @@ class Character {
         if (!guarder) return dmg;
         guarder.reduceBuffStack('guard', 1);
         if (typeof log === 'function') log(`🛡️ ${guarder.name} 的「守护」抵挡了${target.name}的伤害（剩余${guarder.getBuffStack('guard')}层）`);
-        const transferred = guarder.takeDamage(dmg, null);   // 无来源普通伤害：再结算一次防御/减伤
-        if (!guarder.alive) {
-            // 守护者被转移伤害击倒：走完整死亡流程（补位/倒戈/广播）
-            guarder.handleDeath();
-            Character.invokePassives('onAllyDeath', battleState, guarder, log);
-            if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(guarder);
+        // 虚拟技能结算：无动画配置/无卡片 → executeSkill 内部各环节空安全跳过；
+        // 虚拟攻击者不入队：伤害统计/情感激荡归属全部落在守护者与虚拟体上，原攻击者 damageDealt 不受影响
+        const virt = createRoleInstance('模板一', 'player', guarder.position);
+        virt.name = `${guarder.name}的守护`;
+        virt.sp = 0;
+        const virtSkill = new Skill('守护转移', 0, dmg, 0, 1, 99);
+        if (typeof SkillSystem !== 'undefined' && typeof SkillSystem.executeSkill === 'function') {
+            SkillSystem.executeSkill(virt, virtSkill, [guarder], battleState, allCharsDiv, log);
+        } else {
+            guarder.takeDamage(dmg, null);   // 兜底：SkillSystem 未就绪时直接扣血
         }
-        return 0;
+        return 0;   // 队友本次不掉血
     }
 
     // 死亡处理：倒戈复活 → 待命区补位 + 站位重排

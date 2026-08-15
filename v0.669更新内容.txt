@@ -32,9 +32,16 @@ v0.669 更新内容：新角色「王庄明」（守护者）
 8. **js/globals.js**：PASSIVE_INFO 王庄明、AVAILABLE_ENEMIES 加入、getAvailableChars 默认解锁、GAME_VERSION → v0.669。
 9. **js/charSelect.js**：getRoleDefRange/getRoleSpeedRange 加王庄明。
 
+## 同日修正：守护转移显示问题（用户指定虚拟技能方案）
+
+用户反馈"守护的转移会导致显示出问题"——原实现为裸 `takeDamage(dmg, null)` 直接扣血：伤害数字不显示、王庄明血条不同帧刷新、受击动画/死亡爆发缺失、死亡流程不完整。按用户指定改为**临时生成一个虚拟技能指向王庄明**：
+
+- **Characters.js guardTransfer**：转移时创建虚拟攻击者（不入队、不计统计、不触发击杀归属——保持"无来源"语义）与虚拟技能 `Skill('守护转移', 0, dmg, 0, 1, 99)`，走完整 `SkillSystem.executeSkill` 结算——伤害数字、血条同帧刷新、受击音效/动画、死亡爆发与完整死亡流程（handleDeath/广播/情感）全部走正常显示路径；
+- 虚拟攻击者无卡片无动画配置，executeSkill 内各环节空安全跳过；防御挡住的伤害（实际 0）不消耗守护、不产生虚拟结算（guardTransfer 前置判断）；原攻击者 damageDealt 不受影响（结算页守恒不变）。
+
 ## 验证
 
-新增 `check-v0669-wangzhuangming.js`：
+新增 `check-v0669-wangzhuangming.js`（30 项）：
 - A 创建：面板数值、三技能参数、两被动注册。
 - B 抵抗：使用后自身防御 buff +200（至下次受击时）+ 伤害正常。
 - C 纵焚烈火：两个目标各获 1 层 Lv4 燃烧、自身 Lv4 仅一次、效果行文案。
