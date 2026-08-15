@@ -15,6 +15,8 @@ function showPage(id) {
         // v0.5 改：灼华篇标题星数与解锁区同步实时刷新（打完灼华篇回关卡页即更新）
         if (typeof updateZhStars === 'function') updateZhStars();
         if (typeof updateZhUnlock === 'function') updateZhUnlock();
+        // v0.671：灼华篇逐关解锁与卡片星标随返回关卡页实时刷新（此前缺失，仅展开版块时刷新）
+        if (typeof updateZhLevelLocks === 'function') updateZhLevelLocks();
         // v0.6：张子曦篇标题星数与解锁区实时刷新
         if (typeof updateZhangStars === 'function') updateZhangStars();
         if (typeof updateZhangUnlock === 'function') updateZhangUnlock();

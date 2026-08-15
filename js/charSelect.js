@@ -205,6 +205,22 @@ function isLevelUnlocked(n) {
     if (n === 0 || n === 4 || n === 7) return true;   // v0.5+v0.6：鲁盼旋篇/灼华篇/张子曦篇第一关恒解锁
     return getCleared().includes(n - 1);
 }
+// v0.671：关卡卡片 ⭐ 获得标记——基础胜利星 ★ / 特殊胜利星 ★（未获得显示灰 ☆），
+// 两枚依次排列在关卡标题下方；教程关/测试关不发星不显示
+function renderCardStars(card, level) {
+    let el = card.querySelector('.card-stars');
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'card-stars';
+        const h3 = card.querySelector('h3');
+        if (h3) h3.insertAdjacentElement('afterend', el);
+    }
+    const stars = getStarMap()[level] || {};
+    el.innerHTML =
+        `<span class="${stars.base ? 'star-on' : 'star-off'}" title="基础胜利星">★</span>` +
+        `<span class="${stars.special ? 'star-on' : 'star-off'}" title="特殊胜利星">★</span>`;
+}
+
 function updateLevelLocks() {
     const cleared = getCleared();
     for (let n = 0; n <= 3; n++) {
@@ -217,6 +233,7 @@ function updateLevelLocks() {
         card.classList.toggle('level-locked', !unlocked);
         card.onclick = unlocked ? () => selectLevel(n) : () => showModal({ title: '提示', message: '🔒 通关上一关后解锁本关！' });
         h3.textContent = (unlocked ? (done ? '✅ ' : '') : '🔒 ') + h3.dataset.orig;
+        renderCardStars(card, n);   // v0.671
     }
 }
 
@@ -282,6 +299,7 @@ function updateZhLevelLocks() {
         card.classList.toggle('level-locked', !unlocked);
         card.onclick = unlocked ? () => selectLevel(lv) : () => showModal({ title: '提示', message: '🔒 通关上一关后解锁本关！' });
         h3.textContent = (unlocked ? (done ? '✅ ' : '') : '🔒 ') + h3.dataset.orig;
+        renderCardStars(card, lv);   // v0.671
     }
 }
 
@@ -372,6 +390,7 @@ function updateZhangLevelLocks() {
         card.classList.toggle('level-locked', !unlocked);
         card.onclick = unlocked ? () => selectLevel(lv) : () => showModal({ title: '提示', message: '🔒 通关上一关后解锁本关！' });
         h3.textContent = (unlocked ? (done ? '✅ ' : '') : '🔒 ') + h3.dataset.orig;
+        renderCardStars(card, lv);   // v0.671
     }
 }
 

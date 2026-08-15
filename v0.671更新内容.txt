@@ -1,0 +1,37 @@
+v0.671 更新内容：关卡卡片显示 ⭐ 获得标记（基础星/特殊星各一枚）
+
+## 背景
+
+用户要求「把关卡⭐数（有无获得）显示出来」——此前每关的星只在篇章标题汇总（⭐ x/8），单关卡片上看不到本关获得了哪几颗星。
+
+## 设计（用户指定）
+
+- 每张正式关卡卡片在标题下方显示两枚星标：**基础胜利星**与**特殊胜利星**各一枚；
+- 已获得 = 金色 ★（发光），未获得 = 灰色 ☆，悬停 title 注明「基础胜利星 / 特殊胜利星」；
+- 教程关/测试关不发星，不显示星标。
+
+## 改动（v0.670 → v0.671）
+
+1. **js/charSelect.js**：
+   - 新增 `renderCardStars(card, level)`——读 `getStarMap()[level]` 生成两枚星标（h3 后插入/复用 `.card-stars` 元素）；
+   - `updateLevelLocks`（0~3）、`updateZhLevelLocks`（4~6）、`updateZhangLevelLocks`（7~8）各循环内调用，与解锁/通关标记同帧刷新。
+2. **js/ui.js**：`showPage('pageLevel')` 补 `updateZhLevelLocks()` 调用——此前返回关卡页只刷新鲁盼旋篇/张子曦篇锁定状态，灼华篇仅展开版块时刷新（卡片星标与锁定状态随返回关卡页实时更新的顺带修复）。
+3. **style.css**：新增 `.card-stars`（★ 金 #f9ca24 带光晕 / ☆ 灰 #3a4a66，字距 4px）。
+4. **js/globals.js**：GAME_VERSION → v0.671。
+
+## 自动适配（零改动）
+
+- 星级数据源（pwgame_stars）与加星逻辑（addStar/getStarMap）未动；达成星后返回关卡页（showPage → updateLevelLocks 等）即时刷新卡片星标；
+- 卡片布局仅标题下多一行小字，移动端无溢出风险（纯文本行）。
+
+## 验证
+
+新增 `check-v0671-stars.js`：
+- A 三篇章正式关卡片均含 `.card-stars`（教程/测试关除外）。
+- B 无星记录 → 全部 ☆☆（两枚 off）。
+- C 写入星表 {0:base, 1:base+special} → 刷新 → levelCard0 ★☆、levelCard1 ★★、levelCard2 ☆☆。
+- D 灼华篇/张子曦篇卡片星标随星表正确显示（4:base → ★☆）。
+- E 打赢/达成场景链路：addStar 后回到关卡页星标即时更新（模拟通关写入）。
+- F 手机竖屏 390×844 卡片星标可见不溢出。
+- G 全程无页面异常。
+- 回归：check-v0665-settings（17 项，关卡页结构变化）+ check-v0670-guardnerf（11 项）。

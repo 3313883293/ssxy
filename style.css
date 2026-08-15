@@ -52,6 +52,16 @@ body {
 .level-card:hover { border-color: #e94560; transform: scale(1.02); }
 .level-card h3 { color: #e94560; }
 .level-card .enemy-preview { margin-top: 10px; color: #ccc; font-size: 0.85em; }
+/* v0.671：关卡卡片 ⭐ 获得标记——★ 金色=已获得（基础/特殊各一），☆ 灰=未获得；悬停 title 区分两类星 */
+.card-stars {
+    margin-top: 6px;
+    font-size: 1.05em;
+    line-height: 1;
+    letter-spacing: 4px;
+    user-select: none;
+}
+.card-stars .star-on { color: #f9ca24; text-shadow: 0 0 6px rgba(249, 202, 36, 0.6); }
+.card-stars .star-off { color: #3a4a66; }
 /* v0.311：未解锁关卡（灰色锁定卡，点击提示通关上一关解锁） */
 .level-locked { opacity: 0.55; filter: grayscale(0.7); cursor: not-allowed; }
 .level-locked:hover { border-color: transparent; transform: none; }
