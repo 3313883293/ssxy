@@ -713,10 +713,14 @@ body {
     gap: 10px;
 }
 .settings-option {
+    display: flex;                /* v0.665：选项单行化——名称在左、描述在右同行，不再两行 */
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     background: #0f3460;
     border: 2px solid #555;
     border-radius: 12px;
-    padding: 14px 16px;
+    padding: 10px 14px;
     cursor: pointer;
     transition: 0.2s;
 }
@@ -727,14 +731,20 @@ body {
 }
 .settings-option-name {
     font-weight: bold;
-    font-size: 1.05em;
+    font-size: 1em;
     color: #eee;
+    flex-shrink: 0;
 }
 .settings-option.active .settings-option-name { color: #f9ca24; }
 .settings-option-desc {
-    font-size: 0.8em;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.78em;
     color: #aaa;
-    margin-top: 4px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     line-height: 1.4;
 }
 

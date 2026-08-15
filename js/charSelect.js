@@ -329,6 +329,35 @@ function unlockZhang() {
         }
     });
 }
+// v0.665：设置弹窗「一键解锁」——解锁全部角色（鲁盼旋/灼华/张子曦）与所有关卡（0~8）。
+// 写三个解锁标记 + 全关卡通关记录；纯进度修改不可逆（与既有解锁行为一致），确认后即时刷新当前页 UI
+// （关卡页版块三态/关卡锁定、选角页角色池）；通关记录写入后星级追溯机制会自动补全 0~8 基础星（成就星不受影响）
+function unlockAllContent() {
+    showModal({
+        title: '一键解锁',
+        message: '确定解锁全部内容吗？将解锁全部角色（鲁盼旋 / 灼华 / 张子曦）与所有关卡。',
+        type: 'confirm',
+        confirmText: '解锁',
+        onConfirm: () => {
+            setLuUnlocked();
+            setZhUnlocked();
+            setZhangUnlocked();
+            try { localStorage.setItem('pwgame_cleared', JSON.stringify([0, 1, 2, 3, 4, 5, 6, 7, 8])); } catch (e) {}
+            // 即时刷新解锁/星数/关卡锁定 UI
+            if (typeof updateLuStars === 'function') updateLuStars();
+            if (typeof updateZhStars === 'function') updateZhStars();
+            if (typeof updateZhUnlock === 'function') updateZhUnlock();
+            if (typeof updateZhangStars === 'function') updateZhangStars();
+            if (typeof updateZhangUnlock === 'function') updateZhangUnlock();
+            if (typeof updateLevelLocks === 'function') updateLevelLocks();
+            if (typeof updateZhLevelLocks === 'function') updateZhLevelLocks();
+            if (typeof updateZhangLevelLocks === 'function') updateZhangLevelLocks();
+            const selectPage = document.getElementById('pageSelectChar');
+            if (selectPage && selectPage.classList.contains('active') && typeof initCharSelection === 'function') initCharSelection();
+            showModal({ title: '🎉 解锁成功', message: '全部角色与关卡已解锁！' });
+        }
+    });
+}
 // v0.6：张子曦篇逐关解锁（level 7/8 → zhangCard0~1）
 function updateZhangLevelLocks() {
     const cleared = getCleared();

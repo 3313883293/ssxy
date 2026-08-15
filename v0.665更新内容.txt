@@ -1,0 +1,32 @@
+v0.665 更新内容：设置弹窗「一键解锁」+ 设置选项单行化
+
+## 背景
+
+用户要求：①做一个一键解锁按钮放设置里（一次性解锁全部角色与关卡）；②调整设置弹窗布局，使每个选项只占一行。
+
+## 设计（用户指定）
+
+- **一键解锁**：设置弹窗新增「游戏进度」分区，含「🔓 一键解锁」选项——确认弹窗防误触（解锁不可逆，与既有解锁行为一致），确认后写三个角色解锁标记（鲁盼旋/灼华/张子曦）+ 全关卡通关记录（0~8），并即时刷新当前页解锁 UI。
+- **选项单行化**：设置选项由「名称一行 + 描述一行」改为单行——名称在左、描述在右（右侧对齐，窄屏单行省略），压缩纵向占位。
+
+## 改动（v0.664 → v0.665）
+
+1. **index.html**：设置弹窗「音效」分区下新增「游戏进度」分区——`<div id="unlockAllOption" onclick="unlockAllContent()">🔓 一键解锁（解锁全部角色与关卡）</div>`。
+2. **js/charSelect.js**：新增 `unlockAllContent()`——确认弹窗（type:confirm，confirmText「解锁」）→ `setLuUnlocked/setZhUnlocked/setZhangUnlocked` + `pwgame_cleared=[0..8]` → 刷新版块星数/解锁三态/关卡锁定（updateLuStars/updateZhUnlock/updateZhangUnlock/updateLevelLocks 等 8 个刷新函数）+ 选角页角色池（initCharSelection）→ 提示「全部角色与关卡已解锁！」。
+3. **js/globals.js**：GAME_VERSION → v0.665。
+4. **style.css**：`.settings-option` 改 flex 单行布局（name 左、desc 右，desc `text-align:right` + 单行 ellipsis 兜底，padding 压缩 14px→10px 纵向）；`.settings-option-desc` 去掉 margin-top 改 flex 拉伸。
+
+## 自动适配（零改动）
+
+- 关卡解锁/角色解锁沿用既有标记与判定（isLevelUnlocked/getAvailableChars），一键解锁只写标记，机制零改动；
+- 通关记录写入后 getStarMap 惰性追溯自动补 0~8 基础星（老玩家逻辑复用，成就特殊星不受影响）；
+- 选角模式/音效开关逻辑零改动，仅视觉单行化。
+
+## 验证
+
+新增 `check-v0665-settings.js`：
+- A 设置弹窗：一键解锁选项存在；每个选项单行（名称与描述同垂直中心，行高 ≈ 单行）。
+- B 一键解锁流程（桌面）：清档 → 打开设置 → 点一键解锁 → 确认 → 解锁成功 → localStorage 三标记 + cleared 0~8 → 关卡页全部关卡可点（无锁定）、三角色解锁区 ✅ → 选角页角色池含鲁盼旋/灼华/张子曦。
+- C 手机竖屏 390×844：设置弹窗一键解锁选项可见、单行、在视口内不溢出。
+- D 全程无页面异常。
+- 回归：check-v0662-tutorialoverlap（14 项）+ verify-v050-zh（32 项）——设置弹窗布局改动对教程关/关卡流程零影响。
