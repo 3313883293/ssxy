@@ -167,7 +167,7 @@ function updateLuStars() {
     const body = document.getElementById('luSectionBody');
     if (title) {
         const open = body && body.style.display !== 'none';
-        title.textContent = '📖 鲁盼旋篇 ⭐ ' + getStarCount() + '/12 ' + (open ? '▾' : '▸');   // v0.672 第四关三星制
+        title.textContent = '📖 鲁盼旋篇 ⭐ ' + getStarCount() + '/9 ' + (open ? '▾' : '▸');   // v0.672 第四关三星制（2+2+2+3=9）
     }
     const area = document.getElementById('luUnlockArea');
     if (!area) return;
@@ -175,18 +175,18 @@ function updateLuStars() {
     if (getLuUnlocked()) {
         area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:2px solid #2ecc71;border-radius:8px;color:#2ecc71;font-weight:bold;text-align:center;">✅ 鲁盼旋已解锁</div>';
     } else if (n >= 6) {
-        area.innerHTML = '<button class="btn-main" style="width:100%;background:#f9ca24;color:#222;margin:10px 0;" onclick="unlockLu()">🔓 点击解锁鲁盼旋（⭐' + n + '/12）</button>';
+        area.innerHTML = '<button class="btn-main" style="width:100%;background:#f9ca24;color:#222;margin:10px 0;" onclick="unlockLu()">🔓 点击解锁鲁盼旋（⭐' + n + '/9）</button>';
     } else {
-        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:1px dashed #555;border-radius:8px;color:#888;text-align:center;">🔒 集齐 6 星解锁鲁盼旋（当前 ⭐' + n + '/12）</div>';
+        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:1px dashed #555;border-radius:8px;color:#888;text-align:center;">🔒 集齐 6 星解锁鲁盼旋（当前 ⭐' + n + '/9）</div>';
     }
 }
 
 function unlockLu() {
     // v0.319：全部弹窗改为游戏内自定义弹窗（替代浏览器原生 alert/confirm）
-    if (getStarCount() < 6) { showModal({ title: '提示', message: '还需集齐 6 颗星（当前 ' + getStarCount() + '/12）！' }); return; }
+    if (getStarCount() < 6) { showModal({ title: '提示', message: '还需集齐 6 颗星（当前 ' + getStarCount() + '/9）！' }); return; }
     showModal({
         title: '解锁鲁盼旋',
-        message: '集齐 ' + getStarCount() + '/12 星，确定解锁鲁盼旋吗？',
+        message: '集齐 ' + getStarCount() + '/9 星，确定解锁鲁盼旋吗？',
         type: 'confirm',
         onConfirm: () => {
             setLuUnlocked();

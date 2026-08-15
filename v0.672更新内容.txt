@@ -6,7 +6,7 @@ v0.672 更新内容：第四关三星制 + 隐藏胜利条件（AI 鲁盼旋杀�
 
 ## 设计（用户指定）
 
-- **三星制**：第四关（level 3）由 2 星改为 3 星（基础星 + 特殊星 + 隐藏星）；鲁盼旋篇总星数 8 → **12**（标题 `⭐ x/12`）；灼华篇（6）/张子曦篇（4）不变。
+- **三星制**：第四关（level 3）由 2 星改为 3 星（基础星 + 特殊星 + 隐藏星）；鲁盼旋篇总星数 8 → **9**（前三关各 2 星 + 第四关 3 星，标题 `⭐ x/9`）；灼华篇（6）/张子曦篇（4）不变。
 - **隐藏胜利条件**：AI 操控的鲁盼旋（第四关锁定角色，aiControlled=true）对云长郡完成击杀（普伤/引爆/混乱反噬致死均归属致死源，燃烧 dot 致死无归属不算）→ 胜利瞬间发隐藏星。
 - 隐藏条件**不加入** SPECIAL_CONDITIONS（不显示在关卡介绍页与胜利条件栏）；卡片星标第三枚可见（title「隐藏星（达成条件不公开）」）。
 - 鲁盼旋解锁阈值 6 星不变。
@@ -14,12 +14,12 @@ v0.672 更新内容：第四关三星制 + 隐藏胜利条件（AI 鲁盼旋杀�
 ## 改动（v0.671 → v0.672）
 
 1. **js/globals.js**：
-   - 星级系统注释/结构支持第三类型 `hidden`；`getStarCount()` 统计 0~3 关 base+special+hidden（12 星制）；`addStar` 允许 'hidden'；
+   - 星级系统注释/结构支持第三类型 `hidden`；`getStarCount()` 统计 0~3 关 base+special+hidden（hidden 仅第四关计入，9 星制）；`addStar` 允许 'hidden'；
    - 新增 `markAiLuKill(actor, target)`——AI 鲁盼旋击杀云长郡标记（写入 specialState.aiLuKilledYun）。
 2. **js/BattleState.js**：specialState 新增 `aiLuKilledYun: false`（构造与 reset）。
 3. **js/SkillSystem.js**：三处击杀点（普伤致死/混乱反噬致死/引爆致死）调用 `markAiLuKill`。
 4. **js/battleFlow.js**：checkVictory 敌方全灭分支——`level===3 && aiLuKilledYun` 时 `addStar(3, 'hidden')` + 日志「🕵️ 隐藏星达成：AI 鲁盼旋亲手击败云长郡！」。
-5. **js/charSelect.js**：`renderCardStars` 第四关追加第三枚星（hidden）；`updateLuStars`/`updateLuUnlock`/`unlockLu` 星数文案 /8 → /12。
+5. **js/charSelect.js**：`renderCardStars` 第四关追加第三枚星（hidden）；`updateLuStars`/`updateLuUnlock`/`unlockLu` 星数文案 /8 → /9。
 6. **js/globals.js**：GAME_VERSION → v0.672。
 
 ## 自动适配（零改动）
@@ -33,9 +33,9 @@ v0.672 更新内容：第四关三星制 + 隐藏胜利条件（AI 鲁盼旋杀�
 新增 `check-v0672-thirdstar.js`：
 - A 星系统：addStar(3,'hidden') 写入/读取、getStarCount 满星 12 制。
 - B 第四关卡片三枚星标（hidden 第三枚）、其余关两枚。
-- C 标题「鲁盼旋篇 ⭐ x/12」。
+- C 标题「鲁盼旋篇 ⭐ x/9」。
 - D 隐藏条件不显示：SPECIAL_CONDITIONS[3] 不含「鲁盼旋」击杀文案；介绍页无隐藏条件字样。
 - E 击杀归属：AI 鲁盼旋击杀云长郡 → aiLuKilledYun=true；非 AI 鲁盼旋（手动）击杀不标记；其他角色击杀不标记。
 - F 胜利结算：aiLuKilledYun 达成 + 敌方全灭 → checkVictory → pwgame_stars[3].hidden 记录。
 - G 全程无页面异常。
-- 回归：check-v0671-stars（16 项，适配第四关三星标与标题 /12）+ check-v0665-settings（17 项）。
+- 回归：check-v0671-stars（16 项，适配第四关三星标与标题 /9）+ check-v0665-settings（17 项）。

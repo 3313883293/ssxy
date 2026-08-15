@@ -81,14 +81,14 @@ function getStarMap() {
     return map;
 }
 
-// v0.672：鲁盼旋篇星数（0~3 关 × 3 星 = 12 星：基础/特殊/隐藏）
+// v0.672：鲁盼旋篇星数（0~3 关：前三关各 2 星 + 第四关 3 星 = 9 星；hidden 仅第四关有）
 function getStarCount() {
     const map = getStarMap();
     let n = 0;
     [0, 1, 2, 3].forEach(level => {   // v0.5 fix：仅统计鲁盼旋篇（0~3），勿混入灼华篇（4/5/6）
         if (map[level] && map[level].base) n++;
         if (map[level] && map[level].special) n++;
-        if (map[level] && map[level].hidden) n++;   // v0.672 第四关隐藏星
+        if (level === 3 && map[level] && map[level].hidden) n++;   // v0.672 隐藏星仅第四关
     });
     return n;
 }
