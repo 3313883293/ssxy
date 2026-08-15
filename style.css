@@ -1088,29 +1088,7 @@ button, .character-card, .char-slot, .roster-card, .level-card,
 
 /* ==================== v0.674 新角色专属演出（王庄明 / 曹佳梦） ==================== */
 
-/* 陨星落下：天际光柱——从 arena 顶部坠落的橙红渐变光柱（v0.675：高度随 arena 自适应，不再固定 640px 溢出） */
-.meteor-beam {
-    position: absolute;
-    width: 26px;
-    height: calc(100% + 80px);
-    top: -80px;
-    border-radius: 13px;
-    z-index: 12;
-    pointer-events: none;
-    background: linear-gradient(to bottom,
-        rgba(255, 255, 255, 0) 0%,
-        rgba(255, 236, 179, 0.85) 25%,
-        rgba(255, 159, 67, 0.9) 55%,
-        rgba(214, 48, 49, 0.9) 85%,
-        rgba(214, 48, 49, 0) 100%);
-    box-shadow: 0 0 20px 8px rgba(255, 121, 121, 0.55);
-    animation: meteorFall 0.6s ease-in forwards;
-}
-@keyframes meteorFall {
-    0%   { transform: translateY(-80px) scaleY(0.3); opacity: 0; }
-    35%  { opacity: 1; }
-    100% { transform: translateY(240px) scaleY(1.6); opacity: 0; }
-}
+/* v0.675 陨石雨光柱样式保留备用（v0.676 演出重制为陨石角色卡，不再使用） */
 
 /* 陨星落地全屏震动（容器短暂位移抖动） */
 .screen-shake {
@@ -1122,4 +1100,98 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     40% { transform: translateX(7px); }
     60% { transform: translateX(-5px); }
     80% { transform: translateX(4px); }
+}
+
+/* ==================== v0.676 陨星落下演出重制（用户指定） ==================== */
+
+/* 「陨石」角色卡：从天而降的岩石卡（旋转 + 火焰光晕 + 名字标签） */
+.meteor-card {
+    position: absolute;
+    width: 64px;
+    height: 78px;
+    z-index: 15;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: linear-gradient(160deg, #4a3b32 0%, #2c2019 55%, #1a110c 100%);
+    border: 3px solid #ff6b6b;
+    box-shadow: 0 0 24px 10px rgba(255, 107, 107, 0.55), inset 0 0 14px rgba(255, 159, 67, 0.5);
+    animation: meteorSpin 0.45s linear infinite;
+}
+.meteor-card .meteor-rock {
+    font-size: 34px;
+    line-height: 1;
+    filter: drop-shadow(0 0 8px rgba(255, 159, 67, 0.9));
+}
+.meteor-card .meteor-name {
+    color: #ff9f43;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-top: 2px;
+    text-shadow: 0 0 6px rgba(255, 107, 107, 0.8);
+}
+@keyframes meteorSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+/* 撞击瞬间：爆散放大淡出 */
+.meteor-card.meteor-impact {
+    animation: meteorExplode 0.35s ease-out forwards;
+}
+@keyframes meteorExplode {
+    to { transform: scale(2.4); opacity: 0; filter: brightness(2.5); }
+}
+
+/* 震荡波：主目标处扩散圆环（错时两圈，JS 生成） */
+.meteor-wave {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: 5px solid rgba(255, 159, 67, 0.9);
+    box-shadow: 0 0 24px 8px rgba(255, 121, 121, 0.4), inset 0 0 18px rgba(255, 159, 67, 0.35);
+    z-index: 13;
+    pointer-events: none;
+    animation: meteorWave 0.65s ease-out forwards;
+}
+@keyframes meteorWave {
+    0%   { transform: scale(0.2); opacity: 1; }
+    100% { transform: scale(3); opacity: 0; }
+}
+
+/* 距离分级颤动（受击角色按与主目标距离：0 剧烈 / 1 中等 / 2 轻微 / ≥3 微颤） */
+.meteor-hit-0 { animation: meteorShake0 0.55s linear; }
+.meteor-hit-1 { animation: meteorShake1 0.45s linear; }
+.meteor-hit-2 { animation: meteorShake2 0.35s linear; }
+.meteor-hit-3 { animation: meteorShake3 0.25s linear; }
+@keyframes meteorShake0 {
+    0%, 100% { transform: translate(0, 0); }
+    15% { transform: translate(-12px, 4px); }
+    30% { transform: translate(10px, -6px); }
+    45% { transform: translate(-8px, 2px); }
+    60% { transform: translate(9px, 5px); }
+    75% { transform: translate(-5px, -3px); }
+    90% { transform: translate(4px, 2px); }
+}
+@keyframes meteorShake1 {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-8px, 3px); }
+    40% { transform: translate(7px, -4px); }
+    60% { transform: translate(-5px, 2px); }
+    80% { transform: translate(4px, -2px); }
+}
+@keyframes meteorShake2 {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-5px, 2px); }
+    50% { transform: translate(4px, -2px); }
+    75% { transform: translate(-3px, 1px); }
+}
+@keyframes meteorShake3 {
+    0%, 100% { transform: translate(0, 0); }
+    30% { transform: translate(-2px, 1px); }
+    60% { transform: translate(2px, -1px); }
 }

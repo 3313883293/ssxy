@@ -504,12 +504,10 @@ class SkillSystem {
         if (skill.special && skill.special.type === 'meteor' && meteorMain && actor.alive) {
             // 与主目标同公式（含厌倦通用基础加成）：(1250 + 厌倦加成) + 正面×1000，再按距离等比衰减
             const baseDmg = skill.baseDamage + actor.getEmotionDamageBonus() + meteorHeads * skill.bonusDamage;
-            // v0.675 修复：陨石雨光柱——每个受击单位（含主目标与施放者）头顶坠落一道，错开出现
+            // v0.676 演出重制（用户指定）：「陨石」角色卡从天而降砸向主目标 → 震荡波 → 受击角色按距离分级颤动
             const arenaEl = allCharsDiv.parentElement;
             const allUnits = [...battleState.allCharacters].filter(c => c.alive);
-            allUnits.forEach((c, idx) => {
-                if (c.cardElement) SkillSystem._meteorBeam(c.cardElement, arenaEl, idx * 70);
-            });
+            SkillSystem._meteorFallShow(meteorMain, allUnits, arenaEl);
             allUnits.forEach(c => {
                 if (c === meteorMain) return;   // 主目标已在循环内满伤结算
                 const dist = Math.abs(c.position - meteorMain.position);
@@ -538,21 +536,82 @@ class SkillSystem {
         }
     }
 
-    // v0.675 陨石雨光柱：在指定角色卡头顶生成从天际坠落的橙红光柱（陨星落下的坠落点视觉）
-    static _meteorBeam(card, arena, delay = 0) {
-        setTimeout(() => {
-            if (!card || !arena || !arena.isConnected) return;
-            const cRect = card.getBoundingClientRect();
-            const arenaRect = arena.getBoundingClientRect();
-            const x = cRect.left - arenaRect.left + cRect.width / 2;
-            const beam = document.createElement('div');
-            beam.className = 'meteor-beam';
-            beam.style.left = (x - 13) + 'px';
-            beam.style.top = '-80px';
-            arena.appendChild(beam);
-            setTimeout(() => beam.remove(), 850);
-        }, delay);
+    // v0.676 陨星落下演出（用户指定）：一颗「陨石」角色卡从天而降砸向主目标 → 撞击爆散 +
+    // 震荡波扩散 + 全场受击角色按与主目标距离分级颤动（近剧远微）+ 全屏震动
+    static _meteorFallShow(meteorMain, allUnits, arena) {
+        if (!meteorMain || !meteorMain.cardElement || !arena) return;
+        const tRect = meteorMain.cardElement.getBoundingClientRect();
+        const aRect = arena.getBoundingClientRect();
+        const tx = tRect.left - aRect.left + tRect.width / 2;
+        const ty = tRect.top - aRect.top + tRect.height / 2;
+
+        // 陨石角色卡（从天而降，重力加速坠落）
+        const meteor = document.createElement('div');
+        meteor.className = 'meteor-card';
+        meteor.innerHTML = `<div class="meteor-rock">🌑</div><div class="meteor-name">陨石</div>`;
+        const mw = 64;
+        meteor.style.left = (tx - mw / 2) + 'px';
+        meteor.style.top = '-130px';
+        arena.appendChild(meteor);
+
+        const start = performance.now();
+        const dur = 450;   // 坠落时长（重力感）
+        const step = (now) => {
+            const t = Math.min(1, (now - start) / dur);
+            const ease = t * t;   // ease-in：加速下落
+            meteor.style.top = (-130 + (ty - 40 + 130) * ease) + 'px';
+            if (t < 1) {
+                requestAnimationFrame(step);
+            } else {
+                // 撞击：陨石爆散消失 + 震荡波 + 全员按距离颤动 + 全屏震动
+                meteor.classList.add('meteor-impact');
+                setTimeout(() => meteor.remove(), 400);
+                SkillSystem._shockwave(meteorMain.cardElement, arena);
+                allUnits.forEach(c => {
+                    if (c.cardElement) {
+                        const dist = Math.abs(c.position - meteorMain.position);
+                        SkillSystem._hitShakeByDist(c.cardElement, dist);
+                    }
+                });
+                const container = document.querySelector('.container');
+                if (container) {
+                    container.classList.add('screen-shake');
+                    setTimeout(() => container.classList.remove('screen-shake'), 520);
+                }
+            }
+        };
+        requestAnimationFrame(step);
+        window._actionAnimDelay = 1300;   // 演出总时长（坠落+颤动），重渲染延迟同步
     }
+
+    // 震荡波：主目标处两圈扩散圆环（错时 120ms）
+    static _shockwave(card, arena) {
+        const cRect = card.getBoundingClientRect();
+        const aRect = arena.getBoundingClientRect();
+        const x = cRect.left - aRect.left + cRect.width / 2;
+        const y = cRect.top - aRect.top + cRect.height / 2;
+        [0, 120].forEach(delay => {
+            setTimeout(() => {
+                if (!arena.isConnected) return;
+                const wave = document.createElement('div');
+                wave.className = 'meteor-wave';
+                wave.style.left = (x - 80) + 'px';
+                wave.style.top = (y - 80) + 'px';
+                arena.appendChild(wave);
+                setTimeout(() => wave.remove(), 700);
+            }, delay);
+        });
+    }
+
+    // 距离分级颤动：距离 0 剧烈 / 1 中等 / 2 轻微 / ≥3 微颤（CSS 动画类，900ms 后移除）
+    static _hitShakeByDist(card, dist) {
+        const cls = 'meteor-hit-' + Math.min(3, dist);
+        card.classList.remove('meteor-hit-0', 'meteor-hit-1', 'meteor-hit-2', 'meteor-hit-3');
+        card.classList.add(cls);
+        setTimeout(() => card.classList.remove(cls), 900);
+    }
+
+    // v0.676 演出重制后已弃用陨石雨光柱（_meteorFallShow 取代），.meteor-beam 样式保留备用
 
     static showDamageNumber(target, damage, coinInfo, allCharsDiv) {
         const card = target.cardElement;
