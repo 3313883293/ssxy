@@ -1195,3 +1195,9 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     30% { transform: translate(-2px, 1px); }
     60% { transform: translate(2px, -1px); }
 }
+
+/* v0.680 创大运吧：屏幕外飞来的临时开车警察卡（金色借卡光晕，演出结束淡出移除） */
+.lucky-police {
+    box-shadow: 0 0 18px 6px rgba(249, 202, 36, 0.5);
+    border: 2px solid #f9ca24;
+}

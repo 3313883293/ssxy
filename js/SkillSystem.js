@@ -609,40 +609,61 @@ class SkillSystem {
     }
 
     // v0.679 创大运吧演出（用户指定）：把场上开车警察的卡片直接拿过来，然后创（冲撞）向目标——
-    // 开车警察卡被吸附到曹佳梦面前（0.25s 平移）→ 加速冲出穿过目标（运动学同开创，停在目标对侧）→
-    // 撞击瞬间播放伤害反馈 + 冲击波 + 🎲 粒子 → 开车警察卡滑回原位（纯演出，开车警察机制不受影响）
+    // v0.680 创大运吧演出（用户指定 v2）：从屏幕外生成一张**临时**开车警察卡——
+    // 右侧视口外飞入 → 吸附到曹佳梦面前（0.25s）→ 加速创出穿过目标（运动学同开创，停在目标对侧）→
+    // 撞击瞬间播放延迟伤害反馈 + 冲击波 + 🎲 粒子 → 临时卡淡出消失（不归位；不依赖场上开车警察）
     static _luckyDice(actor, targets, allCharsDiv) {
         const actorCard = actor.cardElement;
         if (!actorCard || !targets[0] || !targets[0].cardElement) return;
         const arena = allCharsDiv.parentElement;
-        const police = battleState.allCharacters.find(c => c.alive && c.name === '开车警察' && c.cardElement);
-        if (!police) return;   // 场上无开车警察：无借卡演出（自身侧骰子光环保留）
-        const policeCard = police.cardElement;
         const bp = SkillSystem._animPoint(actorCard, arena);
         const bs = SkillSystem._animSize(actorCard);
         const tp = SkillSystem._animPoint(targets[0].cardElement, arena);
         const ts = SkillSystem._animSize(targets[0].cardElement);
+        const arenaW = arena.getBoundingClientRect().width;
 
-        // 1) 拿过来：开车警察卡平移到曹佳梦面前
-        const pBase = SkillSystem._animPoint(policeCard, arena);
-        const dxToActor = (bp.x + bs.w / 2) - (pBase.x + policeCard.offsetWidth / 2);
-        policeCard.style.zIndex = 50;
-        policeCard.style.transition = 'transform 0.25s ease-in';
-        policeCard.style.transform = `translate(${dxToActor.toFixed(1)}px, 0)`;
+        // 1) 屏幕外创建临时开车警察卡（右侧视口外起点，完整面板外观）
+        const p = createRoleInstance('开车警察', 'enemy', 99);
+        const tmp = document.createElement('div');
+        tmp.className = 'character-card enemy-card lucky-police';
+        tmp.innerHTML = `
+            <span class="position-mark">借</span>
+            <div class="name">开车警察</div>
+            <div class="bar-container"><div class="hp-bar" style="width:100%"></div></div>
+            <div class="hp-text">血量 ${p.maxHp}/${p.maxHp}</div>
+            <div class="bar-container"><div class="sp-bar" style="width:100%"></div></div>
+            <div class="sp-text">算力 ${p.maxSP}/${p.maxSP}</div>
+            <div class="stats">防御 ${p.def} 速度 ${p.speedMin}~${p.speedMax}</div>`;
+        tmp.style.position = 'absolute';
+        tmp.style.left = '0px';
+        tmp.style.top = '0px';
+        tmp.style.width = '140px';
+        tmp.style.zIndex = 50;
+        arena.appendChild(tmp);
+        const startX = arenaW + 60;   // 屏幕外右侧
+        const startY = bp.y + bs.h / 2 - 60;
+        tmp.style.transform = `translate(${startX}px, ${startY}px)`;
+        void tmp.offsetWidth;   // 强制 reflow：让屏幕外起点生效，飞入动画才有过渡起点
 
-        // 2) 创过去：从曹佳梦面前加速冲出，穿过目标停在目标对侧
+        // 2) 飞入：吸附到曹佳梦面前（0.25s ease-in）
+        const grabX = bp.x + bs.w / 2 - 70;
+        const grabY = bp.y;
+        tmp.style.transition = 'transform 0.25s ease-in';
+        tmp.style.transform = `translate(${grabX.toFixed(1)}px, ${grabY.toFixed(1)}px)`;
+
+        // 3) 创出：从曹佳梦面前加速冲出，穿过目标停在目标对侧
         setTimeout(() => {
-            policeCard.style.transition = 'none';
+            tmp.style.transition = 'none';
             const dir = (tp.x + ts.w / 2 >= bp.x + bs.w / 2) ? 1 : -1;
             const passX = (dir > 0 ? tp.x + ts.w : tp.x) + dir * 140 * SkillSystem._dispScale();
-            const L = passX - (bp.x + bs.w / 2);   // 从曹佳梦中心出发的带符号行程
+            const L = passX - grabX;   // 从吸附点出发的带符号行程
             const dist = Math.max(60, Math.abs(L));
             const acc = 6000;   // 固定加速度（快速创出）
             const T = Math.sqrt(2 * dist / acc);
             // 穿过目标中心时刻：撞击反馈（伤害数字/硬币/受击音效）+ 冲击波 + 骰子粒子
             const dHit = dir > 0
-                ? (tp.x + ts.w / 2) - (bp.x + bs.w / 2)
-                : (bp.x + bs.w / 2) - (tp.x + ts.w / 2);
+                ? (tp.x + ts.w / 2) - grabX
+                : grabX - (tp.x + ts.w / 2);
             const tHit = (dHit > 0 && dHit < dist) ? Math.sqrt(2 * dHit / acc) : T;
             setTimeout(() => {
                 const fb = window._slashHitFeedbacks || [];
@@ -656,23 +677,18 @@ class SkillSystem {
                 const t = (Date.now() - t0) / 1000;
                 if (t >= T) {
                     clearInterval(timer);
-                    policeCard.style.transform = `translate(${(dxToActor + L).toFixed(1)}px, 0)`;
-                    // 3) 归位：0.35s 后开车警察卡滑回原位
-                    setTimeout(() => {
-                        policeCard.style.transition = 'transform 0.3s ease-out';
-                        policeCard.style.transform = 'translate(0, 0)';
-                        setTimeout(() => {
-                            policeCard.style.transition = '';
-                            policeCard.style.zIndex = '';
-                        }, 320);
-                    }, 350);
+                    tmp.style.transform = `translate(${passX.toFixed(1)}px, ${grabY.toFixed(1)}px)`;
+                    // 4) 临时卡淡出消失（不归位）
+                    tmp.style.transition = 'opacity 0.25s ease-out';
+                    tmp.style.opacity = '0';
+                    setTimeout(() => tmp.remove(), 260);
                     return;
                 }
                 const x = 0.5 * acc * t * t * Math.sign(L);   // 初速 0、加速度高：起步慢 → 爆发创出
-                policeCard.style.transform = `translate(${(dxToActor + x).toFixed(1)}px, 0)`;
+                tmp.style.transform = `translate(${(grabX + x).toFixed(1)}px, ${grabY.toFixed(1)}px)`;
             }, 16);
         }, 260);
-        window._actionAnimDelay = 1500;   // 拿卡(0.25s)+创出+归位，重渲染延迟同步
+        window._actionAnimDelay = 1500;   // 飞入(0.25s)+创出+淡出，重渲染延迟同步
     }
 
     // 距离分级颤动：距离 0 剧烈 / 1 中等 / 2 轻微 / ≥3 微颤（CSS 动画类，900ms 后移除）
