@@ -167,7 +167,7 @@ function updateLuStars() {
     const body = document.getElementById('luSectionBody');
     if (title) {
         const open = body && body.style.display !== 'none';
-        title.textContent = '📖 鲁盼旋篇 ⭐ ' + getStarCount() + '/8 ' + (open ? '▾' : '▸');
+        title.textContent = '📖 鲁盼旋篇 ⭐ ' + getStarCount() + '/12 ' + (open ? '▾' : '▸');   // v0.672 第四关三星制
     }
     const area = document.getElementById('luUnlockArea');
     if (!area) return;
@@ -175,18 +175,18 @@ function updateLuStars() {
     if (getLuUnlocked()) {
         area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:2px solid #2ecc71;border-radius:8px;color:#2ecc71;font-weight:bold;text-align:center;">✅ 鲁盼旋已解锁</div>';
     } else if (n >= 6) {
-        area.innerHTML = '<button class="btn-main" style="width:100%;background:#f9ca24;color:#222;margin:10px 0;" onclick="unlockLu()">🔓 点击解锁鲁盼旋（⭐' + n + '/8）</button>';
+        area.innerHTML = '<button class="btn-main" style="width:100%;background:#f9ca24;color:#222;margin:10px 0;" onclick="unlockLu()">🔓 点击解锁鲁盼旋（⭐' + n + '/12）</button>';
     } else {
-        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:1px dashed #555;border-radius:8px;color:#888;text-align:center;">🔒 集齐 6 星解锁鲁盼旋（当前 ⭐' + n + '/8）</div>';
+        area.innerHTML = '<div style="margin:10px 2px;padding:10px 12px;background:#16213e;border:1px dashed #555;border-radius:8px;color:#888;text-align:center;">🔒 集齐 6 星解锁鲁盼旋（当前 ⭐' + n + '/12）</div>';
     }
 }
 
 function unlockLu() {
     // v0.319：全部弹窗改为游戏内自定义弹窗（替代浏览器原生 alert/confirm）
-    if (getStarCount() < 6) { showModal({ title: '提示', message: '还需集齐 6 颗星（当前 ' + getStarCount() + '/8）！' }); return; }
+    if (getStarCount() < 6) { showModal({ title: '提示', message: '还需集齐 6 颗星（当前 ' + getStarCount() + '/12）！' }); return; }
     showModal({
         title: '解锁鲁盼旋',
-        message: '集齐 ' + getStarCount() + '/8 星，确定解锁鲁盼旋吗？',
+        message: '集齐 ' + getStarCount() + '/12 星，确定解锁鲁盼旋吗？',
         type: 'confirm',
         onConfirm: () => {
             setLuUnlocked();
@@ -206,7 +206,8 @@ function isLevelUnlocked(n) {
     return getCleared().includes(n - 1);
 }
 // v0.671：关卡卡片 ⭐ 获得标记——基础胜利星 ★ / 特殊胜利星 ★（未获得显示灰 ☆），
-// 两枚依次排列在关卡标题下方；教程关/测试关不发星不显示
+// v0.672：第四关追加第三枚隐藏星（AI 鲁盼旋杀死云长郡，条件不显示、星位可见）
+// 依次排列在关卡标题下方；教程关/测试关不发星不显示
 function renderCardStars(card, level) {
     let el = card.querySelector('.card-stars');
     if (!el) {
@@ -218,7 +219,8 @@ function renderCardStars(card, level) {
     const stars = getStarMap()[level] || {};
     el.innerHTML =
         `<span class="${stars.base ? 'star-on' : 'star-off'}" title="基础胜利星">★</span>` +
-        `<span class="${stars.special ? 'star-on' : 'star-off'}" title="特殊胜利星">★</span>`;
+        `<span class="${stars.special ? 'star-on' : 'star-off'}" title="特殊胜利星">★</span>` +
+        (level === 3 ? `<span class="${stars.hidden ? 'star-on' : 'star-off'}" title="隐藏星（达成条件不公开）">★</span>` : '');   // v0.672
 }
 
 function updateLevelLocks() {

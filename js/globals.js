@@ -1,7 +1,7 @@
 // globals.js - 全局变量、DOM引用、工具函数
 
 // ==================== 版本号（v0.663：主界面显示，单一来源，随版本快照更新） ====================
-const GAME_VERSION = 'v0.671';
+const GAME_VERSION = 'v0.672';
 
 // ==================== 战斗状态实例 ====================
 let battleState = new BattleState();
@@ -26,6 +26,14 @@ function log(msg) {
     battleLog.push(msg);
 }
 
+// v0.672 第四关隐藏星：AI 鲁盼旋杀死云长郡（隐藏胜利条件，不在关卡介绍页显示）——
+// 击杀归属判定（普伤/引爆/混乱反噬致死三处调用）；云长郡死亡瞬间标记，胜利结算时发星
+function markAiLuKill(actor, target) {
+    if (actor && actor.name === '鲁盼旋' && actor.aiControlled && target && target.name === '云长郡' && !target.alive) {
+        if (typeof battleState !== 'undefined' && battleState) battleState.specialState.aiLuKilledYun = true;
+    }
+}
+
 // ==================== 选角状态 ====================
 // v0.309：选取逻辑统一由 selection.js 的 createSelectionModule 工厂管理（敌我共用同一套，
 //          pending 待选状态在工厂闭包内，不再需要全局变量）
@@ -48,9 +56,10 @@ function getAvailableChars() {
     return chars;
 }
 
-// ==================== ⭐ 星级系统（v0.316：鲁盼旋篇 8 星收集，≥6 星点击解锁鲁盼旋） ====================
-// pwgame_stars 结构：{ "0": {"base":true,"special":true}, "2": {"base":true} }（键=关号，两种胜利各 1 星）
-// base=基础胜利（全灭），special=特殊胜利（达成即记录）；仅正式关 0~3 发星，教程/测试关不发
+// ==================== ⭐ 星级系统（v0.316：鲁盼旋篇 8 星收集，≥6 星点击解锁鲁盼旋；v0.672 第四关三星制） ====================
+// pwgame_stars 结构：{ "0": {"base":true,"special":true}, "2": {"base":true} }（键=关号，各星 1 枚）
+// base=基础胜利（全灭），special=特殊胜利（达成即记录），hidden=隐藏星（v0.672 第四关：AI 鲁盼旋杀死云长郡，
+// 条件不显示在关卡介绍页）；仅正式关发星，教程/测试关不发
 function getStarMap() {
     let map = {};
     try { map = JSON.parse(localStorage.getItem('pwgame_stars') || '{}'); } catch (e) {}
@@ -72,12 +81,14 @@ function getStarMap() {
     return map;
 }
 
+// v0.672：鲁盼旋篇星数（0~3 关 × 3 星 = 12 星：基础/特殊/隐藏）
 function getStarCount() {
     const map = getStarMap();
     let n = 0;
     [0, 1, 2, 3].forEach(level => {   // v0.5 fix：仅统计鲁盼旋篇（0~3），勿混入灼华篇（4/5/6）
         if (map[level] && map[level].base) n++;
         if (map[level] && map[level].special) n++;
+        if (map[level] && map[level].hidden) n++;   // v0.672 第四关隐藏星
     });
     return n;
 }
@@ -104,9 +115,9 @@ function getStarCountZhangZiXi() {
     return n;
 }
 
-// 加星（去重：同关同类型已拿则 no-op），写回 localStorage（v0.6：正式关扩到 0~8）
+// 加星（去重：同关同类型已拿则 no-op），写回 localStorage（v0.6：正式关扩到 0~8；v0.672 支持 hidden 隐藏星）
 function addStar(level, type) {
-    if (level < 0 || level > 8 || (type !== 'base' && type !== 'special')) return;
+    if (level < 0 || level > 8 || (type !== 'base' && type !== 'special' && type !== 'hidden')) return;
     const map = getStarMap();
     if (!map[level]) map[level] = {};
     if (map[level][type]) return;   // 已拿过，去重

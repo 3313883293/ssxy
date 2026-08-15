@@ -359,6 +359,11 @@ function checkVictory() {
             log('✨ 特殊胜利条件达成！');
             addStar(battleState.currentLevel, 'special');   // v0.316：特殊胜利 ⭐+1（达成即记录，不依赖最终胜负）
         }
+        // v0.672 第四关隐藏星：AI 鲁盼旋杀死云长郡（隐藏胜利条件，不显示在关卡介绍页；胜利瞬间记录）
+        if (battleState.currentLevel === 3 && battleState.specialState.aiLuKilledYun) {
+            log('🕵️ 隐藏星达成：AI 鲁盼旋亲手击败云长郡！');
+            addStar(3, 'hidden');
+        }
         log('🎉 敌方全灭，我方胜利！');
         if (typeof Sfx !== 'undefined') Sfx.play('victory');
         showResultPage('胜利');

@@ -298,6 +298,7 @@ class SkillSystem {
                 logFn(`  💥 ${target.name} 倒下！`);
                 // v0.62 情感激荡：击杀+1（技能普伤致死归属施放者）；鲁盼旋特殊情感激荡不受通用触发
                 if (!actor.specialEmotion) actor.gainEmotion(1);
+                markAiLuKill(actor, target);   // v0.672 第四关隐藏星：AI 鲁盼旋击杀云长郡
                 target.handleDeath();   // 倒戈/待命补位（放在伤害与倒下日志之后）
             }
 
@@ -322,6 +323,7 @@ class SkillSystem {
                         logFn(`  💥 ${target.name} 被混乱反噬致死！`);
                         // v0.62 情感激荡：击杀+1（混乱反噬致死归属触发攻击者，用户「全算」）；鲁盼旋特殊情感激荡不受通用触发
                         if (!actor.specialEmotion) actor.gainEmotion(1);
+                        markAiLuKill(actor, target);   // v0.672 第四关隐藏星：AI 鲁盼旋击杀云长郡
                         target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
                     }
                 }
@@ -378,6 +380,7 @@ class SkillSystem {
                         logFn(`  💥 ${target.name} 倒下！`);
                         // v0.62 情感激荡：击杀+1（引爆致死归属引爆者）；鲁盼旋特殊情感激荡不受通用触发
                         if (!actor.specialEmotion) actor.gainEmotion(1);
+                        markAiLuKill(actor, target);   // v0.672 第四关隐藏星：AI 鲁盼旋击杀云长郡
                         target.handleDeath();
                         Character.invokePassives('onAllyDeath', battleState, target, logFn);
                         if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(target);   // v0.62 情感激荡：队友死亡+1

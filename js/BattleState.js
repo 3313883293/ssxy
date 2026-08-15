@@ -21,7 +21,8 @@ class BattleState {
             // v0.5 灼华篇特殊胜利追踪：
             incenseUsed: false,    // 第五关：焚香祭司是否使出过「焚香」
             burnKill: false,       // 第四关：是否有敌方被「燃烧」dot 烧死
-            zhuYangFrenzyAtDeath: 0  // 第六关：烛央被击败时的狂炎层数快照
+            zhuYangFrenzyAtDeath: 0,  // 第六关：烛央被击败时的狂炎层数快照
+            aiLuKilledYun: false   // v0.672 第四关隐藏星：AI 鲁盼旋是否杀死云长郡（隐藏胜利条件）
         };
     }
 
@@ -99,6 +100,6 @@ class BattleState {
         this.benchEnemy = [];
         this.totalDeaths = 0;
         this.summonPool = [];
-        this.specialState = { achieved: false, driverUsedOpen: false, incenseUsed: false, burnKill: false, zhuYangFrenzyAtDeath: 0 };   // v0.314 + v0.5
+        this.specialState = { achieved: false, driverUsedOpen: false, incenseUsed: false, burnKill: false, zhuYangFrenzyAtDeath: 0, aiLuKilledYun: false };   // v0.314 + v0.5 + v0.672
     }
 }
