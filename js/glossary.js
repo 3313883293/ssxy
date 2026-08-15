@@ -69,7 +69,7 @@ function skillEffectLines(skill) {
         else if (s.type === 'incense') lines.push(`【使用时】除自己外的友军「燃烧」等级 +1，自身回复 120 算力`);
         else if (s.type === 'summon') lines.push(`【使用时】召唤 1 名${s.role}入场`);
         else if (s.type === 'burnLv') lines.push(`【命中时】对目标施加 ${s.level} 级「燃烧」，并对自身施加 ${s.level} 级「燃烧」`);   // v0.669 纵焚烈火
-        else if (s.type === 'guard') lines.push(`【使用时】获得 6 层「守护」；自身血量 <1000 时改为 4 层，并使防御永久 +75`);   // v0.669 守护
+        else if (s.type === 'guard') lines.push(`【使用时】获得 4 层「守护」（上限 6 层）；自身血量 <1000 时改为 3 层，并使防御永久 +75`);   // v0.669 守护（v0.670 层数削弱）
     }
     return lines;
 }

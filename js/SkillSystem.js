@@ -224,15 +224,19 @@ class SkillSystem {
             logFn(`  🔥 ${actor.name} 召唤了烬火信徒：${minion.name}（血量 ${minion.maxHp}）`);
         }
 
-        // ——— v0.669 守护（王庄明）：使用时获得「守护」层数；自身血量 <1000 时改为 4 层并使防御永久 +75 ———
+        // ——— v0.669 守护（王庄明）：使用时获得「守护」层数；自身血量 <1000 时改为更少层数并使防御永久 +75
+        //      v0.670 削弱（用户指定）：正常 6→4 层、低血 4→3 层，叠加上限 6 层（防连续施放无限叠加） ———
         if (skill.special && skill.special.type === 'guard') {
+            const cap = 6;   // v0.670 守护层数上限
+            const gain = actor.hp < 1000 ? 3 : 4;
+            const cur = actor.getBuffStack('guard');
+            const added = Math.max(0, Math.min(gain, cap - cur));
+            if (added > 0) actor.addBuffStack('guard', added);
             if (actor.hp < 1000) {
-                actor.addBuffStack('guard', 4);
                 actor.def += 75;   // 永久防御（改基础数值，读档经 def 字段恢复）
-                logFn(`  🛡️ ${actor.name} 血量低于 1000，获得 4 层「守护」，防御永久 +75`);
+                logFn(`  🛡️ ${actor.name} 血量低于 1000，获得 ${added} 层「守护」（共 ${actor.getBuffStack('guard')} 层，上限 6），防御永久 +75`);
             } else {
-                actor.addBuffStack('guard', 6);
-                logFn(`  🛡️ ${actor.name} 获得 6 层「守护」`);
+                logFn(`  🛡️ ${actor.name} 获得 ${added} 层「守护」（共 ${actor.getBuffStack('guard')} 层，上限 6）`);
             }
             if (window.refreshCardState) refreshCardState(actor);
         }
