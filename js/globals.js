@@ -1,7 +1,7 @@
 // globals.js - 全局变量、DOM引用、工具函数
 
 // ==================== 版本号（v0.663：主界面显示，单一来源，随版本快照更新） ====================
-const GAME_VERSION = 'v0.677';
+const GAME_VERSION = 'v0.678';
 
 // ==================== 战斗状态实例 ====================
 let battleState = new BattleState();

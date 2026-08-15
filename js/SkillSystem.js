@@ -545,21 +545,25 @@ class SkillSystem {
         const tx = tRect.left - aRect.left + tRect.width / 2;
         const ty = tRect.top - aRect.top + tRect.height / 2;
 
-        // 陨石角色卡（从天而降，重力加速坠落）
+        // v0.678 陨石角色卡：从屏幕左上角斜俯冲飞向主目标（横向线性 + 纵向重力加速 + 自旋）
         const meteor = document.createElement('div');
         meteor.className = 'meteor-card';
         meteor.innerHTML = `<div class="meteor-rock">🌑</div><div class="meteor-name">陨石</div>`;
         const mw = 64;
-        meteor.style.left = (tx - mw / 2) + 'px';
-        meteor.style.top = '-130px';
+        const startX = -90, startY = -90;   // 左上角视口外起点
+        const endX = tx - mw / 2;
+        const endY = ty - 40;
+        meteor.style.left = startX + 'px';
+        meteor.style.top = startY + 'px';
         arena.appendChild(meteor);
 
         const start = performance.now();
-        const dur = 450;   // 坠落时长（重力感）
+        const dur = 520;   // 斜飞时长（俯冲感）
         const step = (now) => {
             const t = Math.min(1, (now - start) / dur);
-            const ease = t * t;   // ease-in：加速下落
-            meteor.style.top = (-130 + (ty - 40 + 130) * ease) + 'px';
+            const ease = t * t;   // 纵向 ease-in：重力加速俯冲
+            meteor.style.left = (startX + (endX - startX) * t) + 'px';    // 横向线性横移
+            meteor.style.top = (startY + (endY - startY) * ease) + 'px';  // 纵向加速下坠
             if (t < 1) {
                 requestAnimationFrame(step);
             } else {
@@ -581,7 +585,7 @@ class SkillSystem {
             }
         };
         requestAnimationFrame(step);
-        window._actionAnimDelay = 1300;   // 演出总时长（坠落+颤动），重渲染延迟同步
+        window._actionAnimDelay = 1300;   // 演出总时长（斜飞+颤动），重渲染延迟同步
     }
 
     // 震荡波：主目标处两圈扩散圆环（错时 120ms）
