@@ -100,17 +100,20 @@ class SkillSystem {
         return Math.random() < probability;
     }
 
-    // v0.673 曹佳梦「概率论的奇迹」：投硬币概率——同阵营存活曹佳梦在场时，
-    // 队友投正率 +10%，曹佳梦自身 +25% 且每级「厌倦」再 -5%（概率下限 0.1）
+    // v0.673 曹佳梦「概率论的奇迹」：投硬币概率——同阵营存活曹佳梦在场时叠加生效：
+    // 曹佳梦自身 +25% 且每级「厌倦」再 -5%，并额外吃场上其他曹佳梦各 +10%；
+    // 非曹佳梦队友 = 每个曹佳梦 +10%（多曹佳梦叠加）；概率下限 0.1
     static coinProbFor(actor) {
         let prob = 0.5;
         if (actor && typeof battleState !== 'undefined' && battleState) {
-            const cjm = battleState.allCharacters.find(c => c.alive && c.team === actor.team && c.name === '曹佳梦');
-            if (cjm) {
-                if (cjm === actor) {
-                    prob = prob + 0.25 - cjm.emotionLevel * 0.05;
+            const teamCjm = battleState.allCharacters.filter(c => c.alive && c.team === actor.team && c.name === '曹佳梦');
+            if (teamCjm.length > 0) {
+                if (actor.name === '曹佳梦') {
+                    // 自身：+25% − 自己的厌倦×5%；场上其他曹佳梦各再给 +10%
+                    prob += 0.25 - actor.emotionLevel * 0.05 + 0.10 * (teamCjm.length - 1);
                 } else {
-                    prob = prob + 0.10;
+                    // 队友：每个曹佳梦 +10%（叠加）
+                    prob += 0.10 * teamCjm.length;
                 }
             }
         }
