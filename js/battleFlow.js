@@ -76,7 +76,7 @@ function loadAutoBattle() {
     if (!raw) return false;
     let data;
     try { data = JSON.parse(raw); } catch (e) { return false; }
-    battleLog = [];
+    // v0.677 fix：读档不再清空战斗日志（battleLog/logPanel 保留，追加读档提示）——日志连续性是读档体验的一部分
     battleState.reset();
     const rebuild = (snap, team) => {
         let inst;
@@ -119,13 +119,16 @@ function loadAutoBattle() {
     battleState.totalDeaths = data.totalDeaths || 0;
     battleState.summonPool = data.summonPool || [];
     battleState.specialState = Object.assign({ achieved: false, driverUsedOpen: false, incenseUsed: false, burnKill: false, zhuYangFrenzyAtDeath: 0 }, data.specialState || {});   // v0.314+v0.5：达成状态读档保留
+    // v0.677 fix：读档重建后立即同步曹佳梦三技能形态（存档不序列化技能数组，重建后为初始技能；
+    //       厌倦 ≥4 需马上替换为陨星，不能等玩家点「开始回合」——读档点即回合开始点）
+    battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
     battleEpoch++;
     buildActionQueue();   // 用存档速度重建行动队列（与 startNewRound 排序一致）
     renderCharacters();
     updateTurnDisplay();
     updateWinCondition();
-    logPanel.innerHTML = `<p>↩️ 已读档（第 ${battleState.turnCount} 回合开始）</p>`;
-    log(`已从自动存档恢复战斗（第 ${battleState.turnCount} 回合开始）`);
+    // v0.677 fix：日志面板不清空，读档提示追加到既有日志之后（原实现整体清空面板）
+    log(`↩️ 已从自动存档恢复战斗（第 ${battleState.turnCount} 回合开始）`);
     if (battleState.benchPlayer.length) log(`🛡️ 我方待命区：${battleState.benchPlayer.map(c => c.name).join('、')}`);
     if (battleState.benchEnemy.length) log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}`);
     actionContent.innerHTML = '继续战斗';
@@ -215,29 +218,30 @@ function startNewRound() {
     battleState.allCharacters.forEach(c => { if (c.alive) c.rerollSpeed(); });
     // v0.669 王庄明「守护之躯」：本回合算力消耗统计每回合开始清零
     battleState.allCharacters.forEach(c => { c.spSpentThisTurn = 0; });
-    // v0.673 曹佳梦「厌倦」：回合开始检查三技能形态——厌倦 ≥4 级时【创大运吧】替换为【陨星落下】；
-    //      厌倦 <4 级（如使用陨星后归零）时恢复【创大运吧】（可逆替换）
-    battleState.allCharacters.forEach(c => {
-        if (c.alive && c.name === '曹佳梦') {
-            const idx = c.skills.findIndex(s => s.name === '创大运吧' || s.name === '陨星落下');
-            if (idx >= 0) {
-                const wantMeteor = c.emotionLevel >= 4;
-                const isMeteor = c.skills[idx].name === '陨星落下';
-                if (wantMeteor && !isMeteor) {
-                    c.skills[idx] = new Skill('陨星落下', 500, 1250, 1000, 1, 9, null, { type: 'meteor' });
-                    log(`🔄 ${c.name} 厌倦达到 ${c.emotionLevel} 级，【创大运吧】替换为【陨星落下】！`);
-                } else if (!wantMeteor && isMeteor) {
-                    c.skills[idx] = new Skill('创大运吧', 500, 200, 400, 1, 9, null, { type: 'jadeBurst' });
-                    log(`🔄 ${c.name} 厌倦降至 ${c.emotionLevel} 级，【陨星落下】恢复为【创大运吧】！`);
-                }
-            }
-        }
-    });
+    // v0.673 曹佳梦「厌倦」：回合开始检查三技能形态（v0.677 抽为独立函数，读档重建后也调用）
+    battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
 
     buildActionQueue();
     nextRoundBtn.style.display = 'none';
     saveAutoBattle();   // v0.313：每回合开始自动存档（回合初始化完成后、行动开始前）
     processNextAction();
+}
+
+// v0.677 曹佳梦三技能形态同步（由 startNewRound 与 loadAutoBattle 共用）：
+// 厌倦 ≥4 级 →【创大运吧】替换为【陨星落下】；厌倦 <4 级（如使用陨星后归零）→ 恢复【创大运吧】（可逆替换）
+function syncCaoJiaMengSkill(c, logFn) {
+    if (!c || !c.alive || c.name !== '曹佳梦') return;
+    const idx = c.skills.findIndex(s => s.name === '创大运吧' || s.name === '陨星落下');
+    if (idx < 0) return;
+    const wantMeteor = c.emotionLevel >= 4;
+    const isMeteor = c.skills[idx].name === '陨星落下';
+    if (wantMeteor && !isMeteor) {
+        c.skills[idx] = new Skill('陨星落下', 500, 1250, 1000, 1, 9, null, { type: 'meteor' });
+        if (typeof logFn === 'function') logFn(`🔄 ${c.name} 厌倦达到 ${c.emotionLevel} 级，【创大运吧】替换为【陨星落下】！`);
+    } else if (!wantMeteor && isMeteor) {
+        c.skills[idx] = new Skill('创大运吧', 500, 200, 400, 1, 9, null, { type: 'jadeBurst' });
+        if (typeof logFn === 'function') logFn(`🔄 ${c.name} 厌倦降至 ${c.emotionLevel} 级，【陨星落下】恢复为【创大运吧】！`);
+    }
 }
 
 function processNextAction() {
