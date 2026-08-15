@@ -15,6 +15,8 @@ body {
 .title-page { justify-content: center; gap: 30px; }
 .title-page h1 { font-size: 3em; color: #e94560; text-shadow: 0 0 20px #e94560; }
 .title-page .sub { color: #aaa; font-size: 1.2em; }
+/* v0.663：主界面版本号小字——标题与副标题之下、按钮之上；深灰蓝低调色，不抢标题视觉 */
+.game-version { color: #5a6a8a; font-size: 0.85em; letter-spacing: 1px; margin-top: 8px; }
 .btn-main {
     background: #e94560; border: none; color: white;
     padding: 12px 40px; border-radius: 30px; font-size: 1.3em;

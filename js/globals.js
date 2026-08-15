@@ -1,5 +1,8 @@
 // globals.js - 全局变量、DOM引用、工具函数
 
+// ==================== 版本号（v0.663：主界面显示，单一来源，随版本快照更新） ====================
+const GAME_VERSION = 'v0.663';
+
 // ==================== 战斗状态实例 ====================
 let battleState = new BattleState();
 let battleLog = [];
@@ -175,3 +178,9 @@ const PASSIVE_INFO = {
     // v0.6 张子曦（被动待用户后补）
     '张子曦': []
 };
+
+// ==================== 主界面版本号显示（v0.663） ====================
+// index.html 主界面标题下预留 #gameVersion 占位元素，此处按 GAME_VERSION 填充；
+// globals.js 在 body 末尾加载，DOM 已就绪；无占位元素时静默跳过（不影响其他页面复用）
+const gameVersionEl = document.getElementById('gameVersion');
+if (gameVersionEl) gameVersionEl.textContent = GAME_VERSION;
