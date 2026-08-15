@@ -129,6 +129,7 @@ class SkillSystem {
     static executeSkill(actor, skill, targets, battleState, allCharsDiv, logFn) {
         if (!actor.alive) return;
         actor.sp -= skill.spCost;
+        actor.spSpentThisTurn = (actor.spSpentThisTurn || 0) + skill.spCost;   // v0.669 王庄明「守护之躯」消耗统计
         actor.actedThisTurn = true;
         // v0.62 情感激荡：攻击+1（任何出招均计，含无目标辅助技能如焚香/加油/召唤）；鲁盼旋特殊情感激荡不受通用四触发影响（触发完全替换为回合末恶升级+队友死亡）
         if (!actor.specialEmotion) actor.gainEmotion(1);
@@ -221,6 +222,19 @@ class SkillSystem {
             battleState.allCharacters.push(minion);
             battleState.repositionAll();
             logFn(`  🔥 ${actor.name} 召唤了烬火信徒：${minion.name}（血量 ${minion.maxHp}）`);
+        }
+
+        // ——— v0.669 守护（王庄明）：使用时获得「守护」层数；自身血量 <1000 时改为 4 层并使防御永久 +75 ———
+        if (skill.special && skill.special.type === 'guard') {
+            if (actor.hp < 1000) {
+                actor.addBuffStack('guard', 4);
+                actor.def += 75;   // 永久防御（改基础数值，读档经 def 字段恢复）
+                logFn(`  🛡️ ${actor.name} 血量低于 1000，获得 4 层「守护」，防御永久 +75`);
+            } else {
+                actor.addBuffStack('guard', 6);
+                logFn(`  🛡️ ${actor.name} 获得 6 层「守护」`);
+            }
+            if (window.refreshCardState) refreshCardState(actor);
         }
 
         // v0.308：技能音效（Web Audio 合成，按 SKILL_ANIM_CONFIG type 映射专属音）
@@ -335,6 +349,13 @@ class SkillSystem {
                 }
             }
 
+            // ——— v0.669 纵焚烈火（王庄明）：命中时对目标施加 N 级「燃烧」（1 层 LvN）；自身部分在循环外只施加一次 ———
+            if (skill.special && skill.special.type === 'burnLv') {
+                target.addBuffLevel('burn', skill.special.level);
+                logFn(`  🔥 ${target.name} 获得 ${skill.special.level} 级「燃烧」`);
+                if (window.refreshCardState) refreshCardState(target);
+            }
+
             // ——— 特殊效果：引爆——将目标「燃烧」结算为一次性真实伤害并清零 ———
             if (skill.special && skill.special.type === 'detonate') {
                 const lvl = target.getBuffLevel('burn');
@@ -396,6 +417,13 @@ class SkillSystem {
             // 被动/特殊效果（恶、燃烧、催眠、愤怒等）产生的 buff 标签同帧刷新，不等 450ms 重渲染
             if (window.refreshCardState) { refreshCardState(target); refreshCardState(actor); }
         });
+
+        // ——— v0.669 纵焚烈火（王庄明）：自身也受到 N 级「燃烧」（自焚，只施加一次，不受目标数影响） ———
+        if (skill.special && skill.special.type === 'burnLv' && actor.alive) {
+            actor.addBuffLevel('burn', skill.special.level);
+            logFn(`  🔥 ${actor.name} 也受到 ${skill.special.level} 级「燃烧」（自焚）`);
+            if (window.refreshCardState) refreshCardState(actor);
+        }
     }
 
     static showDamageNumber(target, damage, coinInfo, allCharsDiv) {

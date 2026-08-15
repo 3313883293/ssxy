@@ -213,6 +213,8 @@ function startNewRound() {
     // 每回合重随机实际速度（在最小~最大速度区间内），随后按本回合速度排行动顺序；
     // 最小速度（区间下限）才是加油/刹车改变的属性，开创伤害也按它算（用户指定设计）
     battleState.allCharacters.forEach(c => { if (c.alive) c.rerollSpeed(); });
+    // v0.669 王庄明「守护之躯」：本回合算力消耗统计每回合开始清零
+    battleState.allCharacters.forEach(c => { c.spSpentThisTurn = 0; });
 
     buildActionQueue();
     nextRoundBtn.style.display = 'none';

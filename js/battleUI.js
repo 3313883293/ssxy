@@ -42,7 +42,9 @@ const buffTypeConfig = {
     'stun': { icon: '😵',  color: '#fbc02d' },
     'stunPending': { icon: '😵', color: '#fbc02d' },
     'frenzy': { icon: '🔥', color: '#ff6b81' },   // v0.5 狂炎（焚天祭司·烛央）
-    'confusion': { icon: '🌀', color: '#9b59b6' }   // v0.6 混乱（张子曦）：受击反噬型 DoT
+    'confusion': { icon: '🌀', color: '#9b59b6' },   // v0.6 混乱（张子曦）：受击反噬型 DoT
+    'guard': { icon: '🛡️', color: '#f1c40f' },   // v0.669 守护（王庄明）：替队友挡伤害的层数
+    'guardShield': { icon: '💠', color: '#2ecc71' }   // v0.669 守护之躯（王庄明）：按消耗算力折算的减伤
 };
 
 // 收集角色的 buff 短标签与详情（renderCharacters 与 refreshCardState 共用）
@@ -80,6 +82,14 @@ function collectBuffUI(char) {
             shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
             detailTitle = `${cfg.icon} 「混乱」Lv ${buff.level} × ${buff.stack} 层`;
             detailDesc = '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗 1 层并造成 级数×20 真实伤害';
+        } else if (buff.type === 'guard') {
+            shortText = `${cfg.icon}×${buff.stack}`;
+            detailTitle = `${cfg.icon} 「守护」${buff.stack} 层`;
+            detailDesc = '队友即将失去血量时防止之，改为自身受到对应数值的无来源伤害（再次结算防御与减伤），然后层数减一；一切伤害（普通/真伤/持续伤害）均转移，自己受击不转移';
+        } else if (buff.type === 'guardShield') {
+            shortText = `${cfg.icon}${buff.value}%`;
+            detailTitle = `${cfg.icon} 「守护之躯」${buff.value}% 减伤`;
+            detailDesc = '回合结束时按本回合消耗算力折算（每 100 算力 10%，向下取整、无上限），持续到下回合结束';
         }
         tags.push(`<span class="buff-tag" style="color:${cfg.color}">${shortText}</span>`);
         details.push({ icon: cfg.icon, color: cfg.color, title: detailTitle, desc: detailDesc });

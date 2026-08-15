@@ -23,6 +23,7 @@ class Character {
         this.cardElement = null;
         this.buffs = [];              // [{ type, value, stack, level, duration }]
         this.actedThisTurn = false;   // 本回合是否使用了技能
+        this.spSpentThisTurn = 0;   // v0.669 王庄明「守护之躯」：本回合累计消耗算力（回合开始清零，executeSkill 累加）
         this.passives = [];           // [{ trigger, callback }]
         this.damageDealt = 0;
         this.damageReceived = 0;
@@ -95,7 +96,12 @@ class Character {
         if (!this.alive) return 0;
         const totalDef = this.getTotalDef();
         let actual = Math.max(0, dmg - totalDef);
-        const reduction = this.getHateReduction();
+        // v0.669 王庄明「守护」：防御结算后、扣血前，若即将失去血量则尝试转移（队友掉血 0，不消耗本角色 nextHit buff/不触发受击）
+        if (actual > 0 && Character.guardTransfer(this, actual) === 0) return 0;
+        let reduction = this.getHateReduction();
+        // v0.669 王庄明「守护之躯」：减伤叠加（回合结束时按本回合消耗算力折算，持续到下回合结束）
+        const guardShield = this.buffs.find(b => b.type === 'guardShield');
+        if (guardShield) reduction += guardShield.value;
         if (reduction !== 0) actual = Math.floor(actual * (100 - reduction) / 100);   // 负值=加伤
         if (this.directReduce > 0) actual = Math.floor(actual * (100 - this.directReduce) / 100);   // 直伤减伤（灼华 20%）
         this.hp = Math.max(0, this.hp - actual);
@@ -113,6 +119,31 @@ class Character {
         }
         this.buffs = this.buffs.filter(b => b.duration !== 'nextHit');
         return actual;
+    }
+
+    // v0.669 王庄明「守护」转移（静态）：同阵营存在存活且带「守护」层数的王庄明时，
+    // 队友（守护者本人除外）即将失去血量 → 防止之，改为守护者自身受到"对应数值的无来源普通伤害"
+    // （完整走防御/减伤结算），守护层数-1；一切伤害（普通/真伤/dot/混乱反噬）均转移；
+    // 转移伤害无来源（attacker=null）：不计入攻击者 damageDealt、不触发击杀归属；
+    // 返回 0 表示本次伤害已被转移（受击方不掉血）；返回原值表示未转移
+    static guardTransfer(target, dmg) {
+        if (dmg <= 0 || !target.alive) return dmg;
+        if (typeof battleState === 'undefined' || !battleState) return dmg;
+        if (target.getBuffStack('guard') > 0) return dmg;   // 守护者本人不保护自己
+        const guarder = battleState.allCharacters.find(c =>
+            c.alive && c !== target && c.team === target.team && c.name === '王庄明' && c.getBuffStack('guard') > 0
+        );
+        if (!guarder) return dmg;
+        guarder.reduceBuffStack('guard', 1);
+        if (typeof log === 'function') log(`🛡️ ${guarder.name} 的「守护」抵挡了${target.name}的伤害（剩余${guarder.getBuffStack('guard')}层）`);
+        const transferred = guarder.takeDamage(dmg, null);   // 无来源普通伤害：再结算一次防御/减伤
+        if (!guarder.alive) {
+            // 守护者被转移伤害击倒：走完整死亡流程（补位/倒戈/广播）
+            guarder.handleDeath();
+            Character.invokePassives('onAllyDeath', battleState, guarder, log);
+            if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(guarder);
+        }
+        return 0;
     }
 
     // 死亡处理：倒戈复活 → 待命区补位 + 站位重排
@@ -142,6 +173,8 @@ class Character {
     // 真实伤害（无视防御与减伤，完全穿透）
     takeTrueDamage(dmg) {
         if (!this.alive) return 0;
+        // v0.669 王庄明「守护」：真伤/dot/混乱反噬等一切掉血同样转移（用户指定）
+        if (dmg > 0 && Character.guardTransfer(this, dmg) === 0) return 0;
         this.hp = Math.max(0, this.hp - dmg);
         this.damageReceived += dmg;
         if (this.hp <= 0) {

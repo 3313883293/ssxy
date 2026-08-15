@@ -254,6 +254,39 @@ function createZhangZiXi(team, position) {
     return char;
 }
 
+// ==================== 王庄明（守护者，玩家可用角色，v0.669） ====================
+// 用户设计：守护之躯（按消耗算力折算减伤）+ 抵抗（自防）/纵焚烈火（自焚 AOE 燃烧）/
+// 守护（替队友挡伤害的层数机制）。守护转移一切伤害（普通/真伤/dot），转移为无来源普通伤害（再结算防御/减伤）。
+function createWangZhuangMing(team, position) {
+    const skills = [
+        new Skill('抵抗', 300, 200, 200, 1, 1, { type: 'def', value: 200, duration: 'nextHit' }),
+        new Skill('纵焚烈火', 500, 400, 400, 2, 3, null, { type: 'burnLv', level: 4 }),
+        new Skill('守护', 700, 800, 800, 1, 4, null, { type: 'guard' })
+    ];
+    const char = new Character('王庄明', 2000, 300, [2,5], 1000, 400, skills, team, position);
+    // ——— 被动·黎明级先天能力者（同鲁盼旋）：未使用技能回合结束回复 200 算力 ———
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        if (!self.actedThisTurn) {
+            const before = self.sp;
+            self.sp = Math.min(self.maxSP, self.sp + 200);
+            const gained = self.sp - before;
+            if (gained > 0) log(`♻️ ${self.name}（位置${self.position}）未使用技能，回复 ${gained} 算力（算力：${self.sp}/${self.maxSP}）`);
+        }
+    });
+    // ——— 被动·守护之躯：回合结束时按本回合消耗算力折算减伤（每 100 算力 10%，向下取整、无上限），
+    //      覆盖式，持续到下回合结束（下回合结束时按新消耗重算；消耗为 0 则清除） ———
+    char.registerPassive('onTurnEnd', (self, bs, log) => {
+        const spent = self.spSpentThisTurn || 0;
+        self.clearBuff('guardShield');
+        const pct = Math.floor(spent / 100) * 10;
+        if (pct > 0) {
+            self.addBuff({ type: 'guardShield', value: pct, duration: 'nextTurn' });
+            log(`🛡️ ${self.name} 守护之躯：本回合消耗 ${spent} 算力，获得 ${pct}% 减伤（持续到下回合结束）`);
+        }
+    });
+    return char;
+}
+
 // ==================== 稻草人系列（测试用） ====================
 function createScarecrowPaper(team, position) {
     const skills = [
@@ -378,6 +411,7 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '训练木偶') return createTrainingDummy(team, position);
     if (roleName === '灼华') return createZhuoHua(team, position);
     if (roleName === '张子曦') return createZhangZiXi(team, position);
+    if (roleName === '王庄明') return createWangZhuangMing(team, position);   // v0.669
     if (roleName === '烬火信徒') return createAshCultist(team, position);
     if (roleName === '焦木傀儡') return createCharredGolem(team, position);
     if (roleName === '引火学徒') return createFirestarter(team, position);

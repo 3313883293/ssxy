@@ -21,6 +21,7 @@ function decidePlayerAI(actor) {
             let extra = 0;
             if (s.special && s.special.type === 'burn') extra = s.coinCount * 50 * 1.5;   // 燃烧≈50/级/回合
             else if (s.special && s.special.type === 'burnUp') extra = s.special.levels * 50;   // 升火收益≈每级50/回合
+            else if (s.special && s.special.type === 'burnLv') extra = s.special.level * 50;   // v0.669 纵焚烈火：4级燃烧≈200/回合/目标
             // TODO(用户后补)：张子曦「混乱」类技能收益估算——(受击反噬真伤≈ 期望命中次数×级×20 折算)（等 special 类型确定）
             const perTarget = inRange.map(e => {
                 if (e.getHateReduction() > 0 && hasOtherEnemies) return { target: e, exp: -1 };   // 减伤墙最后处理
