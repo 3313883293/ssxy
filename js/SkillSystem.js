@@ -100,10 +100,28 @@ class SkillSystem {
         return Math.random() < probability;
     }
 
-    static rollCoins(coinCount) {
+    // v0.673 曹佳梦「概率论的奇迹」：投硬币概率——同阵营存活曹佳梦在场时，
+    // 队友投正率 +10%，曹佳梦自身 +25% 且每级「厌倦」再 -5%（概率下限 0.1）
+    static coinProbFor(actor) {
+        let prob = 0.5;
+        if (actor && typeof battleState !== 'undefined' && battleState) {
+            const cjm = battleState.allCharacters.find(c => c.alive && c.team === actor.team && c.name === '曹佳梦');
+            if (cjm) {
+                if (cjm === actor) {
+                    prob = prob + 0.25 - cjm.emotionLevel * 0.05;
+                } else {
+                    prob = prob + 0.10;
+                }
+            }
+        }
+        return Math.max(0.1, prob);
+    }
+
+    static rollCoins(coinCount, actor = null) {
+        const prob = SkillSystem.coinProbFor(actor);
         let heads = 0;
         for (let i = 0; i < coinCount; i++) {
-            if (SkillSystem.flipCoin()) heads++;
+            if (SkillSystem.flipCoin(prob)) heads++;
         }
         return { heads, total: coinCount };
     }
@@ -250,12 +268,20 @@ class SkillSystem {
         // 特殊：无视防御量
         const baseIgnore = (skill.special && skill.special.type === 'ignoreDef') ? skill.special.value : 0;
 
+        // v0.673 陨星落下：记录主要目标与其硬币结果（循环外对全场结算衰减）
+        let meteorMain = null, meteorHeads = 0;
         const coinDist = SkillSystem.calculateCoinDistribution(actor, targets, skill.coinCount);
         coinDist.forEach(({ target, coins }) => {
             if (!target.alive) return;
 
-            const rollResult = SkillSystem.rollCoins(coins);
+            const rollResult = SkillSystem.rollCoins(coins, actor);
             const effectiveCoins = rollResult.heads;
+            if (skill.special && skill.special.type === 'meteor') { meteorMain = target; meteorHeads = rollResult.heads; }
+            // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级（全局规则）；【精准狙击】投正时额外 +1 级
+            if (actor.name === '曹佳梦' && rollResult.heads > 0) {
+                actor.gainEmotion(rollResult.heads);
+                if (skill.name === '精准狙击') actor.gainEmotion(1);
+            }
             let dmg = 0;
             // 开创：与目标每有一点速度差，每硬币加成伤害+200（用局部变量，不改技能本体）
             // 速度差按双方实际速度（每回合在速度区间内重随机，见 Character.rerollSpeed）计算（用户确认）
@@ -263,9 +289,16 @@ class SkillSystem {
             if (skill.special && skill.special.type === 'speedDiff') {
                 effBonus += Math.abs(actor.speed - target.speed) * skill.special.bonus;
             }
+            // v0.673 创大运吧（曹佳梦）：每级「厌倦」基础伤害 +250、每硬币加成 +200（不叠通用情感加成）
+            let effBase = skill.baseDamage;
+            if (skill.special && skill.special.type === 'jadeBurst') {
+                effBase = skill.baseDamage + actor.emotionLevel * 250;
+                effBonus = skill.bonusDamage + actor.emotionLevel * 200;
+            }
             if (coins > 0) {
                 // v0.62 情感激荡：基础伤害档位加成（覆盖式，达2级+50/达6级+100；鲁盼旋特殊情感激荡每2级+100）——作用于 baseDamage 段，正常走防御减免
-                dmg = (skill.baseDamage + actor.getEmotionDamageBonus()) + effectiveCoins * effBonus;
+                // v0.673 创大运吧使用专属公式（不叠通用加成）
+                dmg = effBase + (skill.special && skill.special.type === 'jadeBurst' ? 0 : actor.getEmotionDamageBonus()) + effectiveCoins * effBonus;
                 // v0.5 狂炎（焚天祭司·烛央）：每层使技能伤害+150
                 if (actor.getBuffStack('frenzy') > 0) {
                     dmg += actor.getBuffStack('frenzy') * 150;
@@ -430,6 +463,38 @@ class SkillSystem {
             actor.addBuffLevel('burn', skill.special.level);
             logFn(`  🔥 ${actor.name} 也受到 ${skill.special.level} 级「燃烧」（自焚）`);
             if (window.refreshCardState) refreshCardState(actor);
+        }
+
+        // ——— v0.673 陨星落下（曹佳梦·强化三）：对所有单位造成伤害（含自己与队友，主要目标已在循环内满伤结算），
+        //      每距离主要目标 1 使总伤害下降 25%（距离 ≥4 衰减至 0）；使用后「厌倦」归零（清空重来） ———
+        if (skill.special && skill.special.type === 'meteor' && meteorMain && actor.alive) {
+            // 与主目标同公式（含厌倦通用基础加成）：(1250 + 厌倦加成) + 正面×1000，再按距离等比衰减
+            const baseDmg = skill.baseDamage + actor.getEmotionDamageBonus() + meteorHeads * skill.bonusDamage;
+            [...battleState.allCharacters].forEach(c => {
+                if (!c.alive || c === meteorMain) return;
+                const dist = Math.abs(c.position - meteorMain.position);
+                const mult = 1 - 0.25 * dist;
+                if (mult <= 0) {
+                    logFn(`  ☄️ ${c.name}（距主目标 ${dist}）衰减至 0，未受伤`);
+                    return;
+                }
+                const dmg = Math.floor(baseDmg * mult);
+                const actual = c.takeDamage(dmg, actor);
+                if (window.refreshCardState) refreshCardState(c);
+                SkillSystem.showDamageNumber(c, actual, null, allCharsDiv);
+                logFn(`  ☄️ ${c.name}（位置${c.position}，距主目标 ${dist}）受到 ${actual} 伤害（衰减后 ${mult * 100}%）（血量：${c.hp}）`);
+                if (!c.alive) {
+                    logFn(`  💥 ${c.name} 倒下！`);
+                    if (!actor.specialEmotion) actor.gainEmotion(1);
+                    markAiLuKill(actor, c);
+                    c.handleDeath();
+                    Character.invokePassives('onAllyDeath', battleState, c, logFn);
+                    if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(c);
+                }
+            });
+            actor.emotionLevel = 0;   // 使用【陨星落下】后「厌倦」归零（强化三清空重来）
+            if (window.refreshCardState) refreshCardState(actor);
+            logFn(`  🎲 ${actor.name} 的「厌倦」归零（强化三已释放）`);
         }
     }
 

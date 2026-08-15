@@ -287,6 +287,24 @@ function createWangZhuangMing(team, position) {
     return char;
 }
 
+// ==================== 曹佳梦（概率赌徒，玩家可用角色，v0.673） ====================
+// 用户设计：概率论的奇迹（队友投正率+10%/自身+25%）+ 厌倦（特殊情感激荡：硬币投正升级、
+// 每级基础伤害+50、自身投正率-5%/级、≥4级回合开始创大运吧→陨星落下、使用【陨星落下】后厌倦归零）。
+// 陨星（强化三）：对全场所有单位（含自己与队友）造成伤害，每距离主要目标 1 使总伤害下降 25%（≥4 为 0）。
+function createCaoJiaMeng(team, position) {
+    const skills = [
+        new Skill('手枪散射', 300, 200, 300, 3, 3),
+        new Skill('精准狙击', 400, 400, 1200, 1, 6, null, { type: 'jadeBonus' }),   // 投正时额外 +1 级厌倦
+        new Skill('创大运吧', 500, 200, 400, 1, 9, null, { type: 'jadeBurst' })     // 每级厌倦基础+250/加成+200
+    ];
+    const char = new Character('曹佳梦', 1800, 100, [3,6], 500, 500, skills, team, position);
+    char.directReduce = 20;   // 黎明级书生学院校服：直伤减伤 20%（同灼华）
+    char.specialEmotion = true;   // 特殊情感激荡：不受通用四触发（厌倦只由硬币投正升级）
+    char.specialEmotionType = 'jade';   // v0.673 厌倦：cap 5、每级基础伤害+50、投正率-5%/级
+    char.emotionDisplayName = '厌倦';
+    return char;
+}
+
 // ==================== 稻草人系列（测试用） ====================
 function createScarecrowPaper(team, position) {
     const skills = [
@@ -412,6 +430,7 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '灼华') return createZhuoHua(team, position);
     if (roleName === '张子曦') return createZhangZiXi(team, position);
     if (roleName === '王庄明') return createWangZhuangMing(team, position);   // v0.669
+    if (roleName === '曹佳梦') return createCaoJiaMeng(team, position);   // v0.673
     if (roleName === '烬火信徒') return createAshCultist(team, position);
     if (roleName === '焦木傀儡') return createCharredGolem(team, position);
     if (roleName === '引火学徒') return createFirestarter(team, position);

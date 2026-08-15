@@ -218,6 +218,9 @@ class Character {
                 if (before < 6 && this.emotionLevel >= 6) parts.push('基础伤害 +100，防御 -100');
                 if (before < 9 && this.emotionLevel >= 9) parts.push('基础伤害 +150，防御 -150');
                 if (before < 7 && this.emotionLevel >= 7) parts.push('减伤跌破 0%，转为受击加伤');
+            } else if (this.specialEmotionType === 'jade') {
+                // v0.673 曹佳梦「厌倦」：每级基础伤害 +50（覆盖式累计），上限 5 级；满级提示
+                if (this.emotionLevel === 5 && before < 5) parts.push('基础伤害 +250（厌倦满级，投正率 -25%）');
             } else {
                 // v0.62 鲁盼旋「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
                 if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害 +100，防御 -50');
@@ -236,17 +239,18 @@ class Character {
         }
     }
 
-    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」每2级 +100（Lv2/4=+100/200，Lv5 仍+200）；云长郡「怨恨」每3级 +50（v0.661 Lv3/6/9=+50/100/150，Lv10 仍+150）
+    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」每2级 +100（Lv2/4=+100/200，Lv5 仍+200）；云长郡「怨恨」每3级 +50（v0.661 Lv3/6/9=+50/100/150，Lv10 仍+150）；曹佳梦「厌倦」每级 +50（v0.673）
     getEmotionDamageBonus() {
         if (this.specialEmotionType === 'anger') return Math.floor(this.emotionLevel / 2) * 100;
         if (this.specialEmotionType === 'hate') return Math.floor(this.emotionLevel / 3) * 50;
+        if (this.specialEmotionType === 'jade') return this.emotionLevel * 50;
         if (this.specialEmotion) return 0;
         if (this.emotionLevel >= 6) return 100;
         if (this.emotionLevel >= 2) return 50;
         return 0;
     }
 
-    // 算力回复加成（覆盖式）：普通角色达 4 级 +50、达 8 级 +100；特殊情感激荡（愤怒/怨恨）均不回蓝
+    // 算力回复加成（覆盖式）：普通角色达 4 级 +50、达 8 级 +100；特殊情感激荡（愤怒/怨恨/厌倦）均不回蓝
     getEmotionSpBonus() {
         if (this.specialEmotion) return 0;
         if (this.emotionLevel >= 8) return 100;
@@ -255,12 +259,16 @@ class Character {
     }
 
     // v0.66 情感效果一行文本（卡片弹窗/详情面板共用）：怨恨显示减伤/加伤曲线 + 每3级伤害/防御档位（v0.661），愤怒显示伤害+防御副作用，普通显示伤害+算力回复
+    // v0.673 厌倦显示伤害 + 自身投正率下降
     getEmotionEffectLine() {
         if (this.specialEmotionType === 'hate') {
             const r = 100 - this.emotionLevel * 15;
             const reducText = r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破 0%，转受击加伤 ${-r}%`;
             const tier = Math.floor(this.emotionLevel / 3) * 50;
             return tier > 0 ? `${reducText} ｜ 基础伤害 +${tier} ｜ 防御 -${tier}` : reducText;
+        }
+        if (this.specialEmotionType === 'jade') {
+            return `基础伤害 +${this.emotionLevel * 50} ｜ 自身投正率 -${this.emotionLevel * 5}%`;
         }
         if (this.specialEmotion) {
             return `基础伤害 +${this.getEmotionDamageBonus()} ｜ 防御 -${Math.floor(this.emotionLevel / 2) * 50}`;

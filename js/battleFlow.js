@@ -215,6 +215,24 @@ function startNewRound() {
     battleState.allCharacters.forEach(c => { if (c.alive) c.rerollSpeed(); });
     // v0.669 王庄明「守护之躯」：本回合算力消耗统计每回合开始清零
     battleState.allCharacters.forEach(c => { c.spSpentThisTurn = 0; });
+    // v0.673 曹佳梦「厌倦」：回合开始检查三技能形态——厌倦 ≥4 级时【创大运吧】替换为【陨星落下】；
+    //      厌倦 <4 级（如使用陨星后归零）时恢复【创大运吧】（可逆替换）
+    battleState.allCharacters.forEach(c => {
+        if (c.alive && c.name === '曹佳梦') {
+            const idx = c.skills.findIndex(s => s.name === '创大运吧' || s.name === '陨星落下');
+            if (idx >= 0) {
+                const wantMeteor = c.emotionLevel >= 4;
+                const isMeteor = c.skills[idx].name === '陨星落下';
+                if (wantMeteor && !isMeteor) {
+                    c.skills[idx] = new Skill('陨星落下', 500, 1250, 1000, 1, 9, null, { type: 'meteor' });
+                    log(`🔄 ${c.name} 厌倦达到 ${c.emotionLevel} 级，【创大运吧】替换为【陨星落下】！`);
+                } else if (!wantMeteor && isMeteor) {
+                    c.skills[idx] = new Skill('创大运吧', 500, 200, 400, 1, 9, null, { type: 'jadeBurst' });
+                    log(`🔄 ${c.name} 厌倦降至 ${c.emotionLevel} 级，【陨星落下】恢复为【创大运吧】！`);
+                }
+            }
+        }
+    });
 
     buildActionQueue();
     nextRoundBtn.style.display = 'none';
