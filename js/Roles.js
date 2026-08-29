@@ -320,6 +320,7 @@ function createDuoNengZhanJing(team, position) {
         new Skill('交叉火力', 400, 600, 300, 3, 5, null, { type: 'crossfire' })   // 连携技（施放者400 + 每名连携者200）
     ];
     const char = new Character('多能战警', 2500, 200, [1,4], 400, 100, skills, team, position);
+    char.sp = 0;   // v0.686 初始算力 0：开场无法施放【交叉火力】（400），靠回合结束 100/回合 攒算力（约第 4 回合末起可用）
     char.duoNengGear = true;   // 装备切换标记：回合开始按站位同步装备与技能（v0.684）
     char.gear = '';            // 当前装备：'riot'防爆装 / 'rifle'步枪装 / 'snipe'狙击装（''=尚未同步）
     char._gearSkills = { riot: skills[0], rifle: skills[1], snipe: skills[2], crossfire: skills[3] };   // v0.684 换装技能池
