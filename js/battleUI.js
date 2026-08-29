@@ -58,7 +58,7 @@ const buffRenderers = {
         return { short: `${sign}${b.value}`, title: `【防御临时变动】${sign}${b.value}`, desc: '持续至下次受击时' };
     },
     'e': b => ({ short: `×${b.stack}`, title: `「恶」${b.stack} 层`, desc: '伤害计算时，每层使鲁盼旋对其无视 50 防御' }),
-    'burn': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「燃烧」Lv ${b.level} × ${b.stack} 层`, desc: `回合结束时造成 ${b.level}×50 = ${b.level * 50} 真实伤害；每 5 级消耗 1 层，不足按剩余层数×5 级结算` }),
+    'burn': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「燃烧」Lv ${b.level} × ${b.stack} 层`, desc: `回合结束时造成 ${b.level}×50 = ${b.level * 50} 真实伤害；每回合至少消耗 1 层（每满 5 级再多 1 层），不足按剩余层数×5 级结算` }),
     'stun': () => ({ short: '昏迷', title: '「暂时昏迷」', desc: '轮到行动时无法行动，跳过本次行动后解除' }),
     'stunPending': () => ({ short: '催眠中', title: '「催眠气体」待生效', desc: '下一回合陷入「暂时昏迷」，无法行动一回合' }),
     'frenzy': b => ({ short: `×${b.stack}`, title: `「狂炎」${b.stack} 层`, desc: '伤害计算时每层使【烈焰鞭】/【焚天祭】伤害+150，防御计算时每层防御-20' }),
@@ -228,7 +228,7 @@ function renderBench() {
             </div>`;
         }).join('');
         return `<div class="bench-section ${cls}">
-            <div class="bench-title">${label}（${bench.length}）<span class="bench-hint">队友阵亡后按序补位入场</span></div>
+            <div class="bench-title">${label}（${bench.length}）<span class="bench-hint">每回合开始按序补位进场</span></div>
             <div class="bench-cards">${cards}</div>
         </div>`;
     };

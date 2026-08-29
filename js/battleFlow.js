@@ -28,6 +28,7 @@ function serializeChar(c) {
         aiControlled: !!c.aiControlled,
         lockHp: !!c.lockHp,   // v0.683 锁血标记随存档保留（第四关鲁盼旋/灼华篇第三关灼华）
         gear: c.gear || '',   // v0.684 多能战警当前装备（读档后按站位重新同步）
+        retreatUsed: !!c.retreatUsed,   // v0.688 多能战警战术撤退一局仅一次（随存档保留）
         aiCycle: c.aiCycle, aiIndex: c.aiIndex || 0,
         defector: !!c.defector,
         hateReduction: !!c.hateReduction, hateReductionCurrent: c.hateReductionCurrent || 0,
@@ -96,6 +97,7 @@ function loadAutoBattle() {
             aiControlled: !!snap.aiControlled, aiCycle: snap.aiCycle || null, aiIndex: snap.aiIndex || 0,
             lockHp: !!snap.lockHp,   // v0.683 锁血标记读档恢复
             gear: snap.gear || '',   // v0.684 多能战警装备读档恢复（syncAllDuoNengGear 按站位重算）
+            retreatUsed: !!snap.retreatUsed,   // v0.688 撤退一局一次标记读档恢复
             defector: !!snap.defector,
             hateReduction: !!snap.hateReduction, hateReductionCurrent: snap.hateReductionCurrent || 0,
             pendingEntry: !!snap.pendingEntry, entryAnim: !!snap.entryAnim,
@@ -135,8 +137,8 @@ function loadAutoBattle() {
     updateWinCondition();
     // v0.677 fix：日志面板不清空，读档提示追加到既有日志之后（原实现整体清空面板）
     log(`↩️ 已从自动存档恢复战斗（第 ${battleState.turnCount} 回合开始）`);
-    if (battleState.benchPlayer.length) log(`🛡️ 我方待命区：${battleState.benchPlayer.map(c => c.name).join('、')}`);
-    if (battleState.benchEnemy.length) log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}`);
+    if (battleState.benchPlayer.length) log(`🛡️ 我方待命区：${battleState.benchPlayer.map(c => c.name).join('、')}（每回合开始按序补位进场）`);
+    if (battleState.benchEnemy.length) log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}（每回合开始按序补位进场）`);
     actionContent.innerHTML = '继续战斗';
     nextRoundBtn.onclick = startNewRound;   // v0.5 fix：读档/续战也绑定「开始回合」——页面刷新后 onclick 为 null，回合结束按钮会显示但点不动
     nextRoundBtn.style.display = 'none';    // 回合进行中隐藏（onTurnEnd 时重新显示）
@@ -246,8 +248,10 @@ function syncAllDuoNengGear(logFn) {
     battleState.allCharacters.forEach(c => syncDuoNengGear(c, logFn));
 }
 
-// v0.684 战术撤退：回合结束时血量 ≤40% → 移出战场，退回待命区末端（队友阵亡后经补位机制最后入场）
+// v0.684 战术撤退：回合结束时血量 ≤40% → 移出战场，退回待命区末端（每回合开始待命区补位进场，v0.688）
 function retreatToBench(c) {
+    if (c.retreatUsed) return;   // v0.688 战术撤退一局仅触发一次（读档保留标记）
+    c.retreatUsed = true;
     c.pendingEntry = false;   // v0.687 防御：撤退即离开入场队列（正常路径不会带此标记）
     const teamArr = c.team === 'player' ? battleState.playerTeam : battleState.enemyTeam;
     const bench = c.team === 'player' ? battleState.benchPlayer : battleState.benchEnemy;
@@ -257,7 +261,7 @@ function retreatToBench(c) {
     if (ai >= 0) battleState.allCharacters.splice(ai, 1);
     bench.push(c);   // 待命区末端：补位时最后入场
     battleState.repositionAll();
-    log(`🚔 ${c.name} 血量 ${c.hp}/${c.maxHp}（≤40%），战术撤退至待命区休整！`);
+    log(`🚔 ${c.name} 血量 ${c.hp}/${c.maxHp}（≤40%），战术撤退至待命区休整（本局仅此一次）！`);
 }
 
 function startNewRound() {
@@ -269,6 +273,24 @@ function startNewRound() {
     updateTurnDisplay();
     if (typeof Sfx !== 'undefined') Sfx.play('round');
     log(`══════ 第 ${battleState.turnCount} 回合 ══════`);
+    // ——— v0.688 待命区补位：每回合开始，待命区按序进场，补到该侧至多 3 名（场上每边上限 3 人，倒戈等特殊情况可超）———
+    // 覆盖：战术撤退的多能战警（撤退后下一回合开始自动回归，不再依赖队友阵亡）、阵亡空位（死亡时
+    // queueBenchEntry 已先拉取）、自选敌人少于 3 名时的后备补充；常规关卡（前 3 满员）不受影响。
+    const fillSideToCap = (team) => {
+        const bench = team === 'player' ? battleState.benchPlayer : battleState.benchEnemy;
+        const field = team === 'player' ? battleState.playerTeam : battleState.enemyTeam;
+        while (bench.length > 0 && field.filter(c => c.alive).length < 3) {
+            const next = bench.shift();
+            next.alive = true;
+            next.pendingEntry = true;   // 下方统一转 entryAnim，本回合入场（含「休整」授予）
+            field.push(next);
+            battleState.allCharacters.push(next);
+            log(`🚑 ${next.name} 待命补位进场（本侧 ${field.filter(c => c.alive).length}/3）`);
+        }
+    };
+    fillSideToCap('enemy');
+    fillSideToCap('player');
+    battleState.repositionAll();
     // v0.287：回合开始时候补单位正式入场（隐藏标记转动画标记，渲染时滑入）
     battleState.allCharacters.forEach(c => {
         if (c.pendingEntry) { c.pendingEntry = false; c.entryAnim = true; }
@@ -385,8 +407,9 @@ function onTurnEnd() {
     // v0.687 修复「撤了回不来」：① 跳过 pendingEntry（已排队待入场的单位，本回合末不能再撤退——否则补位入场前
     // 就被踹回待命区，永远进不了场）；② 跳过「休整」中的单位（休整期养伤不回撤，保证入场当回合能活到
     // 回合开始回血，不再无限撤退循环）。
+    // v0.688：③ 跳过 retreatUsed（战术撤退一局仅触发一次）。
     [...battleState.allCharacters].forEach(c => {
-        if (c.alive && c.duoNengGear && !c.pendingEntry && c.getBuffStack('rest') <= 0 && c.hp / c.maxHp <= 0.4) retreatToBench(c);
+        if (c.alive && c.duoNengGear && !c.pendingEntry && !c.retreatUsed && c.getBuffStack('rest') <= 0 && c.hp / c.maxHp <= 0.4) retreatToBench(c);
     });
 
     const snapshot = [...battleState.allCharacters];   // 快照：补位/倒戈会增删数组
@@ -395,8 +418,8 @@ function onTurnEnd() {
         const burnLevel = c.getBuffLevel('burn');
         const burnStack = c.getBuffStack('burn');
         if (burnStack > 0 && burnLevel > 0) {
-            // 每有5级消耗1层（Lv1~4 消耗0层，永不消失）
-            const consume = Math.floor(burnLevel / 5);
+            // 每有5级消耗1层；v0.688 起每回合至少消耗 1 层（Lv1~4 也会逐回合衰减，不再永不消失）
+            const consume = Math.max(1, Math.floor(burnLevel / 5));
             let burnDmg;
             if (consume > burnStack) {
                 // 层数不足：按剩余层数能供给的等级结算（每层供给5级），燃烧结束
@@ -686,15 +709,16 @@ function startBattle(level) {
     battleState.allCharacters.push(...playerChars, ...enemyChars);
 
     repositionAll();
+    logPanel.innerHTML = '<p>战斗开始！</p>';
+    syncAllDuoNengGear(log);   // v0.688 战斗开始即按站位换装：多能战警自始至终只能使用当前装备技能 +【交叉火力】
     renderCharacters();
     updateTurnDisplay();
     updateWinCondition();
-    logPanel.innerHTML = '<p>战斗开始！</p>';
     if (battleState.benchPlayer.length) {
-        log(`🛡️ 我方待命区：${battleState.benchPlayer.map(c => c.name).join('、')}（阵亡后入场补位）`);
+        log(`🛡️ 我方待命区：${battleState.benchPlayer.map(c => c.name).join('、')}（每回合开始按序补位进场）`);
     }
     if (battleState.benchEnemy.length) {
-        log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}（前方阵亡后入场补位）`);
+        log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}（每回合开始按序补位进场）`);
     }
     actionContent.innerHTML = '点击按钮开始第一回合';
     nextRoundBtn.style.display = 'block';
@@ -746,12 +770,13 @@ function startCustomBattle() {
     battleState.allCharacters.push(...playerChars, ...enemyChars);
 
     repositionAll();
+    logPanel.innerHTML = '<p>⚔️ 自定义测试战斗开始！</p>';
+    syncAllDuoNengGear(log);   // v0.688 战斗开始即按站位换装（多能战警只能使用当前装备技能 +【交叉火力】）
     renderCharacters();
     updateTurnDisplay();
     updateWinCondition();
-    logPanel.innerHTML = '<p>⚔️ 自定义测试战斗开始！</p>';
     if (battleState.benchEnemy.length) {
-        log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}（前方阵亡后入场补位）`);
+        log(`🚑 敌方待命区：${battleState.benchEnemy.map(c => c.name).join('、')}（每回合开始按序补位进场）`);
     }
     actionContent.innerHTML = '点击按钮开始第一回合';
     nextRoundBtn.style.display = 'block';

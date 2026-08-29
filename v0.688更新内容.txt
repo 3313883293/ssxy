@@ -1,0 +1,54 @@
+v0.688 更新内容：多能战警技能限制 + 燃烧层数消耗≥1 + 撤退一局一次 + 待命区每回合补位（场上每边至多 3 人）
+
+## 背景
+
+用户四项机制调整 + 一条全局规则：
+1. 多能战警只能使用【交叉火力】与当前装备对应技能；
+2. 燃烧每回合层数消耗至少 1（原 Lv1~4 消耗 0 层、永不消失）；
+3. 战术撤退一局仅触发一次；
+4. 每回合开始待命区角色进场（不再依赖"队友阵亡才补位"）；
+5. 全局：场上每边至多 3 个单位（特殊情况除外，如李雅礼倒戈）。
+
+## 实现
+
+1. **技能限制**（battleFlow.js）：startBattle / startCustomBattle 结束时即调用 syncAllDuoNengGear——
+   多能战警自战斗开始起 skills 恒为 [当前装备技能, 交叉火力]，AI 决策/意图预测/角色信息弹窗均只能看到这两个。
+   （原实现只在每回合开始同步，战斗开始前是 4 个技能。）
+2. **燃烧衰减**（battleFlow.js onTurnEnd）：`consume = Math.max(1, Math.floor(burnLevel / 5))`——
+   Lv1~4 也每回合消耗 1 层；Lv5+ 维持原规律（每满 5 级再多 1 层）。词条/buff 描述同步更新。
+3. **撤退一局一次**（Roles.js + battleFlow.js）：工厂打 `retreatUsed` 标记，retreatToBench 设标记并防重入，
+   onTurnEnd 判定跳过已用过者；标记随存档序列化（saveAutoBattle/loadAutoBattle）。
+4. **待命区每回合补位 + 3 人上限**（battleFlow.js startNewRound）：回合开始先按序从待命区拉人进场，
+   补到该侧存活 3 人为止（enemy/player 对称）；拉入者本回合即入场（entryAnim + 休整授予）。
+   覆盖：撤退的多能战警下回合自动回归（不再等队友阵亡）；阵亡空位（死亡时 queueBenchEntry 先拉取，行为不变）；
+   自选敌人少于 3 名时的后备补充。常规关卡前 3 满员，规则不触发，现有关卡配置无影响。
+   倒戈（我方 4 人）为允许的特殊情况：补位只在 <3 时进行，不会反向削减。
+
+## 改动（v0.687 → v0.688）
+
+1. **js/battleFlow.js**：startNewRound 补位至 3 人；retreatToBench 加 retreatUsed 防重入 + 日志文案；
+   onTurnEnd 撤退判定加 `!retreatUsed`；燃烧 consume ≥1；serializeChar/loadAutoBattle 序列化 retreatUsed；
+   startBattle/startCustomBattle 结束即 syncAllDuoNengGear；待命区日志文案。
+2. **js/Roles.js**：createDuoNengZhanJing 加 `retreatUsed = false`。
+3. **js/globals.js**：PASSIVE_INFO 多能战警两条文案；GAME_VERSION → v0.688。
+4. **js/battleUI.js**：燃烧 buff 描述；待命区补位提示文案。
+5. **js/glossary.js**：燃烧词条。
+6. **js/charSelect.js**：张子曦篇第一关介绍（技能限制/一局一次/下回合回归）。
+
+## 行为说明（边界）
+
+- 燃烧 Lv1~4 现在会逐回合衰减：1 层 Lv2 燃烧 1 回合后消失（总伤 100）；2 层则 2 回合。
+  影响面：灼华/教团燃烧流、特殊胜利"燃烧烧死"节奏均变短（用户指定）。
+- 撤退单位若在待命区还有其他后备排在前（自选敌人场景），按序轮候，最靠前者先进场。
+- 读档恢复 retreatUsed：已用过撤退的单位读档后不再触发。
+- 多能战警装备切换仍随回合开始重排（阵亡重排/入场换装不受影响）。
+
+## 验证
+
+适配 `check-v0688-rules.js`：
+- A 战斗开始即技能限制（关卡 7 三员 skills=[装备技能,交叉火力]；角色信息弹窗不含其他装备技能；AI 按算力择技）；
+- B 燃烧衰减（1 层 Lv2 → 1 回合 100 伤后消失；2 层 Lv2 → 2 回合）；
+- C 撤退一局一次（撤退→补位回归→再压低血量不再撤退；读档保留标记）；
+- D 待命区每回合补位至 3 人（撤退后下回合自动回归；满 3 人不再拉人；阵亡后补位）；
+- E 无页面异常。
+回归：check-v0687-bench.js、check-v0686-sp0.js、check-v0685-gearfix.js、check-v0684-duoneng.js。
