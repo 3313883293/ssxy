@@ -247,13 +247,15 @@ class SkillSystem {
 
         // ——— v0.684 交叉火力（多能战警·连携技）：向同阵营其他多能战警广播连携申请，
         //      至多 2 名（位置最靠前优先）算力 ≥200 者消耗算力加入；装备加成 = 施放者 + 参与者的当前装备 ———
+        // v0.685 修复：最靠前按阵营取——我方位置大 = 前、敌方位置小 = 前（原实现一律位置大 = 前，敌方反了）；
+        // 同时先按算力 ≥200 过滤再取最前 2 名（原实现先取 2 名再过滤，算力不足者会被空出名额）。
         let xfire = null;
         if (skill.special && skill.special.type === 'crossfire') {
             const partners = battleState.allCharacters
                 .filter(c => c.alive && c.team === actor.team && c !== actor && c.duoNengGear)
-                .sort((a, b) => b.position - a.position)
-                .slice(0, 2)
-                .filter(p => p.sp >= 200);
+                .filter(p => p.sp >= 200)
+                .sort((a, b) => actor.team === 'player' ? b.position - a.position : a.position - b.position)
+                .slice(0, 2);
             partners.forEach(p => {
                 p.sp -= 200;
                 p.spSpentThisTurn = (p.spSpentThisTurn || 0) + 200;

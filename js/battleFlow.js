@@ -192,20 +192,26 @@ function buildActionQueue() {
 }
 
 // v0.684 多能战警「装备切换」：回合开始（与读档后）按同阵营多能战警间位置排位换装——
-// 最前方（位置最大）→防爆装（防御+300）；次前方→步枪装（防御+100、速度+1）；其余（含末前方）→狙击装（速度+3）。
+// 最前方→防爆装（防御+300）；次前方→步枪装（防御+100、速度+1）；其余（含末前方）→狙击装（速度+3）。
 // 换装同时切换技能[0]（近身制服/中距点射/远程狙击），【交叉火力】恒为技能[1]。
+// v0.685 修复：最前方按阵营取——我方在左（位置 0 起），越靠右越接近敌方 → 位置大 = 最前；
+// 敌方在右，越靠左越接近我方 → 位置小 = 最前。（原实现两阵营一律按位置大 = 最前，敌方前后颠倒：
+// 贴脸的敌方反而穿狙击装、殿后的反而穿防爆装。）
 const DUONENG_GEAR_CFG = {
     riot:  { skill: '近身制服', def: 300, speed: 0 },
     rifle: { skill: '中距点射', def: 100, speed: 1 },
     snipe: { skill: '远程狙击', def: 0,   speed: 3 }
 };
 
-// 目标装备：同阵营在场多能战警中位置比自己大的数量 +1 = 排位（1=防爆 / 2=步枪 / 其余=狙击）
+// 目标装备：同阵营在场多能战警中"比自己更靠前"的数量 +1 = 排位（1=防爆 / 2=步枪 / 其余=狙击）
 function duoNengTargetGear(c) {
     const mates = battleState.allCharacters.filter(x =>
         x.alive && x.team === c.team && x !== c && x.duoNengGear && !x.pendingEntry
     );
-    const rank = mates.filter(x => x.position > c.position).length + 1;
+    const frontCount = c.team === 'player'
+        ? mates.filter(x => x.position > c.position).length   // 我方：位置大 = 靠前
+        : mates.filter(x => x.position < c.position).length;  // 敌方：位置小 = 靠前
+    const rank = frontCount + 1;
     if (rank === 1) return 'riot';
     if (rank === 2) return 'rifle';
     return 'snipe';
