@@ -111,6 +111,55 @@ function resetActionUI() {
     if (oldConfirm) oldConfirm.remove();
     const oldCancel = document.getElementById('cancelTargetBtn');
     if (oldCancel) oldCancel.remove();
+    clearAttackRangeBox();   // v0.681：结束目标选择阶段（开始/取消/确认/跳过）时收起范围提示框
+}
+
+// ==================== 攻击范围提示框（v0.681） ====================
+// 玩家选中技能后，在战场画出攻击距离覆盖区间的高亮框：半透明金色虚线框 + 框顶标注「攻击范围 N」。
+// 覆盖区间 = 攻击者位置 ± 攻击距离 内的全部站位；区间两端取射程内卡片（含攻击者自身）的外缘，
+// 中间即使有阵亡空缺（无卡片）也被整框包含——玩家一眼可见本次技能能打到哪些站位。
+let _rangeZoneEl = null;
+
+function showAttackRangeBox(actor, skill) {
+    clearAttackRangeBox();
+    const arena = document.querySelector('.arena');
+    if (!arena) return;
+    const arenaRect = arena.getBoundingClientRect();
+    // 收集场上存活卡片相对 arena 的边界（renderCharacters 只渲染存活单位，死位不产生卡片）
+    const cards = [];
+    allCharsDiv.querySelectorAll('.character-card').forEach(card => {
+        const c = battleState.findCharacterById(parseInt(card.dataset.characterId));
+        if (!c || !c.alive) return;
+        const r = card.getBoundingClientRect();
+        cards.push({ c, left: r.left - arenaRect.left, right: r.right - arenaRect.left, top: r.top - arenaRect.top, bottom: r.bottom - arenaRect.top });
+    });
+    const actorRect = cards.find(x => x.c === actor);
+    if (!actorRect) return;
+    // 射程内卡片；极端情况（射程内无任何卡片）时退化为只框攻击者自身
+    const inRange = cards.filter(x => Math.abs(x.c.position - actor.position) <= skill.attackRange);
+    const base = inRange.length ? inRange : [actorRect];
+    const left = Math.min(...base.map(x => x.left));
+    const right = Math.max(...base.map(x => x.right));
+    const top = Math.min(...base.map(x => x.top));
+    const bottom = Math.max(...base.map(x => x.bottom));
+    const zone = document.createElement('div');
+    zone.className = 'range-zone';
+    zone.style.left = left + 'px';
+    zone.style.width = (right - left) + 'px';
+    zone.style.top = (top - 6) + 'px';
+    zone.style.height = (bottom - top + 12) + 'px';
+    const label = document.createElement('div');
+    label.className = 'range-zone-label';
+    label.textContent = `⚔️ 攻击范围 ${skill.attackRange}`;
+    zone.appendChild(label);
+    arena.appendChild(zone);
+    _rangeZoneEl = zone;
+}
+
+function clearAttackRangeBox() {
+    if (_rangeZoneEl) { _rangeZoneEl.remove(); _rangeZoneEl = null; }
+    const leftover = document.querySelector('.range-zone');
+    if (leftover) leftover.remove();
 }
 
 function drawPlayerActions(actor) {
@@ -172,6 +221,7 @@ function selectPlayerSkill(actor, skillIndex) {
         return;
     }
     targetHint.innerHTML = renderGlossaryText(`请点击攻击距离范围内的敌方角色（最多${skill.coinCount}个，与硬币数一致），再按确认或取消。`);
+    showAttackRangeBox(actor, skill);   // v0.681：在战场画出攻击距离覆盖区间的高亮框
     const allCards = allCharsDiv.querySelectorAll('.character-card');
     battleState.currentSelectedTargets = new Set();
     allCards.forEach(card => {

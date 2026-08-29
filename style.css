@@ -237,6 +237,34 @@ body {
     0% { opacity: 0; transform: translateX(-50%) scale(0.6); }
     100% { opacity: 1; transform: translateX(-50%) scale(1); }
 }
+/* 攻击范围提示框（v0.681：选中技能后战场高亮攻击距离覆盖区间；半透明金框 + 框顶标注） */
+.range-zone {
+    position: absolute;
+    border: 2px dashed rgba(249, 202, 36, 0.9);
+    border-radius: 14px;
+    background: rgba(249, 202, 36, 0.10);
+    box-shadow: 0 0 16px rgba(249, 202, 36, 0.25), inset 0 0 16px rgba(249, 202, 36, 0.10);
+    pointer-events: none;   /* 不挡卡片点击 */
+    z-index: 5;             /* 盖在卡片上、低于意图徽章/飘字 */
+    animation: rangeZoneFade 0.18s ease-out;
+}
+.range-zone-label {
+    position: absolute;
+    top: -28px; left: 50%; transform: translateX(-50%);
+    background: #f9ca24; color: #222;
+    font-size: 0.78em; font-weight: bold; white-space: nowrap;
+    padding: 3px 12px; border-radius: 12px;
+    box-shadow: 0 0 10px rgba(249, 202, 36, 0.6);
+    animation: rangeLabelPop 0.2s ease-out;
+}
+@keyframes rangeZoneFade {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+@keyframes rangeLabelPop {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.7); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
 /* 待命/召唤入场（v0.287：回合开始时从场外滑入） */
 @keyframes benchEntryRight {
     0% { opacity: 0; transform: translateX(130px); }
