@@ -188,6 +188,35 @@ class SkillSystem {
         return { heads, total: coinCount };
     }
 
+    // v0.684 连携演出：伙伴卡片金闪 + 施放者→伙伴金色连线（纯展示，不影响结算；无卡片/无 arena 时静默跳过）
+    static _crossfireShow(actor, partners, allCharsDiv) {
+        const arena = allCharsDiv && allCharsDiv.parentElement;
+        if (!arena || !actor.cardElement) return;
+        const aRect = actor.cardElement.getBoundingClientRect();
+        const arenaRect = arena.getBoundingClientRect();
+        partners.forEach(p => {
+            if (!p.cardElement) return;
+            p.cardElement.classList.add('crossfire-partner');
+            setTimeout(() => p.cardElement.classList.remove('crossfire-partner'), 1100);
+            const pRect = p.cardElement.getBoundingClientRect();
+            const x1 = aRect.left + aRect.width / 2 - arenaRect.left;
+            const y1 = aRect.top + aRect.height / 2 - arenaRect.top;
+            const x2 = pRect.left + pRect.width / 2 - arenaRect.left;
+            const y2 = pRect.top + pRect.height / 2 - arenaRect.top;
+            const len = Math.hypot(x2 - x1, y2 - y1);
+            const ang = Math.atan2(y2 - y1, x2 - x1);
+            const line = document.createElement('div');
+            line.className = 'crossfire-link';
+            line.style.left = x1 + 'px';
+            line.style.top = y1 + 'px';
+            line.style.width = len + 'px';
+            line.style.transform = `rotate(${ang}rad)`;
+            line.style.transformOrigin = '0 50%';
+            arena.appendChild(line);
+            setTimeout(() => line.remove(), 1000);
+        });
+    }
+
     static calculateCoinDistribution(attacker, targets, totalCoins) {
         if (targets.length === 0) return [];
         const n = targets.length;
@@ -215,6 +244,37 @@ class SkillSystem {
         if (!actor.specialEmotion) actor.gainEmotion(1);
         logFn(`${actor.name}（位置${actor.position}）使用【${skill.name}】，消耗${skill.spCost}算力`);
         if (window.refreshCardState) refreshCardState(actor);   // 算力条同帧扣减（含 buff/防御标签）
+
+        // ——— v0.684 交叉火力（多能战警·连携技）：向同阵营其他多能战警广播连携申请，
+        //      至多 2 名（位置最靠前优先）算力 ≥200 者消耗算力加入；装备加成 = 施放者 + 参与者的当前装备 ———
+        let xfire = null;
+        if (skill.special && skill.special.type === 'crossfire') {
+            const partners = battleState.allCharacters
+                .filter(c => c.alive && c.team === actor.team && c !== actor && c.duoNengGear)
+                .sort((a, b) => b.position - a.position)
+                .slice(0, 2)
+                .filter(p => p.sp >= 200);
+            partners.forEach(p => {
+                p.sp -= 200;
+                p.spSpentThisTurn = (p.spSpentThisTurn || 0) + 200;
+                logFn(`  🔗 ${p.name}（位置${p.position}）响应连携申请，消耗 200 算力加入【交叉火力】！`);
+            });
+            const gears = [actor, ...partners].map(c => c.gear);
+            xfire = {
+                partners,
+                riot: gears.includes('riot'),
+                rifle: gears.includes('rifle'),
+                snipe: gears.includes('snipe'),
+                baseAdd: gears.includes('rifle') ? 200 : 0,
+                bonusAdd: gears.includes('snipe') ? 400 : 0
+            };
+            // 目标 = 射程内全体敌方（自动选中，无需手动指定；按施放者阵营取敌对池）
+            const enemyPool = actor.team === 'player' ? battleState.getAliveEnemies() : battleState.getAlivePlayers();
+            targets = enemyPool.filter(e => Math.abs(actor.position - e.position) <= skill.attackRange);
+            logFn(`  📡 ${actor.name} 发起【交叉火力】连携申请…（${partners.length} 名同伴加入）`);
+            SkillSystem._crossfireShow(actor, partners, allCharsDiv);   // 连携演出：伙伴金闪 + 连线
+            window._actionAnimDelay = 1100;
+        }
 
         // v0.314：第二关特殊胜利追踪——开车警察使出「开创」即记为已用过（怨灵车同名，仅第四关出现，不影响第二关判定）
         if (actor.name === '开车警察' && skill.name === '开创') {
@@ -339,6 +399,27 @@ class SkillSystem {
             const rollResult = SkillSystem.rollCoins(coins, actor);
             const effectiveCoins = rollResult.heads;
             if (skill.special && skill.special.type === 'meteor') { meteorMain = target; meteorHeads = rollResult.heads; }
+            // v0.684 创伤：投掷硬币时触发（次数 = 本次分配到目标身上的硬币数），每次 20×级数 真伤 + 层数-1
+            if (target.alive && target.getBuffStack('trauma') > 0 && coins > 0) {
+                let traumaTimes = coins;
+                while (traumaTimes > 0 && target.alive && target.getBuffStack('trauma') > 0) {
+                    const traumaLvl = target.getBuffLevel('trauma');
+                    target.reduceBuffStack('trauma', 1);
+                    const traumaDmg = traumaLvl * 20;
+                    const traumaActual = target.takeTrueDamage(traumaDmg);
+                    target.dotDamageMap['trauma'] = (target.dotDamageMap['trauma'] || 0) + traumaActual;
+                    logFn(`  🩸 ${target.name} 创伤反噬！Lv${traumaLvl}×20 = ${traumaDmg} 真实伤害，层数-1（血量：${target.hp}）`);
+                    if (window.refreshCardState) refreshCardState(target);
+                    SkillSystem.showDamageNumber(target, traumaDmg, null, allCharsDiv);
+                    traumaTimes--;
+                    if (!target.alive) {
+                        logFn(`  💥 ${target.name} 被创伤反噬致死！`);
+                        if (!actor.specialEmotion) actor.gainEmotion(1);
+                        markAiLuKill(actor, target);   // v0.672 第四关隐藏星：击杀归属
+                        target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
+                    }
+                }
+            }
             // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级（v0.683 改用既有标记 specialEmotionType='jade'，不再按名字特判）；
             // 【精准狙击】投正时额外 +1 级（技能定义已带 special.type='jadeBonus' 标记）
             if (actor.specialEmotionType === 'jade' && rollResult.heads > 0) {
@@ -350,10 +431,14 @@ class SkillSystem {
             // 速度差按双方实际速度（每回合在速度区间内重随机，见 Character.rerollSpeed）计算（用户确认）
             let effBonus = skill.bonusDamage;
             if (skill.special && skill.special.type === 'speedDiff') {
-                effBonus += Math.abs(actor.speed - target.speed) * skill.special.bonus;
+                effBonus += Math.abs(actor.getSpeed() - target.getSpeed()) * skill.special.bonus;   // v0.684 用生效速度（含被制服-2）
             }
+            // v0.684 交叉火力：狙击装参与 → 加成伤害 +400
+            if (xfire) effBonus += xfire.bonusAdd;
             // v0.673 创大运吧（曹佳梦）：每级「厌倦」基础伤害 +250、每硬币加成 +200（不叠通用情感加成）
             let effBase = skill.baseDamage;
+            // v0.684 交叉火力：步枪装参与 → 基础伤害 +200
+            if (xfire) effBase += xfire.baseAdd;
             if (skill.special && skill.special.type === 'jadeBurst') {
                 effBase = skill.baseDamage + actor.emotionLevel * 250;
                 effBonus = skill.bonusDamage + actor.emotionLevel * 200;
@@ -378,6 +463,8 @@ class SkillSystem {
             if (actor.evilDefIgnore) {
                 totalIgnore += target.getBuffStack('e') * 50;
             }
+            // v0.684 交叉火力：防爆装参与 → 对被制服目标 +200 伤害
+            if (xfire && xfire.riot && target.getBuffStack('subdued') > 0) dmg += 200;
             let storedDef = null;
             if (totalIgnore > 0) {
                 storedDef = target.def;
@@ -492,6 +579,25 @@ class SkillSystem {
                 logFn(`  😵 ${target.name} 被催眠气体笼罩（下一回合陷入「暂时昏迷」）`);
             }
 
+            // ——— v0.684 多能战警·近身制服：2层「被制服」+ 2层Lv2「混乱」 ———
+            if (skill.special && skill.special.type === 'subdue') {
+                target.addBuffStack('subdued', skill.special.stacks || 2, 1);
+                target.addBuffStack('confusion', 2, 2);
+                logFn(`  ⛓️ ${target.name} 被制服！获得 ${skill.special.stacks || 2} 层「被制服」与 2 层 Lv2「混乱」`);
+            }
+
+            // ——— v0.684 多能战警·中距点射：1层Lv2「燃烧」 ———
+            if (skill.special && skill.special.type === 'rifleBurn') {
+                target.addBuffStack('burn', 1, 2);
+                logFn(`  🔥 ${target.name} 被点燃：1 层 Lv2「燃烧」（中距点射）`);
+            }
+
+            // ——— v0.684 多能战警·远程狙击：2层Lv2「创伤」 ———
+            if (skill.special && skill.special.type === 'snipeTrauma') {
+                target.addBuffStack('trauma', skill.special.stacks || 2, 2);
+                logFn(`  🩸 ${target.name} 身负创伤：${skill.special.stacks || 2} 层 Lv2「创伤」（远程狙击）`);
+            }
+
             // ——— 三技能：清零目标恶 ———
             if (skill.special && skill.special.type === 'evilDrain') {
                 const ev = target.getBuffStack('e');
@@ -521,6 +627,17 @@ class SkillSystem {
             // 被动/特殊效果（恶、燃烧、催眠、愤怒等）产生的 buff 标签同帧刷新，不等 450ms 重渲染
             if (window.refreshCardState) { refreshCardState(target); refreshCardState(actor); }
         });
+
+        // ——— v0.684 交叉火力：按参与装备对全体目标施加状态（防爆→混乱/步枪→燃烧/狙击→创伤） ———
+        if (xfire && targets.length > 0) {
+            targets.forEach(t => {
+                if (!t.alive) return;
+                if (xfire.riot) { t.addBuffStack('confusion', 3, 3); logFn(`  🌀 ${t.name} 受交叉火力压制：3 层 Lv3「混乱」`); }
+                if (xfire.rifle) { t.addBuffStack('burn', 2, 2); logFn(`  🔥 ${t.name} 被交叉火力点燃：2 层 Lv2「燃烧」`); }
+                if (xfire.snipe) { t.addBuffStack('trauma', 3, 3); logFn(`  🩸 ${t.name} 身负交叉火力创伤：3 层 Lv3「创伤」`); }
+                if (window.refreshCardState) refreshCardState(t);
+            });
+        }
 
         // ——— v0.669 纵焚烈火（王庄明）：自身也受到 N 级「燃烧」（自焚，只施加一次，不受目标数影响） ———
         if (skill.special && skill.special.type === 'burnLv' && actor.alive) {

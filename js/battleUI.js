@@ -44,7 +44,10 @@ const buffTypeConfig = {
     'frenzy': { icon: '🔥', color: '#ff6b81' },   // v0.5 狂炎（焚天祭司·烛央）
     'confusion': { icon: '🌀', color: '#9b59b6' },   // v0.6 混乱（张子曦）：受击反噬型 DoT
     'guard': { icon: '🛡️', color: '#f1c40f' },   // v0.669 守护（王庄明）：替队友挡伤害的层数
-    'guardShield': { icon: '💠', color: '#2ecc71' }   // v0.669 守护之躯（王庄明）：按消耗算力折算的减伤
+    'guardShield': { icon: '💠', color: '#2ecc71' },   // v0.669 守护之躯（王庄明）：按消耗算力折算的减伤
+    'subdued': { icon: '⛓️', color: '#95a5a6' },   // v0.684 被制服（多能战警）：速度-2、回合结束层数-1
+    'trauma': { icon: '🩸', color: '#c0392b' },   // v0.684 创伤（多能战警）：被攻击投币时真伤反噬
+    'rest': { icon: '🛏️', color: '#1abc9c' }   // v0.684 休整（多能战警）：回合开始回复20%血量
 };
 
 // v0.683：buff 短标签/弹窗文案表驱动（原 if-else 链；新增 buff 类型只需在此加一行渲染器）。
@@ -61,7 +64,10 @@ const buffRenderers = {
     'frenzy': b => ({ short: `×${b.stack}`, title: `「狂炎」${b.stack} 层`, desc: '伤害计算时每层使【烈焰鞭】/【焚天祭】伤害+150，防御计算时每层防御-20' }),
     'confusion': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「混乱」Lv ${b.level} × ${b.stack} 层`, desc: '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗 1 层并造成 级数×20 真实伤害' }),
     'guard': b => ({ short: `×${b.stack}`, title: `「守护」${b.stack} 层`, desc: '队友即将失去血量时防止之，改为自身受到对应数值的无来源伤害（再次结算防御与减伤），然后层数减一；一切伤害（普通/真伤/持续伤害）均转移，自己受击不转移' }),
-    'guardShield': b => ({ short: `${b.value}%`, title: `「守护之躯」${b.value}% 减伤`, desc: '回合结束时按本回合消耗算力折算（每 100 算力 10%，向下取整、无上限），持续到下回合结束' })
+    'guardShield': b => ({ short: `${b.value}%`, title: `「守护之躯」${b.value}% 减伤`, desc: '回合结束时按本回合消耗算力折算（每 100 算力 10%，向下取整、无上限），持续到下回合结束' }),
+    'subdued': b => ({ short: `×${b.stack}`, title: `「被制服」${b.stack} 层`, desc: '速度-2；回合结束层数-1' }),
+    'trauma': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「创伤」Lv ${b.level} × ${b.stack} 层`, desc: '被攻击投掷硬币时触发（次数=分配硬币数），每次造成 级数×20 真实伤害并消耗 1 层' }),
+    'rest': b => ({ short: `×${b.stack}`, title: `「休整」${b.stack} 回合`, desc: '回合开始回复 20% 血量' })
 };
 
 // 收集角色的 buff 短标签与详情（renderCharacters 与 refreshCardState 共用）
@@ -86,7 +92,7 @@ function refreshCardState(char) {
     updateCharBars(char);
     const totalDef = char.getTotalDef();
     const statsEl = card.querySelector('.stats');
-    if (statsEl) statsEl.innerHTML = `防御${totalDef}${totalDef !== char.def ? `（基础${char.def}）` : ''} 速度${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}`;
+    if (statsEl) statsEl.innerHTML = `防御${totalDef}${totalDef !== char.def ? `（基础${char.def}）` : ''} 速度${char.getSpeed()}${char.getBuffStack('subdued') > 0 ? '（被制服-2）' : ''}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}`;
     // v0.62 情感等级行（>0 显示「情感名 LvN」；鲁盼旋 emotionDisplayName='愤怒'，其余角色默认「情感激荡」；点击弹窗查看效果）：就地同步增删，与 stats 同帧刷新
     const emoName = char.emotionDisplayName || '情感激荡';
     const oldEmoEl = card.querySelector('.emotion-line');
@@ -149,7 +155,7 @@ function renderCharacters() {
             <div class="hp-text">血量 ${char.hp}/${char.maxHp}</div>
             <div class="bar-container"><div class="sp-bar" style="width:${(char.sp / char.maxSP) * 100}%"></div></div>
             <div class="sp-text">算力 ${char.sp}/${char.maxSP}</div>
-            <div class="stats">防御${totalDef}${totalDef !== char.def ? `（基础${char.def}）` : ''} 速度${char.speed}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
+            <div class="stats">防御${totalDef}${totalDef !== char.def ? `（基础${char.def}）` : ''} 速度${char.getSpeed()}${char.getBuffStack('subdued') > 0 ? '（被制服-2）' : ''}${char.hateReduction ? ` <span style="color:#c0392b;">☠️${char.getHateReduction() > 0 ? `减伤${char.getHateReduction()}%` : `受到伤害+${-char.getHateReduction()}%`}</span>` : ''}</div>
             <div class="emotion-line${char.emotionLevel > 0 ? '' : ' emotion-zero'}" title="点击查看${char.emotionDisplayName || '情感激荡'}效果">${char.emotionDisplayName || '情感激荡'} Lv ${char.emotionLevel}</div>
             ${buffDetailItems.length > 0 ? `<div class="buff-indicator" data-buff-char="${char.id}">${buffTags.join('')}</div>` : ''}
         `;

@@ -265,6 +265,19 @@ body {
     0% { opacity: 0; transform: translateX(-50%) scale(0.7); }
     100% { opacity: 1; transform: translateX(-50%) scale(1); }
 }
+/* 交叉火力连携演出（v0.684：伙伴卡片金闪 + 施放者→伙伴金色连线，纯展示） */
+.crossfire-partner { animation: partnerFlash 0.9s ease-out; }
+@keyframes partnerFlash {
+    0% { filter: brightness(1); box-shadow: 0 0 0 rgba(249, 202, 36, 0); }
+    30% { filter: brightness(2.2); box-shadow: 0 0 18px rgba(249, 202, 36, 0.9); }
+    100% { filter: brightness(1); box-shadow: 0 0 0 rgba(249, 202, 36, 0); }
+}
+.crossfire-link {
+    position: absolute; height: 2px;
+    background: linear-gradient(90deg, #f9ca24, #fff7d6);
+    box-shadow: 0 0 8px rgba(249, 202, 36, 0.8);
+    pointer-events: none; z-index: 8;
+}
 /* 待命/召唤入场（v0.287：回合开始时从场外滑入） */
 @keyframes benchEntryRight {
     0% { opacity: 0; transform: translateX(130px); }

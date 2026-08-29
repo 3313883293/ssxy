@@ -306,6 +306,26 @@ function createCaoJiaMeng(team, position) {
     return char;
 }
 
+// ==================== 多能战警（v0.684，张子曦篇第一关敌方 ×3） ====================
+// 用户设计：装备切换（回合开始按同阵营多能战警间位置排位换装备+换技能）+ 战术撤退（血量≤40%退待命区末端，
+// 补位入场后获得休整3回合）+ 创伤（被攻击投币时按硬币数触发真伤反噬）+ 被制服（速度-2、回合结束层数-1）
+// 交叉火力：连携技——与至多2名多能战警连携（每名消耗200算力），射程内全体敌方自动选中；
+// 防爆装参与：对被制服目标+200伤害并对全体施加3层Lv3混乱；步枪装参与：基础+200并对全体施加2层Lv2燃烧；
+// 狙击装参与：加成+400并对全体施加3层Lv3创伤。
+function createDuoNengZhanJing(team, position) {
+    const skills = [
+        new Skill('近身制服', 0, 400, 200, 1, 2, null, { type: 'subdue', stacks: 2, pick: 'noSubdued' }),   // 优先未被制服
+        new Skill('中距点射', 0, 200, 200, 3, 4, null, { type: 'rifleBurn', pick: 'lowestDef' }),            // 优先防御最低
+        new Skill('远程狙击', 0, 100, 800, 1, 6, null, { type: 'snipeTrauma', stacks: 2, pick: 'lowestHp' }), // 优先血量最低
+        new Skill('交叉火力', 400, 600, 300, 3, 5, null, { type: 'crossfire' })   // 连携技（施放者400 + 每名连携者200）
+    ];
+    const char = new Character('多能战警', 2500, 200, [1,4], 400, 100, skills, team, position);
+    char.duoNengGear = true;   // 装备切换标记：回合开始按站位同步装备与技能（v0.684）
+    char.gear = '';            // 当前装备：'riot'防爆装 / 'rifle'步枪装 / 'snipe'狙击装（''=尚未同步）
+    char._gearSkills = { riot: skills[0], rifle: skills[1], snipe: skills[2], crossfire: skills[3] };   // v0.684 换装技能池
+    return char;
+}
+
 // ==================== 稻草人系列（测试用） ====================
 function createScarecrowPaper(team, position) {
     const skills = [
@@ -432,6 +452,7 @@ function createRoleInstance(roleName, team, position) {
     if (roleName === '张子曦') return createZhangZiXi(team, position);
     if (roleName === '王庄明') return createWangZhuangMing(team, position);   // v0.669
     if (roleName === '曹佳梦') return createCaoJiaMeng(team, position);   // v0.673
+    if (roleName === '多能战警') return createDuoNengZhanJing(team, position);   // v0.684
     if (roleName === '烬火信徒') return createAshCultist(team, position);
     if (roleName === '焦木傀儡') return createCharredGolem(team, position);
     if (roleName === '引火学徒') return createFirestarter(team, position);

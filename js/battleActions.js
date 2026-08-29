@@ -230,6 +230,20 @@ function selectPlayerSkill(actor, skillIndex) {
     const enemiesInRange = battleState.getAliveEnemies().filter(e =>
         Math.abs(actor.position - e.position) <= skill.attackRange
     );
+    // v0.684 交叉火力（连携技）：目标 = 射程内全体敌方，自动选中直接施放（无需手动选目标）
+    if (skill.special && skill.special.type === 'crossfire') {
+        if (enemiesInRange.length === 0) {
+            targetHint.innerHTML = renderGlossaryText('射程内无目标，无法使用【交叉火力】！');
+            battleState.selectedSkill = null;
+            skillDetailDiv.classList.remove('active');
+            return;
+        }
+        log(`${actor.name} 发起【交叉火力】连携申请…`);
+        resetActionUI();
+        skillDetailDiv.classList.remove('active');
+        executePlayerAction(actor, enemiesInRange);
+        return;
+    }
     if (enemiesInRange.length === 0) {
         targetHint.innerHTML = renderGlossaryText('该技能攻击距离范围内无可用目标！请重新选择技能。');
         battleState.selectedSkill = null;
@@ -301,6 +315,23 @@ function executePlayerAction(actor, targets) {
     scheduleProcessNext(delay);
 }
 
+// v0.684 目标优先级（多能战警三技能「优先指定」）：敌方 AI 选目标时按技能 special.pick 排序取前 coinCount 个；
+// noSubdued=优先未被制服（全被制服时退化为最低血量）、lowestDef=防御最低、lowestHp=血量最低；未标记则原样返回
+function applyTargetPriority(skill, candidates) {
+    const pick = skill.special && skill.special.pick;
+    if (!pick || !candidates || candidates.length === 0) return candidates;
+    const arr = [...candidates];
+    if (pick === 'noSubdued') {
+        const clean = arr.filter(t => t.getBuffStack('subdued') === 0);
+        const pool = clean.length ? clean : arr;
+        pool.sort((a, b) => a.hp - b.hp);
+        return pool.slice(0, Math.max(1, skill.coinCount));
+    }
+    if (pick === 'lowestDef') arr.sort((a, b) => a.getTotalDef() - b.getTotalDef());
+    else if (pick === 'lowestHp') arr.sort((a, b) => a.hp - b.hp);
+    return arr.slice(0, Math.max(1, skill.coinCount));
+}
+
 // ==================== 敌方 AI ====================
 function enemyTurn(actor) {
     clearIntent(actor);   // 轮到自己行动：收起回合开始的预测徽章（v0.288）
@@ -331,7 +362,7 @@ function enemyTurn(actor) {
             return;
         }
         chosenSkill = plan.skill;
-        targets = plan.targets;
+        targets = applyTargetPriority(plan.skill, plan.targets);   // v0.684 优先指定（未被制服/防御最低/血量最低）
     }
     // 催眠气体释放：随机指定1个目标
     if (chosenSkill.special && chosenSkill.special.type === 'stun') {

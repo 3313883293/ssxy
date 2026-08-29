@@ -27,6 +27,7 @@ function serializeChar(c) {
         buffs: c.buffs,
         aiControlled: !!c.aiControlled,
         lockHp: !!c.lockHp,   // v0.683 锁血标记随存档保留（第四关鲁盼旋/灼华篇第三关灼华）
+        gear: c.gear || '',   // v0.684 多能战警当前装备（读档后按站位重新同步）
         aiCycle: c.aiCycle, aiIndex: c.aiIndex || 0,
         defector: !!c.defector,
         hateReduction: !!c.hateReduction, hateReductionCurrent: c.hateReductionCurrent || 0,
@@ -94,6 +95,7 @@ function loadAutoBattle() {
             def: snap.def, buffs: snap.buffs || [],
             aiControlled: !!snap.aiControlled, aiCycle: snap.aiCycle || null, aiIndex: snap.aiIndex || 0,
             lockHp: !!snap.lockHp,   // v0.683 锁血标记读档恢复
+            gear: snap.gear || '',   // v0.684 多能战警装备读档恢复（syncAllDuoNengGear 按站位重算）
             defector: !!snap.defector,
             hateReduction: !!snap.hateReduction, hateReductionCurrent: snap.hateReductionCurrent || 0,
             pendingEntry: !!snap.pendingEntry, entryAnim: !!snap.entryAnim,
@@ -125,6 +127,7 @@ function loadAutoBattle() {
     //       厌倦 ≥4 需马上替换为陨星，不能等玩家点「开始回合」——读档点即回合开始点）
     battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
     SkillSystem.refreshCoinLuckBuffs();   // v0.682 读档后重算投正率 buff（存档序列化含 coinLuck，按当前存活状态覆盖重建）
+    syncAllDuoNengGear(log);   // v0.684 读档后按站位重算多能战警装备（回退存档加成→按当前排位换装）
     battleEpoch++;
     buildActionQueue();   // 用存档速度重建行动队列（与 startNewRound 排序一致）
     renderCharacters();
@@ -179,13 +182,75 @@ function scheduleProcessNext(delay) {
 function buildActionQueue() {
     const alive = battleState.allCharacters.filter(c => c.alive);
     alive.sort((a, b) => {
-        if (b.speed !== a.speed) return b.speed - a.speed;
+        if (b.getSpeed() !== a.getSpeed()) return b.getSpeed() - a.getSpeed();   // v0.684 生效速度（含被制服-2）
         if (a.team === 'player' && b.team === 'enemy') return -1;
         if (a.team === 'enemy' && b.team === 'player') return 1;
         return a.position - b.position;
     });
     battleState.actionQueue = [...alive];
     log(`行动顺序: ${battleState.actionQueue.map(c => c.name + '(' + c.team[0] + c.position + ')').join(' → ')}`);
+}
+
+// v0.684 多能战警「装备切换」：回合开始（与读档后）按同阵营多能战警间位置排位换装——
+// 最前方（位置最大）→防爆装（防御+300）；次前方→步枪装（防御+100、速度+1）；其余（含末前方）→狙击装（速度+3）。
+// 换装同时切换技能[0]（近身制服/中距点射/远程狙击），【交叉火力】恒为技能[1]。
+const DUONENG_GEAR_CFG = {
+    riot:  { skill: '近身制服', def: 300, speed: 0 },
+    rifle: { skill: '中距点射', def: 100, speed: 1 },
+    snipe: { skill: '远程狙击', def: 0,   speed: 3 }
+};
+
+// 目标装备：同阵营在场多能战警中位置比自己大的数量 +1 = 排位（1=防爆 / 2=步枪 / 其余=狙击）
+function duoNengTargetGear(c) {
+    const mates = battleState.allCharacters.filter(x =>
+        x.alive && x.team === c.team && x !== c && x.duoNengGear && !x.pendingEntry
+    );
+    const rank = mates.filter(x => x.position > c.position).length + 1;
+    if (rank === 1) return 'riot';
+    if (rank === 2) return 'rifle';
+    return 'snipe';
+}
+
+function syncDuoNengGear(c, logFn) {
+    if (!c || !c.duoNengGear || !c.alive || c.pendingEntry) return;
+    const target = duoNengTargetGear(c);
+    if (target === c.gear) return;
+    // 回退旧装备加成（直接改基础数值，同开车警察加油/刹车模式）
+    if (c.gear && DUONENG_GEAR_CFG[c.gear]) {
+        const old = DUONENG_GEAR_CFG[c.gear];
+        c.def -= old.def;
+        c.speedMin = Math.max(1, c.speedMin - old.speed);
+    }
+    c.gear = target;
+    const cfg = DUONENG_GEAR_CFG[target];
+    c.def += cfg.def;
+    c.speedMin = Math.max(1, c.speedMin + cfg.speed);
+    if (cfg.speed > 0) c.rerollSpeed();   // 速度下限变化后重掷实际速度（同开车警察）
+    // 换技能：装备技能 + 交叉火力
+    if (c._gearSkills && c._gearSkills[target]) {
+        c.skills = [c._gearSkills[target], c._gearSkills.crossfire];
+    }
+    if (typeof logFn === 'function') {
+        const name = target === 'riot' ? '防爆装' : target === 'rifle' ? '步枪装' : '狙击装';
+        logFn(`🔁 ${c.name}（位置${c.position}）装备切换：${name}（防御 ${c.def}、速度 ${c.speedMin}~${c.speedMax}）→ 使用【${cfg.skill}】`);
+    }
+}
+
+function syncAllDuoNengGear(logFn) {
+    battleState.allCharacters.forEach(c => syncDuoNengGear(c, logFn));
+}
+
+// v0.684 战术撤退：回合结束时血量 ≤40% → 移出战场，退回待命区末端（队友阵亡后经补位机制最后入场）
+function retreatToBench(c) {
+    const teamArr = c.team === 'player' ? battleState.playerTeam : battleState.enemyTeam;
+    const bench = c.team === 'player' ? battleState.benchPlayer : battleState.benchEnemy;
+    const idx = teamArr.indexOf(c);
+    if (idx >= 0) teamArr.splice(idx, 1);
+    const ai = battleState.allCharacters.indexOf(c);
+    if (ai >= 0) battleState.allCharacters.splice(ai, 1);
+    bench.push(c);   // 待命区末端：补位时最后入场
+    battleState.repositionAll();
+    log(`🚔 ${c.name} 血量 ${c.hp}/${c.maxHp}（≤40%），战术撤退至待命区休整！`);
 }
 
 function startNewRound() {
@@ -224,6 +289,25 @@ function startNewRound() {
     // v0.673 曹佳梦「厌倦」：回合开始检查三技能形态（v0.677 抽为独立函数，读档重建后也调用）
     battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
     SkillSystem.refreshCoinLuckBuffs();   // v0.682 概率论的奇迹：回合开始重算全员投正率 buff（含待命入场、厌倦等级落定）
+    // ——— v0.684 多能战警：休整（回合开始回20%血，入场后重置3回合）+ 装备切换 ———
+    battleState.allCharacters.forEach(c => {
+        if (!c.alive || !c.duoNengGear) return;
+        if (c.entryAnim) {   // 补位入场（解除待命状态）：获得「休整」3 回合（已有时重置）；入场当回合不立即回血
+            c.clearBuff('rest');
+            c.addBuffStack('rest', 3, 1);
+            log(`🛏️ ${c.name} 入场休整：接下来 3 个回合开始各回复 20% 血量`);
+        } else if (c.getBuffStack('rest') > 0) {
+            const heal = Math.round(c.maxHp * 0.2);
+            const before = c.hp;
+            c.hp = Math.min(c.maxHp, c.hp + heal);
+            if (c.hp > before) {
+                c.reduceBuffStack('rest', 1);
+                log(`🛏️ ${c.name} 休整回复 ${c.hp - before} 血量（剩余 ${c.getBuffStack('rest')} 回合）`);
+                if (window.refreshCardState) refreshCardState(c);
+            }
+        }
+    });
+    syncAllDuoNengGear(log);   // v0.684 装备切换：按当前站位同步（含补位入场后的新排位）
 
     buildActionQueue();
     nextRoundBtn.style.display = 'none';
@@ -282,6 +366,18 @@ function onTurnEnd() {
         }
     });
     battleState.allCharacters.forEach(c => c.regenSP());   // 算力恢复移至回合结束
+
+    // ——— v0.684 被制服：回合结束层数-1 ———
+    battleState.allCharacters.forEach(c => {
+        if (c.alive && c.getBuffStack('subdued') > 0) {
+            c.reduceBuffStack('subdued', 1);
+            log(`⛓️ ${c.name}「被制服」层数-1（剩余 ${c.getBuffStack('subdued')} 层）`);
+        }
+    });
+    // ——— v0.684 多能战警战术撤退：回合结束时血量 ≤40% → 退回待命区末端（快照遍历，撤退会改 allCharacters） ———
+    [...battleState.allCharacters].forEach(c => {
+        if (c.alive && c.duoNengGear && c.hp / c.maxHp <= 0.4) retreatToBench(c);
+    });
 
     const snapshot = [...battleState.allCharacters];   // 快照：补位/倒戈会增删数组
     snapshot.forEach(c => {
@@ -547,11 +643,11 @@ function startBattle(level) {
             createZhuYang('enemy', playerChars.length + 2)
         ];
     } else if (level === 7) {
-        // v0.6 张子曦篇第一关：占位配置（烬火信徒×2 + 引火学徒×1，敌人待用户后补）
+        // v0.684 张子曦篇第一关：多能战警×3（防爆/步枪/狙击三装备阵型，可触发交叉火力连携）
         enemyChars = [
-            createAshCultist('enemy', playerChars.length),
-            createAshCultist('enemy', playerChars.length + 1),
-            createFirestarter('enemy', playerChars.length + 2)
+            createDuoNengZhanJing('enemy', playerChars.length),
+            createDuoNengZhanJing('enemy', playerChars.length + 1),
+            createDuoNengZhanJing('enemy', playerChars.length + 2)
         ];
     } else if (level === 8) {
         // v0.6 张子曦篇第二关：占位 Boss 关（焦木傀儡×2 + 烛央，配置待用户后补）

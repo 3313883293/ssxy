@@ -65,6 +65,13 @@ class Character {
         this.speed = Math.floor(Math.random() * (this.speedMax - this.speedMin + 1)) + this.speedMin;
     }
 
+    // v0.684 被制服：速度-2（总共，无论层数）；行动顺序排序/开创速度差/卡片显示均用本方法取生效速度
+    getSpeed() {
+        let s = this.speed;
+        if (this.getBuffStack('subdued') > 0) s -= 2;
+        return Math.max(1, s);
+    }
+
     // —————— 防御 ——————
     getTotalDef() {
         let total = this.def;
