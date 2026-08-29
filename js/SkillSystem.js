@@ -131,24 +131,52 @@ class SkillSystem {
         return Math.random() < probability;
     }
 
-    // v0.673 曹佳梦「概率论的奇迹」：投硬币概率——同阵营存活曹佳梦在场时叠加生效：
-    // 曹佳梦自身 +25% 且每级「厌倦」再 -5%，并额外吃场上其他曹佳梦各 +10%；
-    // 非曹佳梦队友 = 每个曹佳梦 +10%（多曹佳梦叠加）；概率下限 0.1
+    // v0.682 隐藏 buff「coinLuck」（投正率）：投正概率只由单位身上的 coinLuck buff 决定（值 = 总加成），
+    // 概率论的奇迹等来源通过增减该 buff 影响投正率；无 buff 时概率 = 0.5；下限 0.1。
+    // （v0.673 的曹佳梦判定已整体移入 refreshCoinLuckBuffs，此处不再扫描场上曹佳梦）
     static coinProbFor(actor) {
         let prob = 0.5;
-        if (actor && typeof battleState !== 'undefined' && battleState) {
-            const teamCjm = battleState.allCharacters.filter(c => c.alive && c.team === actor.team && c.name === '曹佳梦');
-            if (teamCjm.length > 0) {
-                if (actor.name === '曹佳梦') {
-                    // 自身：+25% − 自己的厌倦×5%；场上其他曹佳梦各再给 +10%
-                    prob += 0.25 - actor.emotionLevel * 0.05 + 0.10 * (teamCjm.length - 1);
-                } else {
-                    // 队友：每个曹佳梦 +10%（叠加）
-                    prob += 0.10 * teamCjm.length;
-                }
-            }
+        if (actor) {
+            const luck = actor.buffs.find(b => b.type === 'coinLuck');
+            if (luck) prob += luck.value;
         }
         return Math.max(0.1, prob);
+    }
+
+    // v0.682 概率论的奇迹：按「同阵营存活曹佳梦」重算全员身上的 coinLuck buff（每单位一个聚合 buff，
+    // 值 = 总加成，内部按来源记录明细，可单独摘除/追溯）：
+    // 曹佳梦自身 +25% − 自己的厌倦×5%（取回合开始级），并吃场上其他曹佳梦各 +10%；
+    // 非曹佳梦队友 = 每个曹佳梦 +10%（多曹佳梦叠加）。
+    // 刷新时机（用户确认「攻击内恒定」方案）：回合开始（含待命入场、厌倦等级落定）、
+    // 曹佳梦阵亡、读档后；厌倦在攻击中升级/归零不触发刷新——同一次攻击内投正率恒定。
+    static refreshCoinLuckBuffs() {
+        if (typeof battleState === 'undefined' || !battleState) return;
+        const round2 = v => Math.round(v * 1000) / 1000;   // 归一浮点（0.1×3 = 0.30000000000000004）
+        battleState.allCharacters.forEach(c => {
+            if (!c.alive) return;
+            c.clearBuff('coinLuck');   // 先清旧值再按当前场上状态重算（幂等）
+            const teamCjm = battleState.allCharacters.filter(x => x.alive && x.team === c.team && x.name === '曹佳梦');
+            if (teamCjm.length === 0) return;
+            let total = 0;
+            const sources = [];
+            if (c.name === '曹佳梦') {
+                // 自身：+25% − 自己的厌倦×5%；场上其他曹佳梦各再给 +10%
+                const selfBonus = round2(0.25 - c.emotionLevel * 0.05);
+                sources.push({ from: '概率论的奇迹·自身', bonus: selfBonus });
+                total += selfBonus;
+                const others = teamCjm.length - 1;
+                if (others > 0) {
+                    sources.push({ from: `概率论的奇迹·其他曹佳梦×${others}`, bonus: round2(0.10 * others) });
+                    total += round2(0.10 * others);
+                }
+            } else {
+                // 队友：每个曹佳梦 +10%（叠加）
+                const teamBonus = round2(0.10 * teamCjm.length);
+                sources.push({ from: `概率论的奇迹·曹佳梦×${teamCjm.length}`, bonus: teamBonus });
+                total += teamBonus;
+            }
+            c.buffs.push({ type: 'coinLuck', value: round2(total), sources });
+        });
     }
 
     static rollCoins(coinCount, actor = null) {

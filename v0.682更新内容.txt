@@ -1,0 +1,42 @@
+v0.682 更新内容：投正概率 buff 化——隐藏 buff「coinLuck」承载投正率，概率论的奇迹改为维护该 buff
+
+## 背景
+
+用户设计：把「投正概率提升」单独做成一个**不显示的 buff**，投正概率计算只考虑这个 buff；概率论的奇迹通过增减该 buff 影响投正率。
+用户确认方案：1b（厌倦只在回合开始写入 buff，攻击内概率恒定）＋ 2a（回合开始/曹佳梦阵亡/读档后刷新队伍加成）＋ 3 结合（每单位一个聚合单值 buff，内部按来源记录明细）。
+
+## 重构内容（行为等价，唯一行为差异见下）
+
+1. **隐藏 buff `coinLuck`**：`{ type:'coinLuck', value: 总加成, sources:[{from, bonus}...] }`，挂在 `char.buffs` 数组；
+   - 曹佳梦自身：`+25% − 厌倦级×5%`，外加场上其他曹佳梦各 `+10%`；
+   - 队友：每个同阵营存活曹佳梦 `+10%`（叠加）；
+   - 不显示：卡片角标与 Buff 弹窗均过滤（collectBuffUI 跳过）。
+2. **`SkillSystem.coinProbFor` 重写**：`prob = 0.5 + coinLuck.value`，下限 0.1——不再扫描场上曹佳梦，只读 buff。
+3. **`SkillSystem.refreshCoinLuckBuffs` 新增**：概率论的奇迹的维护端——先清旧 buff 再按当前存活曹佳梦重算全员（幂等，含来源明细）。
+4. **刷新时机**：回合开始（startNewRound，含待命入场与厌倦等级落定）＋ 曹佳梦阵亡瞬间（handleDeath 统一出口，队友立即失去加成）＋ 读档后（loadAutoBattle，覆盖存档中的旧值）。
+
+## 唯一行为差异（用户确认接受）
+
+- 厌倦在**攻击过程中**升级/归零不再立即影响后续投币——同一次攻击内投正率恒定（原实现每次投币实时读厌倦，攻击内概率逐次下降）。下回合开始重算。
+- 其余数值与现状完全一致（+25%/−5%/级/队友+10%/多曹佳梦叠加/下限 0.1）。
+
+## 改动（v0.681 → v0.682）
+
+1. **js/SkillSystem.js**：`coinProbFor` 重写（只读 coinLuck buff）；新增 `refreshCoinLuckBuffs`。
+2. **js/battleUI.js**：`collectBuffUI` 过滤 `coinLuck`（隐藏，不显示角标/弹窗项）。
+3. **js/battleFlow.js**：`startNewRound` 与 `loadAutoBattle` 调用 `refreshCoinLuckBuffs`。
+4. **js/Characters.js**：`handleDeath` 末尾调用 `refreshCoinLuckBuffs`（曹佳梦阵亡即刻摘除队友加成）。
+5. **js/globals.js**：GAME_VERSION → v0.682。
+
+## 自动适配（零改动）
+
+- 技能公式/演出/厌倦升级/AI 决策（期望值 50% 不读真实概率）均不变；
+- 存档序列化含 coinLuck，读档后按当前场上状态覆盖重建，幂等；
+- 未来任何角色/技能/状态只需增减 coinLuck buff 即可影响投正率，coinProbFor 永不再改。
+
+## 验证
+
+适配 `check-v0682-coinluck.js`：
+- A 无曹佳梦概率 0.5；B 1 曹佳梦队友 +10%（0.6）、自身 +25%（0.75）；C 2 曹佳梦队友 0.7、自身 0.85；
+- D 厌倦 Lv2 自身 0.65（回合开始刷新后）；E 隐藏（collectBuffUI 无角标/弹窗项）；F 曹佳梦阵亡后队友回 0.5；
+- G 攻击内恒定（投正升级后不刷新，手动刷新后生效）；H 回合开始自动刷新；I 无页面异常。

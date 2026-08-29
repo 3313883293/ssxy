@@ -122,6 +122,7 @@ function loadAutoBattle() {
     // v0.677 fix：读档重建后立即同步曹佳梦三技能形态（存档不序列化技能数组，重建后为初始技能；
     //       厌倦 ≥4 需马上替换为陨星，不能等玩家点「开始回合」——读档点即回合开始点）
     battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
+    SkillSystem.refreshCoinLuckBuffs();   // v0.682 读档后重算投正率 buff（存档序列化含 coinLuck，按当前存活状态覆盖重建）
     battleEpoch++;
     buildActionQueue();   // 用存档速度重建行动队列（与 startNewRound 排序一致）
     renderCharacters();
@@ -220,6 +221,7 @@ function startNewRound() {
     battleState.allCharacters.forEach(c => { c.spSpentThisTurn = 0; });
     // v0.673 曹佳梦「厌倦」：回合开始检查三技能形态（v0.677 抽为独立函数，读档重建后也调用）
     battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
+    SkillSystem.refreshCoinLuckBuffs();   // v0.682 概率论的奇迹：回合开始重算全员投正率 buff（含待命入场、厌倦等级落定）
 
     buildActionQueue();
     nextRoundBtn.style.display = 'none';

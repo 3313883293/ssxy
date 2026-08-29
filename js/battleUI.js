@@ -51,6 +51,7 @@ const buffTypeConfig = {
 function collectBuffUI(char) {
     const tags = [], details = [];
     char.buffs.forEach(buff => {
+        if (buff.type === 'coinLuck') return;   // v0.682 隐藏 buff：投正率加成不显示角标/不进弹窗
         const cfg = buffTypeConfig[buff.type] || { icon: '❓', color: '#aaa' };
         let shortText = '', detailTitle = '', detailDesc = '';
         if (buff.type === 'def') {

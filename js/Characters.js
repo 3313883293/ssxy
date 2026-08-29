@@ -173,6 +173,8 @@ class Character {
             }
             battleState.queueBenchEntry(this.team);   // 待命补位（回合开始时入场，v0.287）
             battleState.repositionAll();
+            // v0.682 概率论的奇迹：曹佳梦阵亡 → 队友立即失去其投正率加成（死亡瞬间刷新）
+            if (typeof SkillSystem !== 'undefined' && SkillSystem.refreshCoinLuckBuffs) SkillSystem.refreshCoinLuckBuffs();
         }
     }
 
