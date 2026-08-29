@@ -207,6 +207,35 @@ function renderCharacters() {
         allCharsDiv.appendChild(card);
         char.cardElement = card;
     });
+    renderBench();   // v0.687 待命区（撤退/后备单位）随战场一起渲染
+}
+
+// v0.687 待命区可视化：战场下方显示敌我待命区小卡（战术撤退的多能战警/关卡后备单位），
+// 按补位顺序（#1 最先入场）排列，标注血量/装备/休整状态；待命区为空时整行隐藏。
+function renderBench() {
+    if (!benchRow) return;
+    const mkSection = (label, bench, cls) => {
+        if (!bench.length) return null;
+        const cards = bench.map((c, i) => {
+            const gearName = c.gear === 'riot' ? '防爆装' : c.gear === 'rifle' ? '步枪装' : c.gear === 'snipe' ? '狙击装' : '';
+            const rest = (c.getBuffStack && c.getBuffStack('rest') > 0) ? '<span class="bench-rest">🛏️休整</span>' : '';
+            return `<div class="bench-card ${cls}">
+                <div class="bench-order">补位 #${i + 1}</div>
+                <div class="bench-name">${c.name}</div>
+                ${gearName ? `<div class="bench-gear">${gearName}</div>` : ''}
+                <div class="bench-hp">❤️ ${c.hp}/${c.maxHp}</div>
+                ${rest}
+            </div>`;
+        }).join('');
+        return `<div class="bench-section ${cls}">
+            <div class="bench-title">${label}（${bench.length}）<span class="bench-hint">队友阵亡后按序补位入场</span></div>
+            <div class="bench-cards">${cards}</div>
+        </div>`;
+    };
+    const enemySec = mkSection('🚑 敌方待命区', battleState.benchEnemy, 'enemy');
+    const playerSec = mkSection('🛡️ 我方待命区', battleState.benchPlayer, 'player');
+    benchRow.innerHTML = [enemySec, playerSec].filter(Boolean).join('');
+    benchRow.style.display = (enemySec || playerSec) ? 'flex' : 'none';
 }
 
 function showBuffPopup(char, buffDetailItems) {

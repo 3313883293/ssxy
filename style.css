@@ -140,6 +140,21 @@ body {
 .stats { font-size: 0.75em; color: #ccc; margin-top: 4px; }
 .position-mark { font-size: 0.65em; color: #888; position: absolute; top: 3px; right: 8px; }
 
+/* === 待命区（v0.687：战术撤退/后备单位显示，战场下方） === */
+.bench-row { display: flex; gap: 24px; justify-content: center; width: 100%; flex-wrap: wrap; margin-top: 10px; }
+.bench-section { display: flex; flex-direction: column; align-items: center; gap: 6px; background: rgba(22,33,62,0.5); border: 1px dashed #4a5a7a; border-radius: 10px; padding: 8px 14px; }
+.bench-title { font-size: 0.8em; color: #aaa; }
+.bench-hint { font-size: 0.68em; color: #667; margin-left: 6px; }
+.bench-cards { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.bench-card { background: #101a30; border-radius: 8px; padding: 6px 10px; text-align: center; min-width: 96px; border: 1px dashed; opacity: 0.85; }
+.bench-card.enemy { border-color: #e74c3c88; }
+.bench-card.player { border-color: #2ecc7188; }
+.bench-card .bench-order { font-size: 0.65em; color: #8892a6; }
+.bench-card .bench-name { font-size: 0.85em; font-weight: bold; color: #eee; }
+.bench-card .bench-gear { font-size: 0.7em; color: #f9ca24; margin-top: 2px; }
+.bench-card .bench-hp { font-size: 0.7em; color: #ccc; margin-top: 2px; }
+.bench-card .bench-rest { font-size: 0.65em; color: #1abc9c; display: block; margin-top: 2px; }
+
 /* === Buff 指示器（点击弹出详情） === */
 .buff-indicator {
     font-size: 0.7em;

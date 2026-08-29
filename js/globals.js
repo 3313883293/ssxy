@@ -1,7 +1,7 @@
 // globals.js - 全局变量、DOM引用、工具函数
 
 // ==================== 版本号（v0.663：主界面显示，单一来源，随版本快照更新） ====================
-const GAME_VERSION = 'v0.686';
+const GAME_VERSION = 'v0.687';
 
 // ==================== 战斗状态实例 ====================
 let battleState = new BattleState();
@@ -11,6 +11,7 @@ function repositionAll() { battleState.repositionAll(); }
 
 // ==================== DOM 引用 ====================
 const allCharsDiv = document.getElementById('allChars');
+const benchRow = document.getElementById('benchRow');   // v0.687 待命区可视化容器（敌我撤退/后备单位显示）
 const actionContent = document.getElementById('actionContent');
 const turnDisplay = document.getElementById('turnDisplay');
 const logPanel = document.getElementById('logPanel');
@@ -206,7 +207,7 @@ const PASSIVE_INFO = {
     // v0.684 多能战警（张子曦篇第一关敌方）
     '多能战警': [
         '装备切换：回合开始根据位置切换装备——同阵营多能战警中位置最前 → 防爆装（防御+300，使用【近身制服】）；次前 → 步枪装（防御+100、速度+1，使用【中距点射】）；其余 → 狙击装（速度+3，使用【远程狙击】）；【交叉火力】恒可用',
-        '战术撤退：回合结束时若自身血量不高于 40%，退回待命区末端（队友阵亡后补位入场）；解除待命状态后获得「休整」3 回合（回合开始回复 20% 血量）'
+        '战术撤退：回合结束时若自身血量不高于 40%，退回待命区末端（队友阵亡后补位入场）；解除待命状态后获得「休整」3 回合（回合开始回复 20% 血量，休整期间不会再次撤退）'   // v0.687 休整期不撤退
     ]
 };
 

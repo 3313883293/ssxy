@@ -248,6 +248,7 @@ function syncAllDuoNengGear(logFn) {
 
 // v0.684 战术撤退：回合结束时血量 ≤40% → 移出战场，退回待命区末端（队友阵亡后经补位机制最后入场）
 function retreatToBench(c) {
+    c.pendingEntry = false;   // v0.687 防御：撤退即离开入场队列（正常路径不会带此标记）
     const teamArr = c.team === 'player' ? battleState.playerTeam : battleState.enemyTeam;
     const bench = c.team === 'player' ? battleState.benchPlayer : battleState.benchEnemy;
     const idx = teamArr.indexOf(c);
@@ -381,8 +382,11 @@ function onTurnEnd() {
         }
     });
     // ——— v0.684 多能战警战术撤退：回合结束时血量 ≤40% → 退回待命区末端（快照遍历，撤退会改 allCharacters） ———
+    // v0.687 修复「撤了回不来」：① 跳过 pendingEntry（已排队待入场的单位，本回合末不能再撤退——否则补位入场前
+    // 就被踹回待命区，永远进不了场）；② 跳过「休整」中的单位（休整期养伤不回撤，保证入场当回合能活到
+    // 回合开始回血，不再无限撤退循环）。
     [...battleState.allCharacters].forEach(c => {
-        if (c.alive && c.duoNengGear && c.hp / c.maxHp <= 0.4) retreatToBench(c);
+        if (c.alive && c.duoNengGear && !c.pendingEntry && c.getBuffStack('rest') <= 0 && c.hp / c.maxHp <= 0.4) retreatToBench(c);
     });
 
     const snapshot = [...battleState.allCharacters];   // 快照：补位/倒戈会增删数组
