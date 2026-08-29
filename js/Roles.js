@@ -64,6 +64,7 @@ function createLuPanxuan(team, position) {
         new Skill('十二连·剑斩邪祟', 800,  300, 100, 12, 3, null, { type: 'evilDrain', bonus: 100 })   // v0.293：加成伤害与恶加伤 50→100
     ];
     const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
+    char.evilDefIgnore = true;   // v0.683 固有机制标记：伤害结算时目标每层「恶」额外无视 50 防御（原 SkillSystem 按名字特判）
     char.specialEmotion = true;   // v0.62 特殊情感激荡：触发/效果/副作用完全自定义，不受通用四触发影响（被动②③⑤接管）
     char.specialEmotionType = 'anger';   // v0.66 特殊情感激荡类型：鲁盼旋 = 愤怒（cap 5、每2级伤害+100/防御-50）
     char.emotionDisplayName = '愤怒';   // v0.62 显示名：鲁盼旋的情感等级显示为「愤怒」，仍归属情感激荡机制（仅用户可见文本换名）

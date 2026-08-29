@@ -339,10 +339,11 @@ class SkillSystem {
             const rollResult = SkillSystem.rollCoins(coins, actor);
             const effectiveCoins = rollResult.heads;
             if (skill.special && skill.special.type === 'meteor') { meteorMain = target; meteorHeads = rollResult.heads; }
-            // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级（全局规则）；【精准狙击】投正时额外 +1 级
-            if (actor.name === '曹佳梦' && rollResult.heads > 0) {
+            // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级（v0.683 改用既有标记 specialEmotionType='jade'，不再按名字特判）；
+            // 【精准狙击】投正时额外 +1 级（技能定义已带 special.type='jadeBonus' 标记）
+            if (actor.specialEmotionType === 'jade' && rollResult.heads > 0) {
                 actor.gainEmotion(rollResult.heads);
-                if (skill.name === '精准狙击') actor.gainEmotion(1);
+                if (skill.special && skill.special.type === 'jadeBonus') actor.gainEmotion(1);
             }
             let dmg = 0;
             // 开创：与目标每有一点速度差，每硬币加成伤害+200（用局部变量，不改技能本体）
@@ -372,9 +373,9 @@ class SkillSystem {
                 dmg += target.getBuffStack('e') * skill.special.bonus;
             }
 
-            // 总无视防御：二技能基础值 + 目标恶层数 × 50（鲁盼旋固有机制）
+            // 总无视防御：二技能基础值 + 目标恶层数 × 50（鲁盼旋固有机制，v0.683 改为工厂标记 evilDefIgnore，不再按名字特判）
             let totalIgnore = baseIgnore;
-            if (actor.name === '鲁盼旋') {
+            if (actor.evilDefIgnore) {
                 totalIgnore += target.getBuffStack('e') * 50;
             }
             let storedDef = null;

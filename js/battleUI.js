@@ -47,53 +47,34 @@ const buffTypeConfig = {
     'guardShield': { icon: '💠', color: '#2ecc71' }   // v0.669 守护之躯（王庄明）：按消耗算力折算的减伤
 };
 
+// v0.683：buff 短标签/弹窗文案表驱动（原 if-else 链；新增 buff 类型只需在此加一行渲染器）。
+// 每项返回 { short: 角标文字（不含图标，图标由 buffTypeConfig 提供）, title: 弹窗标题（不含图标）, desc: 弹窗描述 }
+const buffRenderers = {
+    'def': b => {
+        const sign = b.value > 0 ? '+' : '';
+        return { short: `${sign}${b.value}`, title: `【防御临时变动】${sign}${b.value}`, desc: '持续至下次受击时' };
+    },
+    'e': b => ({ short: `×${b.stack}`, title: `「恶」${b.stack} 层`, desc: '伤害计算时，每层使鲁盼旋对其无视 50 防御' }),
+    'burn': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「燃烧」Lv ${b.level} × ${b.stack} 层`, desc: `回合结束时造成 ${b.level}×50 = ${b.level * 50} 真实伤害；每 5 级消耗 1 层，不足按剩余层数×5 级结算` }),
+    'stun': () => ({ short: '昏迷', title: '「暂时昏迷」', desc: '轮到行动时无法行动，跳过本次行动后解除' }),
+    'stunPending': () => ({ short: '催眠中', title: '「催眠气体」待生效', desc: '下一回合陷入「暂时昏迷」，无法行动一回合' }),
+    'frenzy': b => ({ short: `×${b.stack}`, title: `「狂炎」${b.stack} 层`, desc: '伤害计算时每层使【烈焰鞭】/【焚天祭】伤害+150，防御计算时每层防御-20' }),
+    'confusion': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「混乱」Lv ${b.level} × ${b.stack} 层`, desc: '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗 1 层并造成 级数×20 真实伤害' }),
+    'guard': b => ({ short: `×${b.stack}`, title: `「守护」${b.stack} 层`, desc: '队友即将失去血量时防止之，改为自身受到对应数值的无来源伤害（再次结算防御与减伤），然后层数减一；一切伤害（普通/真伤/持续伤害）均转移，自己受击不转移' }),
+    'guardShield': b => ({ short: `${b.value}%`, title: `「守护之躯」${b.value}% 减伤`, desc: '回合结束时按本回合消耗算力折算（每 100 算力 10%，向下取整、无上限），持续到下回合结束' })
+};
+
 // 收集角色的 buff 短标签与详情（renderCharacters 与 refreshCardState 共用）
 function collectBuffUI(char) {
     const tags = [], details = [];
     char.buffs.forEach(buff => {
         if (buff.type === 'coinLuck') return;   // v0.682 隐藏 buff：投正率加成不显示角标/不进弹窗
         const cfg = buffTypeConfig[buff.type] || { icon: '❓', color: '#aaa' };
-        let shortText = '', detailTitle = '', detailDesc = '';
-        if (buff.type === 'def') {
-            const sign = buff.value > 0 ? '+' : '';
-            shortText = `${cfg.icon}${sign}${buff.value}`;
-            detailTitle = `${cfg.icon} 【防御临时变动】${sign}${buff.value}`;
-            detailDesc = '持续至下次受击时';
-        } else if (buff.type === 'e') {
-            shortText = `${cfg.icon}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「恶」${buff.stack} 层`;
-            detailDesc = '伤害计算时，每层使鲁盼旋对其无视 50 防御';
-        } else if (buff.type === 'burn') {
-            shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「燃烧」Lv ${buff.level} × ${buff.stack} 层`;
-            detailDesc = `回合结束时造成 ${buff.level}×50 = ${buff.level * 50} 真实伤害；每 5 级消耗 1 层，不足按剩余层数×5 级结算`;
-        } else if (buff.type === 'stun') {
-            shortText = `${cfg.icon}昏迷`;
-            detailTitle = `${cfg.icon} 「暂时昏迷」`;
-            detailDesc = '轮到行动时无法行动，跳过本次行动后解除';
-        } else if (buff.type === 'stunPending') {
-            shortText = `${cfg.icon}催眠中`;
-            detailTitle = `${cfg.icon} 「催眠气体」待生效`;
-            detailDesc = '下一回合陷入「暂时昏迷」，无法行动一回合';
-        } else if (buff.type === 'frenzy') {
-            shortText = `${cfg.icon}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「狂炎」${buff.stack} 层`;
-            detailDesc = '伤害计算时每层使【烈焰鞭】/【焚天祭】伤害+150，防御计算时每层防御-20';
-        } else if (buff.type === 'confusion') {
-            shortText = `${cfg.icon}Lv${buff.level}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「混乱」Lv ${buff.level} × ${buff.stack} 层`;
-            detailDesc = '受到伤害后按本次攻击的分配硬币数触发反噬（次数=硬币数×0.5 向上取整），每次消耗 1 层并造成 级数×20 真实伤害';
-        } else if (buff.type === 'guard') {
-            shortText = `${cfg.icon}×${buff.stack}`;
-            detailTitle = `${cfg.icon} 「守护」${buff.stack} 层`;
-            detailDesc = '队友即将失去血量时防止之，改为自身受到对应数值的无来源伤害（再次结算防御与减伤），然后层数减一；一切伤害（普通/真伤/持续伤害）均转移，自己受击不转移';
-        } else if (buff.type === 'guardShield') {
-            shortText = `${cfg.icon}${buff.value}%`;
-            detailTitle = `${cfg.icon} 「守护之躯」${buff.value}% 减伤`;
-            detailDesc = '回合结束时按本回合消耗算力折算（每 100 算力 10%，向下取整、无上限），持续到下回合结束';
-        }
-        tags.push(`<span class="buff-tag" style="color:${cfg.color}">${shortText}</span>`);
-        details.push({ icon: cfg.icon, color: cfg.color, title: detailTitle, desc: detailDesc });
+        const renderer = buffRenderers[buff.type];
+        if (!renderer) return;   // 未知类型不渲染（原实现会输出空角标，此处更稳）
+        const { short, title, desc } = renderer(buff);
+        tags.push(`<span class="buff-tag" style="color:${cfg.color}">${cfg.icon}${short}</span>`);
+        details.push({ icon: cfg.icon, color: cfg.color, title: `${cfg.icon} ${title}`, desc });
     });
     return { tags, details };
 }

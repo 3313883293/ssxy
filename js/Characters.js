@@ -81,11 +81,10 @@ class Character {
     // v0.312：第四关 AI 鲁盼旋「誓死守护」——队友仍存活时锁血为 1，不会倒下
     // v0.5：灼华篇第三关锁槽灼华同规则（强制上场角色 = AI 操控 + 锁血，与鲁盼旋第四关一致）
     // v0.5 补：队友检测含待命区——出战队友全灭但待命区仍有存活队友时同样锁血（誓死守护延伸到候补队友）
+    // v0.683：锁血资格改为工厂/开战标记 lockHp（startBattle 设锁槽时打标，随存档序列化），不再耦合「名字+关卡号」
     isImmortalWhileAlliesAlive() {
         if (typeof battleState === 'undefined' || !battleState) return false;
-        const isLockedHero = (this.name === '鲁盼旋' && battleState.currentLevel === 3)
-                          || (this.name === '灼华' && battleState.currentLevel === 6);
-        if (!(isLockedHero && this.aiControlled)) return false;
+        if (!(this.lockHp && this.aiControlled)) return false;
         // 队友 = 出场（playerTeam，排除入场动画中 pendingEntry）+ 待命区（benchPlayer 存活未入场）
         const allies = battleState.playerTeam.concat(battleState.benchPlayer || []);
         return allies.some(c => c !== this && c.alive && !c.pendingEntry);
@@ -133,7 +132,7 @@ class Character {
         if (typeof battleState === 'undefined' || !battleState) return dmg;
         if (target.getBuffStack('guard') > 0) return dmg;   // 守护者本人不保护自己
         const guarder = battleState.allCharacters.find(c =>
-            c.alive && c !== target && c.team === target.team && c.name === '王庄明' && c.getBuffStack('guard') > 0
+            c.alive && c !== target && c.team === target.team && c.getBuffStack('guard') > 0   // v0.683：guard buff 本身就是判别，删冗余名字检查
         );
         if (!guarder) return dmg;
         guarder.reduceBuffStack('guard', 1);

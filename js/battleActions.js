@@ -59,6 +59,37 @@ function decidePlayerAI(actor) {
     return { skill: now.s, targets: pickTargets(now) };
 }
 
+// v0.683 敌方/AI 技能选择（predictIntent 与 enemyTurn 共用同一函数，预判与实际行为必然一致）：
+// aiCycle 循环 → 按循环序选第一个「算力够且射程内有目标」的技能；无循环 → 算力降序选。
+// advanceIndex=true 时推进 aiCycle 指针（实机行动用）；预测传 false 只读不推进。
+// 返回 { skill, targets } 或 null（放不起或射程内无目标）
+function pickEnemySkill(actor, advanceIndex) {
+    const targetPool = actor.team === 'player' ? battleState.getAliveEnemies() : battleState.getAlivePlayers();
+    const inRangeOf = sk => targetPool.filter(p => Math.abs(actor.position - p.position) <= sk.attackRange);
+    if (actor.aiCycle) {
+        const cycleSkills = actor.aiCycle.map(name => actor.skills.find(s => s.name === name)).filter(Boolean);
+        for (let step = 0; step < cycleSkills.length; step++) {
+            const idx = (actor.aiIndex + step) % cycleSkills.length;
+            const sk = cycleSkills[idx];
+            if (actor.sp < sk.spCost) continue;
+            const candidates = inRangeOf(sk);
+            if (candidates.length > 0) {
+                if (advanceIndex) actor.aiIndex = (idx + 1) % cycleSkills.length;
+                return { skill: sk, targets: candidates };
+            }
+        }
+        return null;
+    }
+    const available = actor.skills.filter(s => actor.sp >= s.spCost);
+    if (available.length === 0) return null;
+    const sorted = [...available].sort((a, b) => b.spCost - a.spCost);
+    for (const sk of sorted) {
+        const candidates = inRangeOf(sk);
+        if (candidates.length > 0) return { skill: sk, targets: candidates };
+    }
+    return null;
+}
+
 // v0.288：预测 AI 单位本回合将使用的技能（AI 逻辑确定性：aiCycle 循环 / 算力降序），
 // 回合开始时展示给玩家，供决策参考；预测失败（无可用技能/无目标）返回 null
 function predictIntent(char) {
@@ -67,23 +98,8 @@ function predictIntent(char) {
         const plan = decidePlayerAI(char);
         return plan ? plan.skill.name : null;
     }
-    const targetPool = char.team === 'player' ? battleState.getAliveEnemies() : battleState.getAlivePlayers();
-    const inRangeOf = sk => targetPool.filter(p => Math.abs(char.position - p.position) <= sk.attackRange);
-    if (char.aiCycle) {
-        const cycleSkills = char.aiCycle.map(name => char.skills.find(s => s.name === name)).filter(Boolean);
-        for (let step = 0; step < cycleSkills.length; step++) {
-            const idx = (char.aiIndex + step) % cycleSkills.length;
-            const sk = cycleSkills[idx];
-            if (char.sp >= sk.spCost && inRangeOf(sk).length > 0) return sk.name;
-        }
-        return null;
-    }
-    const available = char.skills.filter(s => char.sp >= s.spCost);
-    const sorted = [...available].sort((a, b) => b.spCost - a.spCost);
-    for (const sk of sorted) {
-        if (inRangeOf(sk).length > 0) return sk.name;
-    }
-    return null;
+    const plan = pickEnemySkill(char, false);   // v0.683 与 enemyTurn 共用同一决策函数（预测不推进 aiCycle 指针）
+    return plan ? plan.skill.name : null;
 }
 
 function playerTurn(actor) {
@@ -291,9 +307,6 @@ function enemyTurn(actor) {
     actor.intentSkill = null;
     actionContent.innerHTML = `<p style="color:#aaa;">${actor.team === 'player' ? `${actor.name} 自动行动中...` : '敌方行动中...'}</p>`;
     let chosenSkill = null, targets = [];
-    // 目标池按敌对阵营取：普通敌人打玩家；倒戈单位（如李雅礼）打敌方
-    const targetPool = actor.team === 'player' ? battleState.getAliveEnemies() : battleState.getAlivePlayers();
-    const inRangeOf = sk => targetPool.filter(p => Math.abs(actor.position - p.position) <= sk.attackRange);
 
     // v0.310：我方 AI 角色走智能决策（期望伤害 + 攒大招前瞻 + 目标优先级）
     if (actor.team === 'player' && actor.aiControlled) {
@@ -305,42 +318,20 @@ function enemyTurn(actor) {
         }
         chosenSkill = plan.skill;
         targets = plan.targets;
-    } else if (actor.aiCycle) {
-        const cycleSkills = actor.aiCycle.map(name => actor.skills.find(s => s.name === name)).filter(Boolean);
-        for (let step = 0; step < cycleSkills.length; step++) {
-            const idx = (actor.aiIndex + step) % cycleSkills.length;
-            const sk = cycleSkills[idx];
-            if (actor.sp < sk.spCost) continue;
-            const candidates = inRangeOf(sk);
-            if (candidates.length > 0) {
-                chosenSkill = sk;
-                targets = candidates;
-                actor.aiIndex = (idx + 1) % cycleSkills.length;
-                break;
-            }
-        }
-        if (!chosenSkill) {
-            log(`${actor.name} 算力不足或没有可攻击目标，跳过`);
-            scheduleProcessNext(900);
-            return;
-        }
     } else {
-        const availableSkills = actor.skills.filter(s => actor.sp >= s.spCost);
-        if (availableSkills.length === 0) {
-            log(`${actor.name} 算力不足，跳过`);
+        // v0.683 与 predictIntent 共用同一决策函数（实机推进 aiCycle 指针，预判只读不推进）
+        const plan = pickEnemySkill(actor, true);
+        if (!plan) {
+            // 保留原日志区分：aiCycle 循环 → 算力不足或没有可攻击目标；无循环 → 按算力是否够区分
+            const msg = actor.aiCycle
+                ? '算力不足或没有可攻击目标，跳过'
+                : (actor.skills.some(s => actor.sp >= s.spCost) ? '没有可攻击目标，跳过' : '算力不足，跳过');
+            log(`${actor.name} ${msg}`);
             scheduleProcessNext(900);
             return;
         }
-        const sortedSkills = [...availableSkills].sort((a, b) => b.spCost - a.spCost);
-        for (let sk of sortedSkills) {
-            const candidates = inRangeOf(sk);
-            if (candidates.length > 0) { chosenSkill = sk; targets = candidates; break; }
-        }
-        if (!chosenSkill) {
-            log(`${actor.name} 没有可攻击目标，跳过`);
-            scheduleProcessNext(900);
-            return;
-        }
+        chosenSkill = plan.skill;
+        targets = plan.targets;
     }
     // 催眠气体释放：随机指定1个目标
     if (chosenSkill.special && chosenSkill.special.type === 'stun') {

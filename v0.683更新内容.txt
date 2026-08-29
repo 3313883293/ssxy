@@ -1,0 +1,47 @@
+v0.683 更新内容：代码整理——消灭核心结算里的角色名特判，AI 决策去重（全部零行为变化）
+
+## 背景
+
+用户要求：按 v0.682 投正率 buff 化的思路，审计并整理同类硬编码——核心结算管道里按角色名/技能名特判、通用机制里耦合「名字+关卡号」、大 if-else 链、双份 AI 逻辑。用户确认：全部整理（A~F）。
+
+## 改动（v0.682 → v0.683，全部零行为变化）
+
+**A. 曹佳梦「厌倦」升级改用既有标记**（js/SkillSystem.js）
+- `actor.name === '曹佳梦'` → `actor.specialEmotionType === 'jade'`（角色定义里已有的标记）；
+- `skill.name === '精准狙击'` → `skill.special.type === 'jadeBonus'`（技能定义里已有的标记）。
+- 投正率 buff 化（v0.682）后残留的最后一处名字特判。
+
+**B. 鲁盼旋「恶」无视防御改为工厂标记**（js/Roles.js + js/SkillSystem.js）
+- createLuPanxuan 打标 `char.evilDefIgnore = true`（同 directReduce/burnMultiplier 既有模式）；
+- 伤害管道 `if (actor.name === '鲁盼旋')` → `if (actor.evilDefIgnore)`。
+
+**C. 王庄明「守护」转移删冗余名字判断**（js/Characters.js guardTransfer）
+- `c.name === '王庄明' && c.getBuffStack('guard') > 0` → 只查 guard buff（buff 本身就是判别）；
+- 未来任何能挂 guard buff 的角色自动生效。
+
+**D. 锁血英雄改 lockHp 标记**（js/Characters.js + js/battleFlow.js）
+- `isImmortalWhileAlliesAlive` 原判 `(name鲁盼旋 && level3) || (name灼华 && level6)` → 查 `this.lockHp && this.aiControlled`；
+- startBattle 设锁槽处（level 3/6 已有按关卡特判）顺手打 `lockHp = true`；
+- serializeChar / loadAutoBattle 增补 lockHp 序列化。
+
+**E. collectBuffUI 改表驱动渲染**（js/battleUI.js）
+- 8 个 buff 类型的 if-else 链 → `buffRenderers` 配置表（每类型一个渲染器，输出与原来逐字一致）；
+- 顺带修正：未知 buff 类型不再渲染空角标（原实现会输出空标签）。
+
+**F. AI 决策去重**（js/battleActions.js）
+- 新增公共 `pickEnemySkill(actor, advanceIndex)`：aiCycle 循环/算力降序选择，返回 { skill, targets }；
+- `predictIntent`（预测，不推进 aiCycle 指针）与 `enemyTurn`（实机，推进指针）共用同一函数——预判与实际行为必然一致；
+- 跳过日志文案逐字保留（aiCycle / 算力不足 / 无可攻击目标 三种区分）。
+
+## 自动适配（零改动）
+
+- 所有机制数值、日志文案、UI 文案、AI 行为均不变；
+- 存档兼容：lockHp 老存档缺失时读档兜底 false（鲁盼旋/灼华无锁血标记 → 无锁血，与旧行为一致需重新开战）；coinLuck 仍随 buffs 序列化。
+
+## 验证
+
+适配 `check-v0683-cleanup.js` + 回归：
+- A 曹佳梦投正升级厌倦（模拟 executeSkill）；B 鲁盼旋恶无视防御数值；C 守护转移（回归 check-v0669-wangzhuangming）；
+- D startBattle(3) 鲁盼旋 lockHp=true + 存档读档往返；E collectBuffUI 输出与旧版逐字一致（def/burn/guard 抽样）；
+- F predictIntent 与 pickEnemySkill(advance) 一致 + aiCycle 指针推进；
+- 回归：check-v0682-coinluck / check-v0681-rangebox / check-v0679-luckydice / verify-v310-ai。

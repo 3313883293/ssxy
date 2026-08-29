@@ -26,6 +26,7 @@ function serializeChar(c) {
         def: c.def,
         buffs: c.buffs,
         aiControlled: !!c.aiControlled,
+        lockHp: !!c.lockHp,   // v0.683 锁血标记随存档保留（第四关鲁盼旋/灼华篇第三关灼华）
         aiCycle: c.aiCycle, aiIndex: c.aiIndex || 0,
         defector: !!c.defector,
         hateReduction: !!c.hateReduction, hateReductionCurrent: c.hateReductionCurrent || 0,
@@ -92,6 +93,7 @@ function loadAutoBattle() {
             speed: snap.speed, speedMin: snap.speedMin, speedMax: snap.speedMax,
             def: snap.def, buffs: snap.buffs || [],
             aiControlled: !!snap.aiControlled, aiCycle: snap.aiCycle || null, aiIndex: snap.aiIndex || 0,
+            lockHp: !!snap.lockHp,   // v0.683 锁血标记读档恢复
             defector: !!snap.defector,
             hateReduction: !!snap.hateReduction, hateReductionCurrent: snap.hateReductionCurrent || 0,
             pendingEntry: !!snap.pendingEntry, entryAnim: !!snap.entryAnim,
@@ -459,6 +461,7 @@ function startBattle(level) {
         const luIdx = playerChars.findIndex(c => c.name === '鲁盼旋');
         if (luIdx !== -1) {
             playerChars[luIdx].aiControlled = true;
+            playerChars[luIdx].lockHp = true;   // v0.683 锁血标记（isImmortalWhileAlliesAlive 改查标记，不再耦合名字+关卡号）
             const lu = playerChars.splice(luIdx, 1)[0];
             playerChars.push(lu);   // 移到数组末尾 → order/position 最大 → 最前方
             playerChars.forEach((c, i) => { c.position = i; c.order = i; });
@@ -469,6 +472,7 @@ function startBattle(level) {
         const zhIdx = playerChars.findIndex(c => c.name === '灼华');
         if (zhIdx !== -1) {
             playerChars[zhIdx].aiControlled = true;
+            playerChars[zhIdx].lockHp = true;   // v0.683 锁血标记
             const zh = playerChars.splice(zhIdx, 1)[0];
             playerChars.push(zh);   // 移到数组末尾 → order/position 最大 → 最前方
             playerChars.forEach((c, i) => { c.position = i; c.order = i; });
