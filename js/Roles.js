@@ -512,53 +512,66 @@ function createScarecrowRegen(team, position) {
     return char;
 }
 
-// ==================== 烬火教团（v0.5 灼华篇敌方） ====================
+// ==================== 烬火教团（v0.5 灼华篇敌方；v0.690 数值上调） ====================
 // 主题：崇拜火焰的教团——焚香给队友挂燃烧、烛央薪火不息吸燃烧成狂炎而变强。
 // 玩家用灼华烧教团既爽也喂火了 Boss：每层狂炎使烛央伤害+150、防御-20（双刃剑）。
+// v0.690：灼华篇三关难度整体上调（血量/防御/伤害/算力回复），使其略高于鲁盼旋篇（数值实测见
+//   开发工具/pwgame/diag-zh-balance.js：AI 对 AI 逐关模拟胜率/回合/残血）。
+//   ①烬火信徒 1700→2600 血、防御 100→120、算力 300+100→340+130、
+//     火球术 150+150×2→230+220×2、火刃 250 算力 200+200→200 算力 300+260
+//     （原火刃与火球术同为 250 算力且排序在后 → AI 恒选火球术，火刃是死技能；改低消耗后可交替使用）；
+//   ②焦木傀儡 3200→4500 血、防御 250→260、算力 300+80→340+110、重锤 300+200→500+320、
+//     木甲 100 算力/+300 防 → 250 算力/+200 防（原消耗低于算力回复 → 被无视时逐回合叠甲、防御无限膨胀，
+//     我方 AI 算不出正期望后集体跳过形成僵局（旧版 L6 约 18% 对局打不完）；抬高消耗 + 降低单次叠甲后消除）；
+//   ③引火学徒 1500→2300 血、防御 80→120、算力 350+120→380+150、燎原 120+120×2→200+190×2、引火 100+100→180+160；
+//   ④焚香祭司 2400→3600 血、防御 150→190、算力 500+150→520+170、祭火 250+250×2→400+340×2；
+//   ⑤烛央 7000→7600 血、防御 180→190、算力回复 400→420、烈焰鞭 400+400→470+470、焚天祭 150+150×3→190+190×3
+//     （狂炎每层 +150 伤害不变）。
+// 同步点：charSelect.getRoleDefRange 的防御表须与本文件一致（防御有变动）。
 
 function createAshCultist(team, position) {
     const skills = [
-        new Skill('火球术', 250, 150, 150, 2, 3, null, { type: 'burn', stacks: 2 }),
-        new Skill('火刃', 250, 200, 200, 1, 2)
+        new Skill('火球术', 250, 230, 220, 2, 3, null, { type: 'burn', stacks: 2 }),
+        new Skill('火刃', 200, 300, 260, 1, 2)
     ];
-    return new Character('烬火信徒', 1700, 100, [2,5], 300, 100, skills, team, position);
+    return new Character('烬火信徒', 2600, 120, [2,5], 340, 130, skills, team, position);
 }
 
 function createCharredGolem(team, position) {
     const skills = [
-        new Skill('木甲', 100, 0, 0, 0, 1, { type: 'def', value: 300, duration: 'nextHit' }),
-        new Skill('重锤', 300, 300, 200, 1, 2)
+        new Skill('木甲', 250, 0, 0, 0, 1, { type: 'def', value: 200, duration: 'nextHit' }),
+        new Skill('重锤', 300, 500, 320, 1, 2)
     ];
-    const char = new Character('焦木傀儡', 3200, 250, [1,3], 300, 80, skills, team, position);
+    const char = new Character('焦木傀儡', 4500, 260, [1,3], 340, 110, skills, team, position);
     char.burnMultiplier = 1.5;   // 易燃：受到的燃烧 dot 伤害 ×1.5
     return char;
 }
 
 function createFirestarter(team, position) {
     const skills = [
-        new Skill('燎原', 250, 120, 120, 2, 3),
-        new Skill('引火', 200, 100, 100, 1, 4, null, { type: 'burn', stacks: 1 })
+        new Skill('燎原', 250, 200, 190, 2, 3),
+        new Skill('引火', 200, 180, 160, 1, 4, null, { type: 'burn', stacks: 1 })
     ];
-    return new Character('引火学徒', 1500, 80, [4,8], 350, 120, skills, team, position);
+    return new Character('引火学徒', 2300, 120, [4,8], 380, 150, skills, team, position);
 }
 
 function createIncensePriest(team, position) {
     const skills = [
         new Skill('焚香', 250, 0, 0, 0, 99, null, { type: 'incense' }),
-        new Skill('祭火', 400, 250, 250, 2, 4, null, { type: 'burn', stacks: 1 })
+        new Skill('祭火', 400, 400, 340, 2, 4, null, { type: 'burn', stacks: 1 })
     ];
-    const char = new Character('焚香祭司', 2400, 150, [2,4], 500, 150, skills, team, position);
+    const char = new Character('焚香祭司', 3600, 190, [2,4], 520, 170, skills, team, position);
     char.aiCycle = ['焚香', '祭火', '焚香', '祭火'];
     return char;
 }
 
 function createZhuYang(team, position) {
     const skills = [
-        new Skill('烈焰鞭', 300, 400, 400, 1, 3),
-        new Skill('焚天祭', 500, 150, 150, 3, 4, null, { type: 'burn', stacks: 1 }),
+        new Skill('烈焰鞭', 300, 470, 470, 1, 3),
+        new Skill('焚天祭', 500, 190, 190, 3, 4, null, { type: 'burn', stacks: 1 }),
         new Skill('火灵召唤', 350, 0, 0, 0, 99, null, { type: 'summon', role: '烬火信徒' })
     ];
-    const char = new Character('焚天祭司·烛央', 7000, 180, [3,6], 800, 400, skills, team, position);
+    const char = new Character('焚天祭司·烛央', 7600, 190, [3,6], 800, 420, skills, team, position);
     char.frenzyBuff = true;   // 狂炎持有者：死亡时焚尽薪火（Characters.handleDeath）
     char.aiCycle = ['焚天祭', '烈焰鞭', '焚天祭', '火灵召唤', '烈焰鞭'];
     // ——— 薪火不息：回合结束时把场上全体「燃烧」等级之和 → 自身「狂炎」层数（双刃剑核心） ———
