@@ -127,7 +127,7 @@ function loadAutoBattle() {
     battleState.specialState = Object.assign({ achieved: false, driverUsedOpen: false, incenseUsed: false, burnKill: false, zhuYangFrenzyAtDeath: 0 }, data.specialState || {});   // v0.314+v0.5：达成状态读档保留
     // v0.677 fix：读档重建后立即同步曹佳梦三技能形态（存档不序列化技能数组，重建后为初始技能；
     //       厌倦 ≥4 需马上替换为陨星，不能等玩家点「开始回合」——读档点即回合开始点）
-    battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
+    syncAllSkillForms(log);
     SkillSystem.refreshCoinLuckBuffs();   // v0.682 读档后重算投正率 buff（存档序列化含 coinLuck，按当前存活状态覆盖重建）
     syncAllDuoNengGear(log);   // v0.684 读档后按站位重算多能战警装备（回退存档加成→按当前排位换装）
     battleEpoch++;
@@ -193,59 +193,23 @@ function buildActionQueue() {
     log(`行动顺序: ${battleState.actionQueue.map(c => c.name + '(' + c.team[0] + c.position + ')').join(' → ')}`);
 }
 
-// v0.684 多能战警「装备切换」：回合开始（与读档后）按同阵营多能战警间位置排位换装——
-// 最前方→防爆装（防御+300）；次前方→步枪装（防御+100、速度+1）；其余（含末前方）→狙击装（速度+3）。
-// 换装同时切换技能[0]（近身制服/中距点射/远程狙击），【交叉火力】恒为技能[1]。
-// v0.685 修复：最前方按阵营取——我方在左（位置 0 起），越靠右越接近敌方 → 位置大 = 最前；
-// 敌方在右，越靠左越接近我方 → 位置小 = 最前。（原实现两阵营一律按位置大 = 最前，敌方前后颠倒：
-// 贴脸的敌方反而穿狙击装、殿后的反而穿防爆装。）
-const DUONENG_GEAR_CFG = {
-    riot:  { skill: '近身制服', def: 300, speed: 0 },
-    rifle: { skill: '中距点射', def: 100, speed: 1 },
-    snipe: { skill: '远程狙击', def: 0,   speed: 3 }
-};
-
-// 目标装备：同阵营在场多能战警中"比自己更靠前"的数量 +1 = 排位（1=防爆 / 2=步枪 / 其余=狙击）
-function duoNengTargetGear(c) {
-    const mates = battleState.allCharacters.filter(x =>
-        x.alive && x.team === c.team && x !== c && x.duoNengGear && !x.pendingEntry
-    );
-    const frontCount = c.team === 'player'
-        ? mates.filter(x => x.position > c.position).length   // 我方：位置大 = 靠前
-        : mates.filter(x => x.position < c.position).length;  // 敌方：位置小 = 靠前
-    const rank = frontCount + 1;
-    if (rank === 1) return 'riot';
-    if (rank === 2) return 'rifle';
-    return 'snipe';
-}
-
-function syncDuoNengGear(c, logFn) {
-    if (!c || !c.duoNengGear || !c.alive || c.pendingEntry) return;
-    const target = duoNengTargetGear(c);
-    if (target === c.gear) return;
-    // 回退旧装备加成（直接改基础数值，同开车警察加油/刹车模式）
-    if (c.gear && DUONENG_GEAR_CFG[c.gear]) {
-        const old = DUONENG_GEAR_CFG[c.gear];
-        c.def -= old.def;
-        c.speedMin = Math.max(1, c.speedMin - old.speed);
-    }
-    c.gear = target;
-    const cfg = DUONENG_GEAR_CFG[target];
-    c.def += cfg.def;
-    c.speedMin = Math.max(1, c.speedMin + cfg.speed);
-    if (cfg.speed > 0) c.rerollSpeed();   // 速度下限变化后重掷实际速度（同开车警察）
-    // 换技能：装备技能 + 交叉火力
-    if (c._gearSkills && c._gearSkills[target]) {
-        c.skills = [c._gearSkills[target], c._gearSkills.crossfire];
-    }
-    if (typeof logFn === 'function') {
-        const name = target === 'riot' ? '防爆装' : target === 'rifle' ? '步枪装' : '狙击装';
-        logFn(`🔁 ${c.name}（位置${c.position}）装备切换：${name}（防御 ${c.def}、速度 ${c.speedMin}~${c.speedMax}）→ 使用【${cfg.skill}】`);
-    }
-}
-
+// v0.684 多能战警「装备切换」；v0.685 修复最前方按阵营取；v0.689 逻辑随角色移入 Roles.js
+// （createDuoNengZhanJing 的 char.syncGear 钩子，配置表 DUONENG_GEAR_CFG 同处）。
+// 本文件只保留**通用驱动**：遍历全场、调用角色自带的装备同步钩子，不含任何角色专属判定。
+// 函数名保持不变（20 处历史验证脚本仍在调用）。
 function syncAllDuoNengGear(logFn) {
-    battleState.allCharacters.forEach(c => syncDuoNengGear(c, logFn));
+    battleState.allCharacters.forEach(c => {
+        if (typeof c.syncGear === 'function') c.syncGear(logFn);
+    });
+}
+
+// v0.689 通用驱动：召唤池由角色自带（char.summonPoolConfig）汇总而来，
+// 关卡配置只负责布阵，不再硬编码「谁召唤什么」。
+function initSummonPools() {
+    battleState.summonPool = [];
+    battleState.allCharacters.forEach(c => {
+        if (Array.isArray(c.summonPoolConfig)) battleState.summonPool.push(...c.summonPoolConfig);
+    });
 }
 
 // v0.684 战术撤退：回合结束时血量 ≤40% → 移出战场，退回待命区末端（每回合开始待命区补位进场，v0.688）
@@ -297,9 +261,10 @@ function startNewRound() {
     });
     log(`我方存活：${battleState.getAlivePlayers().length}　敌方存活：${battleState.getAliveEnemies().length}`);
     // 云长郡：每回合开始时若自身无友方单位，召唤2个警察怨灵（先召唤，怨灵同样纳入本回合意图预测）
-    const boss = battleState.enemyTeam.find(c => c.hateReduction && c.alive);
-    if (boss && battleState.getAliveEnemies().length === 1 && battleState.summonPool.length > 0) {
-        battleState.summonWraiths();
+    // v0.689：召唤师按「减伤持有者」标记查找（原注释写死云长郡），并把召唤师传给 summonWraiths 用于日志
+    const summoner = battleState.enemyTeam.find(c => c.hateReduction && c.alive);
+    if (summoner && battleState.getAliveEnemies().length === 1 && battleState.summonPool.length > 0) {
+        battleState.summonWraiths(summoner);
     }
     // v0.288：回合开始预测全部敌方/AI 单位的行动意图（玩家决策期即可见，供预判）
     battleState.allCharacters.forEach(c => {
@@ -316,7 +281,7 @@ function startNewRound() {
     // v0.669 王庄明「守护之躯」：本回合算力消耗统计每回合开始清零
     battleState.allCharacters.forEach(c => { c.spSpentThisTurn = 0; });
     // v0.673 曹佳梦「厌倦」：回合开始检查三技能形态（v0.677 抽为独立函数，读档重建后也调用）
-    battleState.allCharacters.forEach(c => syncCaoJiaMengSkill(c, log));
+    syncAllSkillForms(log);
     SkillSystem.refreshCoinLuckBuffs();   // v0.682 概率论的奇迹：回合开始重算全员投正率 buff（含待命入场、厌倦等级落定）
     // ——— v0.684 多能战警：休整（回合开始回20%血，入场后重置3回合）+ 装备切换 ———
     battleState.allCharacters.forEach(c => {
@@ -344,21 +309,13 @@ function startNewRound() {
     processNextAction();
 }
 
-// v0.677 曹佳梦三技能形态同步（由 startNewRound 与 loadAutoBattle 共用）：
-// 厌倦 ≥4 级 →【创大运吧】替换为【陨星落下】；厌倦 <4 级（如使用陨星后归零）→ 恢复【创大运吧】（可逆替换）
-function syncCaoJiaMengSkill(c, logFn) {
-    if (!c || !c.alive || c.name !== '曹佳梦') return;
-    const idx = c.skills.findIndex(s => s.name === '创大运吧' || s.name === '陨星落下');
-    if (idx < 0) return;
-    const wantMeteor = c.emotionLevel >= 4;
-    const isMeteor = c.skills[idx].name === '陨星落下';
-    if (wantMeteor && !isMeteor) {
-        c.skills[idx] = new Skill('陨星落下', 500, 1250, 1000, 1, 9, null, { type: 'meteor' });
-        if (typeof logFn === 'function') logFn(`🔄 ${c.name} 厌倦达到 ${c.emotionLevel} 级，【创大运吧】替换为【陨星落下】！`);
-    } else if (!wantMeteor && isMeteor) {
-        c.skills[idx] = new Skill('创大运吧', 500, 200, 400, 1, 9, null, { type: 'jadeBurst' });
-        if (typeof logFn === 'function') logFn(`🔄 ${c.name} 厌倦降至 ${c.emotionLevel} 级，【陨星落下】恢复为【创大运吧】！`);
-    }
+// v0.677 技能形态同步（由 startNewRound 与 loadAutoBattle 共用）；v0.689 改为**通用驱动**：
+// 遍历全场调用角色自带的 char.syncSkills 钩子（曹佳梦：厌倦 ≥4 级【创大运吧】↔【陨星落下】可逆替换），
+// 本文件不再按角色名特判。
+function syncAllSkillForms(logFn) {
+    battleState.allCharacters.forEach(c => {
+        if (c.alive && typeof c.syncSkills === 'function') c.syncSkills(c, logFn);
+    });
 }
 
 function processNextAction() {
@@ -471,11 +428,12 @@ function checkSpecialCondition(level) {
             return !battleState.specialState.driverUsedOpen;
         case 2:   // 李雅礼已倒戈为我方且存活
             return battleState.playerTeam.some(c => c.defector && c.alive);
-        case 3: { // 云长郡减伤仍 ≥10%（场上累计阵亡 ≤6，亡灵怨恨仍庇护）时将其击败
-            // v0.315 放宽：原 ≥50%（阵亡≤3）纯玩家不可达——AI 鲁盼旋只清怨灵（减伤墙 exp=-1）、
+        case 3: { // Boss 减伤仍 ≥10%（场上累计阵亡 ≤6，亡灵怨恨仍庇护）时将其击败
+            // v0.315 放宽：原 ≥50%（阵亡≤3）纯玩家不可达——AI 锁定角色只清怨灵（减伤墙 exp=-1）、
             // 玩家又无法手动操作锁定槽 AI 角色；改为 ≥10%（阵亡≤6）后清双怨灵(2)+我方伤亡≤4 仍可达成
-            const yun = battleState.enemyTeam.find(c => c.name === '云长郡');
-            return !!yun && yun.getHateReduction() >= 10;
+            // v0.689：改按「减伤持有者」标记查找，不再按角色名特判
+            const boss = battleState.enemyTeam.find(c => c.hateReduction);
+            return !!boss && boss.getHateReduction() >= 10;
         }
         case 4:   // 灼华篇第一关：至少 1 名敌方被「燃烧」dot 烧死
             return battleState.specialState.burnKill === true;
@@ -516,7 +474,7 @@ function checkVictory() {
         }
         // v0.672 第四关隐藏星：AI 鲁盼旋杀死云长郡（隐藏胜利条件，不显示在关卡介绍页；胜利瞬间记录）
         if (battleState.currentLevel === 3 && battleState.specialState.aiLuKilledYun) {
-            log('🕵️ 隐藏星达成：AI 鲁盼旋亲手击败云长郡！');
+            log('🕵️ 隐藏星达成：AI 操控的队友亲手击败了 Boss！');
             addStar(3, 'hidden');
         }
         log('🎉 敌方全灭，我方胜利！');
@@ -559,6 +517,15 @@ function exitBattle() {
     });
 }
 
+// ==================== v0.689 关卡布阵配置（单一来源） ====================
+// 供 startBattle（开局布阵）与 charSelect.confirmLevel（选角槽位）共用，避免同一事实写两份。
+//   benchSlots  我方选角前 N 个槽为「待命区」（其余为出战位）
+//   lockedRole  末位锁定角色（预填、不可移除、内置我方 AI + 锁血）
+const LEVEL_SETUP = {
+    3: { benchSlots: 1, lockedRole: '鲁盼旋' },   // 鲁盼旋篇 · Boss 关
+    6: { benchSlots: 1, lockedRole: '灼华' }      // 灼华篇 · Boss 关
+};
+
 // ==================== 开始战斗 ====================
 function startBattle(level) {
     battleLog = [];
@@ -569,13 +536,14 @@ function startBattle(level) {
 
     const playerChars = [];
     const benchPlayers = [];
+    const setup = LEVEL_SETUP[level] || null;   // v0.689：关卡布阵配置（单一来源）
     let pos = 0;
-    // v0.311+v0.5：第四关/灼华第三关 = 待命1（index 0，最左）+ 出战3（index 1/2/3）；其余关卡全上场
+    // v0.311+v0.5：Boss 关 = 待命 N（index 0..N-1，最左）+ 出战 3；其余关卡全上场
     selectedSlots.forEach((role, idx) => {
         if (role === null) return;
         const char = createRoleInstance(role, 'player', idx);
         if (!char) return;
-        if ((level === 3 || level === 6) && idx === 0) {
+        if (setup && idx < setup.benchSlots) {
             benchPlayers.push(char);
             return;
         }
@@ -585,25 +553,15 @@ function startBattle(level) {
     });
     playerChars.sort((a, b) => a.order - b.order);
     playerChars.forEach((c, i) => { c.position = i; c.order = i; });
-    // v0.312：第四关 AI 鲁盼旋站最前方（玩家 position 最大、紧挨敌方）
-    if (level === 3) {
-        const luIdx = playerChars.findIndex(c => c.name === '鲁盼旋');
-        if (luIdx !== -1) {
-            playerChars[luIdx].aiControlled = true;
-            playerChars[luIdx].lockHp = true;   // v0.683 锁血标记（isImmortalWhileAlliesAlive 改查标记，不再耦合名字+关卡号）
-            const lu = playerChars.splice(luIdx, 1)[0];
-            playerChars.push(lu);   // 移到数组末尾 → order/position 最大 → 最前方
-            playerChars.forEach((c, i) => { c.position = i; c.order = i; });
-        }
-    }
-    // v0.5：灼华篇第三关（level 6）锁定灼华站最前方；v0.5 改：强制上场角色统一内置我方 AI（与第四关鲁盼旋一致）
-    if (level === 6) {
-        const zhIdx = playerChars.findIndex(c => c.name === '灼华');
-        if (zhIdx !== -1) {
-            playerChars[zhIdx].aiControlled = true;
-            playerChars[zhIdx].lockHp = true;   // v0.683 锁血标记
-            const zh = playerChars.splice(zhIdx, 1)[0];
-            playerChars.push(zh);   // 移到数组末尾 → order/position 最大 → 最前方
+    // v0.312+v0.5：Boss 关锁定角色站最前方（玩家 position 最大、紧挨敌方）、内置我方 AI、锁血
+    // v0.689：改由 LEVEL_SETUP.lockedRole 驱动，两关共用同一段实现（原为两段按「关卡号 + 角色名」复制的代码）
+    if (setup && setup.lockedRole) {
+        const lockIdx = playerChars.findIndex(c => c.name === setup.lockedRole);
+        if (lockIdx !== -1) {
+            playerChars[lockIdx].aiControlled = true;
+            playerChars[lockIdx].lockHp = true;   // v0.683 锁血标记（isImmortalWhileAlliesAlive 改查标记，不再耦合名字+关卡号）
+            const locked = playerChars.splice(lockIdx, 1)[0];
+            playerChars.push(locked);   // 移到数组末尾 → order/position 最大 → 最前方
             playerChars.forEach((c, i) => { c.position = i; c.order = i; });
         }
     }
@@ -645,11 +603,10 @@ function startBattle(level) {
         benchDriver.order = playerChars.length + 3;
         battleState.benchEnemy = [benchDriver];
     } else if (level === 3) {
-        // 第四关：Boss 云长郡（亡灵怨恨减伤 + 召唤怨灵）
+        // 第四关：Boss 云长郡（怨恨减伤 + 召唤怨灵）；召唤池随角色定义，见 createYunChangjun.summonPoolConfig
         enemyChars = [
             createYunChangjun('enemy', playerChars.length)
         ];
-        battleState.summonPool = ['持盾警察', '持盾警察', '持棍警察', '持棍警察', '持枪警察', '持枪警察', '持枪警察', '持枪警察', '开车警察', '开车警察'];
     } else if (level === 4) {
         // 灼华篇第一关：烬火信徒×2 + 焦木傀儡×1
         enemyChars = [
@@ -707,6 +664,7 @@ function startBattle(level) {
     battleState.playerTeam.push(...playerChars);
     battleState.enemyTeam.push(...enemyChars);
     battleState.allCharacters.push(...playerChars, ...enemyChars);
+    initSummonPools();   // v0.689：按场上角色的 summonPoolConfig 汇总召唤池
 
     repositionAll();
     logPanel.innerHTML = '<p>战斗开始！</p>';

@@ -109,7 +109,8 @@ const SKILL_ANIM_CONFIG = {
         impact: { color: '#7bed9f', size: 90, dur: 0.6 }
     },
     '创大运吧': {
-        type: 'luckyDice', color: '#f9ca24', dur: 1.0, size: 120, border: '4px solid #f9ca24'
+        type: 'luckyDice', color: '#f9ca24', dur: 1.0, size: 120, border: '4px solid #f9ca24',
+        policeRole: '开车警察'   // v0.689：演出用的临时卡角色由动画配置提供（原在 _luckyDice 里写死角色名）
     },
     '陨星落下': {
         type: 'meteorFall', color: '#ff6b81', thick: 6, dur: 0.9,
@@ -143,40 +144,49 @@ class SkillSystem {
         return Math.max(0.1, prob);
     }
 
-    // v0.682 概率论的奇迹：按「同阵营存活曹佳梦」重算全员身上的 coinLuck buff（每单位一个聚合 buff，
-    // 值 = 总加成，内部按来源记录明细，可单独摘除/追溯）：
-    // 曹佳梦自身 +25% − 自己的厌倦×5%（取回合开始级），并吃场上其他曹佳梦各 +10%；
-    // 非曹佳梦队友 = 每个曹佳梦 +10%（多曹佳梦叠加）。
-    // 刷新时机（用户确认「攻击内恒定」方案）：回合开始（含待命入场、厌倦等级落定）、
-    // 曹佳梦阵亡、读档后；厌倦在攻击中升级/归零不触发刷新——同一次攻击内投正率恒定。
-    static refreshCoinLuckBuffs() {
+    // —————— v0.689 通用光环（隐藏 buff）刷新 ——————
+    // 核心只负责「遍历 + 聚合 + 写 buff」，**数值全部来自角色自带的 aura 声明**：
+    //   角色在工厂里声明 char.aura = { buffType, label, selfBonus(self), allyBonus }
+    //     · 非持有者：同阵营每有一个持有者，获得 allyBonus；
+    //     · 持有者自身：获得 selfBonus(self) + allyBonus ×（同阵营其他持有者数）。
+    // 每单位写一个聚合 buff（值 = 总加成，sources 记来源明细，可追溯）。v0.689 前本函数把
+    // 「概率论的奇迹」的角色名与 +25% / −5%每级 / +10% 数值硬编码在此，现整体移入 Roles.js 曹佳梦工厂。
+    // 刷新时机（用户确认「攻击内恒定」方案）：回合开始（含待命入场、厌倦等级落定）、持有者阵亡、读档后。
+    static refreshAuras(buffType) {
         if (typeof battleState === 'undefined' || !battleState) return;
         const round2 = v => Math.round(v * 1000) / 1000;   // 归一浮点（0.1×3 = 0.30000000000000004）
+        const providers = battleState.allCharacters.filter(c => c.alive && c.aura && c.aura.buffType === buffType);
         battleState.allCharacters.forEach(c => {
             if (!c.alive) return;
-            c.clearBuff('coinLuck');   // 先清旧值再按当前场上状态重算（幂等）
-            const teamCjm = battleState.allCharacters.filter(x => x.alive && x.team === c.team && x.name === '曹佳梦');
-            if (teamCjm.length === 0) return;
+            c.clearBuff(buffType);   // 先清旧值再按当前场上状态重算（幂等）
+            const mates = providers.filter(p => p.team === c.team);
+            if (mates.length === 0) return;
+            const label = mates[0].aura.label;
             let total = 0;
             const sources = [];
-            if (c.name === '曹佳梦') {
-                // 自身：+25% − 自己的厌倦×5%；场上其他曹佳梦各再给 +10%
-                const selfBonus = round2(0.25 - c.emotionLevel * 0.05);
-                sources.push({ from: '概率论的奇迹·自身', bonus: selfBonus });
+            const self = mates.find(p => p === c);
+            if (self) {
+                const selfBonus = round2(self.aura.selfBonus(self));
+                sources.push({ from: `${label}·自身`, bonus: selfBonus });
                 total += selfBonus;
-                const others = teamCjm.length - 1;
+                const others = mates.length - 1;
                 if (others > 0) {
-                    sources.push({ from: `概率论的奇迹·其他曹佳梦×${others}`, bonus: round2(0.10 * others) });
-                    total += round2(0.10 * others);
+                    const otherBonus = round2(self.aura.allyBonus * others);
+                    sources.push({ from: `${label}·其他${self.name}×${others}`, bonus: otherBonus });
+                    total += otherBonus;
                 }
             } else {
-                // 队友：每个曹佳梦 +10%（叠加）
-                const teamBonus = round2(0.10 * teamCjm.length);
-                sources.push({ from: `概率论的奇迹·曹佳梦×${teamCjm.length}`, bonus: teamBonus });
-                total += teamBonus;
+                const mateBonus = round2(mates.reduce((s, p) => s + p.aura.allyBonus, 0));
+                sources.push({ from: `${label}·${mates[0].name}×${mates.length}`, bonus: mateBonus });
+                total += mateBonus;
             }
-            c.buffs.push({ type: 'coinLuck', value: round2(total), sources });
+            c.buffs.push({ type: buffType, value: round2(total), sources });
         });
+    }
+
+    // v0.682 兼容入口：投正率隐藏 buff 重算（回合开始 / 持有者阵亡 / 读档后）
+    static refreshCoinLuckBuffs() {
+        SkillSystem.refreshAuras('coinLuck');
     }
 
     static rollCoins(coinCount, actor = null) {
@@ -278,9 +288,11 @@ class SkillSystem {
             window._actionAnimDelay = 1100;
         }
 
-        // v0.314：第二关特殊胜利追踪——开车警察使出「开创」即记为已用过（怨灵车同名，仅第四关出现，不影响第二关判定）
-        if (actor.name === '开车警察' && skill.name === '开创') {
-            battleState.specialState.driverUsedOpen = true;
+        // v0.314 第二关特殊胜利追踪；v0.689 改为**技能 witness 标记**驱动（原按「角色名 + 技能名」特判）：
+        // 技能带 special.witness = '状态键' 时，使出即把 specialState 对应键置 true
+        // （开车警察【开创】→ driverUsedOpen）。怨灵车的同名技能带同一标记，行为与改造前一致。
+        if (skill.special && skill.special.witness) {
+            battleState.specialState[skill.special.witness] = true;
         }
 
         // 攻击者前冲（朝目标方向，带闪光）；鲁盼旋三技能各有专属演出（v0.294~v0.300）
@@ -417,16 +429,17 @@ class SkillSystem {
                     if (!target.alive) {
                         logFn(`  💥 ${target.name} 被创伤反噬致死！`);
                         if (!actor.specialEmotion) actor.gainEmotion(1);
-                        markAiLuKill(actor, target);   // v0.672 第四关隐藏星：击杀归属
+                        markHiddenStarKill(actor, target);   // v0.672 第四关隐藏星：击杀归属（v0.689 标记驱动）
                         target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
                     }
                 }
             }
-            // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级（v0.683 改用既有标记 specialEmotionType='jade'，不再按名字特判）；
-            // 【精准狙击】投正时额外 +1 级（技能定义已带 special.type='jadeBonus' 标记）
-            if (actor.specialEmotionType === 'jade' && rollResult.heads > 0) {
-                actor.gainEmotion(rollResult.heads);
-                if (skill.special && skill.special.type === 'jadeBonus') actor.gainEmotion(1);
+            // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级；【精准狙击】投正额外 +1 级。
+            // v0.689 改为**情感规格钩子**驱动：核心只问 emotionSpec.onCoinHeads 是否存在，
+            // 不再判断 specialEmotionType 字符串（数值与条件写在 Roles.js 的 jade 规格里）
+            const emoSpec = actor.emotionSpec;
+            if (emoSpec && typeof emoSpec.onCoinHeads === 'function' && rollResult.heads > 0) {
+                emoSpec.onCoinHeads(actor, rollResult.heads, skill);
             }
             let dmg = 0;
             // 开创：与目标每有一点速度差，每硬币加成伤害+200（用局部变量，不改技能本体）
@@ -483,7 +496,7 @@ class SkillSystem {
                 logFn(`  💥 ${target.name} 倒下！`);
                 // v0.62 情感激荡：击杀+1（技能普伤致死归属施放者）；鲁盼旋特殊情感激荡不受通用触发
                 if (!actor.specialEmotion) actor.gainEmotion(1);
-                markAiLuKill(actor, target);   // v0.672 第四关隐藏星：AI 鲁盼旋击杀云长郡
+                markHiddenStarKill(actor, target);   // v0.672 第四关隐藏星（v0.689 标记驱动：AI 操控的队友击杀隐藏星目标）
                 target.handleDeath();   // 倒戈/待命补位（放在伤害与倒下日志之后）
             }
 
@@ -508,7 +521,7 @@ class SkillSystem {
                         logFn(`  💥 ${target.name} 被混乱反噬致死！`);
                         // v0.62 情感激荡：击杀+1（混乱反噬致死归属触发攻击者，用户「全算」）；鲁盼旋特殊情感激荡不受通用触发
                         if (!actor.specialEmotion) actor.gainEmotion(1);
-                        markAiLuKill(actor, target);   // v0.672 第四关隐藏星：AI 鲁盼旋击杀云长郡
+                        markHiddenStarKill(actor, target);   // v0.672 第四关隐藏星（v0.689 标记驱动：AI 操控的队友击杀隐藏星目标）
                         target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
                     }
                 }
@@ -565,7 +578,7 @@ class SkillSystem {
                         logFn(`  💥 ${target.name} 倒下！`);
                         // v0.62 情感激荡：击杀+1（引爆致死归属引爆者）；鲁盼旋特殊情感激荡不受通用触发
                         if (!actor.specialEmotion) actor.gainEmotion(1);
-                        markAiLuKill(actor, target);   // v0.672 第四关隐藏星：AI 鲁盼旋击杀云长郡
+                        markHiddenStarKill(actor, target);   // v0.672 第四关隐藏星（v0.689 标记驱动：AI 操控的队友击杀隐藏星目标）
                         target.handleDeath();
                         Character.invokePassives('onAllyDeath', battleState, target, logFn);
                         if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(target);   // v0.62 情感激荡：队友死亡+1
@@ -673,7 +686,7 @@ class SkillSystem {
                 if (!c.alive) {
                     logFn(`  💥 ${c.name} 倒下！`);
                     if (!actor.specialEmotion) actor.gainEmotion(1);
-                    markAiLuKill(actor, c);
+                    markHiddenStarKill(actor, c);
                     c.handleDeath();
                     Character.invokePassives('onAllyDeath', battleState, c, logFn);
                     if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(c);
@@ -770,13 +783,14 @@ class SkillSystem {
         const ts = SkillSystem._animSize(targets[0].cardElement);
         const arenaW = arena.getBoundingClientRect().width;
 
-        // 1) 屏幕外创建临时开车警察卡（右侧视口外起点，完整面板外观）
-        const p = createRoleInstance('开车警察', 'enemy', 99);
+        // 1) 屏幕外创建临时卡（右侧视口外起点，完整面板外观）；角色名取自动画配置
+        const cfg = SKILL_ANIM_CONFIG['创大运吧'] || {};
+        const p = createRoleInstance(cfg.policeRole || '开车警察', 'enemy', 99);
         const tmp = document.createElement('div');
         tmp.className = 'character-card enemy-card lucky-police';
         tmp.innerHTML = `
             <span class="position-mark">借</span>
-            <div class="name">开车警察</div>
+            <div class="name">${p.name}</div>
             <div class="bar-container"><div class="hp-bar" style="width:100%"></div></div>
             <div class="hp-text">血量 ${p.maxHp}/${p.maxHp}</div>
             <div class="bar-container"><div class="sp-bar" style="width:100%"></div></div>
@@ -1559,7 +1573,7 @@ class SkillSystem {
         const cy = p.y + s.h / 2;
         for (let i = 0; i < (config.count || 6); i++) {
             const x = p.x + Math.random() * s.w;
-            const yOff = (Math.random() - 0.5) * r.height * 0.7;
+            const yOff = (Math.random() - 0.5) * s.h * 0.7;   // v0.689 修复：原引用未定义的 r，抛错导致速度线与其后的冲击波都不播
             const streak = document.createElement('div');
             streak.className = 'skill-streak';
             streak.style.cssText = `left:${x}px;top:${cy + yOff}px;--len:${config.len || 40}px;--color:${config.color};--dur:${0.3 + Math.random() * 0.25}s`;

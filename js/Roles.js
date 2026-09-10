@@ -1,4 +1,93 @@
 // Roles.js - 所有角色创建函数
+// v0.689 职责边界：**角色专属的一切**（情感规格 / 被动 / 机制标记 / 角色自带钩子 / 机制注册）
+// 都收敛在本文件，核心文件（Characters / SkillSystem / battleFlow / globals）不含角色名判定。
+
+// ==================== v0.689 角色专属情感规格注册 ====================
+// Characters.js 注册通用规格 normal；以下三套为角色专属，由本文件注册，再由 applyEmotionSpec 装到实例上。
+// 规格语义见 Characters.js 顶部注释。
+EMOTION_SPECS.anger = {
+    key: 'anger', displayName: '愤怒', special: true, cap: 5,
+    damageBonus: lv => Math.floor(lv / 2) * 100,   // 每 2 级基础伤害 +100（Lv2/4 = +100/200，Lv5 仍 +200）
+    spBonus: () => 0,                              // 不回复算力
+    defPenalty: lv => Math.floor(lv / 2) * 50,     // 每 2 级防御 -50
+    reduction: null,
+    tierLogs: (c, before, after) => {
+        const parts = [];
+        if (before < 2 && after >= 2) parts.push('基础伤害 +100，防御 -50');
+        if (before < 4 && after >= 4) parts.push('基础伤害 +200，防御 -100');
+        return parts;
+    },
+    effectLine: c => `基础伤害 +${c.getEmotionDamageBonus()} ｜ 防御 -${Math.floor(c.emotionLevel / 2) * 50}`
+};
+EMOTION_SPECS.hate = {
+    key: 'hate', displayName: '怨恨', special: true, cap: 10,
+    damageBonus: lv => Math.floor(lv / 3) * 50,    // 每 3 级基础伤害 +50（Lv3/6/9 = +50/100/150）
+    spBonus: () => 0,                              // 不回复算力
+    defPenalty: lv => Math.floor(lv / 3) * 50,     // 每 3 级防御 -50
+    reduction: lv => 100 - lv * 15,                // 减伤曲线：跌破 0% 转受击加伤
+    tierLogs: (c, before, after) => {
+        const parts = [];
+        if (before < 3 && after >= 3) parts.push('基础伤害 +50，防御 -50');
+        if (before < 6 && after >= 6) parts.push('基础伤害 +100，防御 -100');
+        if (before < 9 && after >= 9) parts.push('基础伤害 +150，防御 -150');
+        if (before < 7 && after >= 7) parts.push('减伤跌破 0%，转为受击加伤');
+        return parts;
+    },
+    effectLine: c => {
+        const r = 100 - c.emotionLevel * 15;
+        const reducText = r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破 0%，转受击加伤 ${-r}%`;
+        const tier = Math.floor(c.emotionLevel / 3) * 50;
+        return tier > 0 ? `${reducText} ｜ 基础伤害 +${tier} ｜ 防御 -${tier}` : reducText;
+    }
+};
+EMOTION_SPECS.jade = {
+    key: 'jade', displayName: '厌倦', special: true, cap: 5,
+    damageBonus: lv => lv * 50,                    // 每级基础伤害 +50（覆盖式累计）
+    spBonus: () => 0,                              // 不回复算力
+    defPenalty: () => 0,                           // 无防御副作用
+    reduction: null,
+    tierLogs: (c, before, after) => (after === 5 && before < 5) ? ['基础伤害 +250（厌倦满级，投正率 -25%）'] : [],
+    effectLine: c => `基础伤害 +${c.emotionLevel * 50} ｜ 自身投正率 -${c.emotionLevel * 5}%`,
+    // 硬币投正钩子：每投出一个正面 +1 级；【精准狙击】投正时额外 +1 级
+    onCoinHeads: (c, heads, skill) => {
+        c.gainEmotion(heads);
+        if (skill.special && skill.special.type === 'jadeBonus') c.gainEmotion(1);
+    }
+};
+
+// 给角色装上情感规格，同时维护三个对外兼容字段（specialEmotion / specialEmotionType / emotionDisplayName）
+function applyEmotionSpec(char, key) {
+    const spec = EMOTION_SPECS[key] || EMOTION_SPECS.normal;
+    char.emotionSpec = spec;
+    char.specialEmotion = spec.special;
+    char.specialEmotionType = spec.key === 'normal' ? '' : spec.key;
+    char.emotionDisplayName = spec.displayName;
+    return char;
+}
+
+// ==================== v0.689 伤害转移机制注册（王庄明「守护」） ====================
+// 通用伤害转移注册表在 Characters.js（静态方法）；核心 takeDamage / takeTrueDamage 只询问注册表，
+// 不含任何角色名判定；「守护」这一具体机制在这里注册。
+Character.registerDamageTransfer(function guardTransfer(target, dmg) {
+    if (typeof battleState === 'undefined' || !battleState) return false;
+    if (target.getBuffStack('guard') > 0) return false;   // 守护者本人不保护自己
+    const guarder = battleState.allCharacters.find(c =>
+        c.alive && c !== target && c.team === target.team && c.getBuffStack('guard') > 0
+    );
+    if (!guarder) return false;
+    guarder.reduceBuffStack('guard', 1);
+    if (typeof log === 'function') log(`🛡️ ${guarder.name} 的「守护」抵挡了${target.name}的伤害（剩余${guarder.getBuffStack('guard')}层）`);
+    // 虚拟技能结算：无动画配置 / 无卡片 → executeSkill 内部各环节空安全跳过；
+    // 无来源虚拟攻击者不入队：伤害统计与情感归属落在守护者与虚拟体上，原攻击者 damageDealt 不受影响
+    const virt = Character.createPhantom(`${guarder.name}的守护`, guarder.team, guarder.position);
+    const virtSkill = new Skill('守护转移', 0, dmg, 0, 1, 99);
+    if (typeof SkillSystem !== 'undefined' && typeof SkillSystem.executeSkill === 'function') {
+        SkillSystem.executeSkill(virt, virtSkill, [guarder], battleState, allCharsDiv, log);
+    } else {
+        guarder.takeDamage(dmg, null);   // 兜底：SkillSystem 未就绪时直接扣血
+    }
+    return true;   // 队友本次不掉血
+});
 
 function createTemplateOne(team, position) {
     const skills = [
@@ -65,9 +154,7 @@ function createLuPanxuan(team, position) {
     ];
     const char = new Character('鲁盼旋', 2000, 200, [4,6], 1200, 400, skills, team, position);
     char.evilDefIgnore = true;   // v0.683 固有机制标记：伤害结算时目标每层「恶」额外无视 50 防御（原 SkillSystem 按名字特判）
-    char.specialEmotion = true;   // v0.62 特殊情感激荡：触发/效果/副作用完全自定义，不受通用四触发影响（被动②③⑤接管）
-    char.specialEmotionType = 'anger';   // v0.66 特殊情感激荡类型：鲁盼旋 = 愤怒（cap 5、每2级伤害+100/防御-50）
-    char.emotionDisplayName = '愤怒';   // v0.62 显示名：鲁盼旋的情感等级显示为「愤怒」，仍归属情感激荡机制（仅用户可见文本换名）
+    applyEmotionSpec(char, 'anger');   // v0.689 情感规格：愤怒（cap 5、每 2 级伤害 +100 / 防御 -50、不回蓝、接管通用四触发）
     // ——— 被动零：惩恶之火 — 本阵营角色受伤时伤害来源获得 1 层【恶】（v0.309 按敌我阵营区分） ———
     char.registerPassive('onDamageDealt', (self, bs, attacker, target, actual, log) => {
         if (actual > 0 && target.team === self.team) {
@@ -76,15 +163,8 @@ function createLuPanxuan(team, position) {
         }
     });
 
-    // ——— 被动一：无行动回合结束回复 200 算力 ———
-    char.registerPassive('onTurnEnd', (self, bs, log) => {
-        if (!self.actedThisTurn) {
-            const before = self.sp;
-            self.sp = Math.min(self.maxSP, self.sp + 200);
-            const gained = self.sp - before;
-            if (gained > 0) log(`♻️ ${self.name}（位置${self.position}）未使用技能，回复 ${gained} 算力（算力：${self.sp}/${self.maxSP}）`);
-        }
-    });
+    // ——— 被动一：无行动回合结束回复 200 算力（v0.689 改用通用被动模板，与王庄明共用同一份实现） ———
+    PASSIVE_TEMPLATES.idleSpRegen(char, 200);
 
     // ——— 被动二（v0.62 特殊情感激荡①）：回合结束，获得等同于场上「恶」总层数的情感激荡等级（替代原「恶→愤怒」） ———
     char.registerPassive('onTurnEnd', (self, bs, log) => {
@@ -131,10 +211,11 @@ function createYunChangjun(team, position) {
         new Skill('手枪威慑', 100, 200, 200, 3, 6)
     ];
     const char = new Character('云长郡', 8000, 200, [2,6], 800, 300, skills, team, position);
-    char.hateReduction = true;   // 部下亡灵之怨恨（v0.66 减伤改由「怨恨」情感激荡等级驱动）
-    char.specialEmotion = true;   // v0.66 特殊情感激荡：不受通用四触发（受击/攻击/击杀/队友死亡），触发由下方 onAllyDeath 被动接管
-    char.specialEmotionType = 'hate';   // v0.66 怨恨：减伤 = 100 − 等级×15（上限10级），跌破0%转受击加伤；无副作用
-    char.emotionDisplayName = '怨恨';   // v0.66 显示名：云长郡的情感等级显示为「怨恨」
+    char.hateReduction = true;   // 减伤持有者标记（减伤值由「怨恨」情感规格的 reduction 曲线驱动，回合开始快照）
+    applyEmotionSpec(char, 'hate');   // v0.689 情感规格：怨恨（cap 10、每 3 级伤害 +50 / 防御 -50、接管通用四触发）
+    char.specialStarTarget = true;   // v0.689 隐藏星目标标记：被 AI 操控的队友亲手击杀 → 发隐藏星
+    // v0.689 召唤池随角色定义（原写在 battleFlow.startBattle 的关卡配置里）：2 持盾 / 2 持棍 / 4 持枪 / 2 开车
+    char.summonPoolConfig = ['持盾警察', '持盾警察', '持棍警察', '持棍警察', '持枪警察', '持枪警察', '持枪警察', '持枪警察', '开车警察', '开车警察'];
     // ——— 怨恨触发：同阵营角色阵亡（含云长郡召唤的警察怨灵）→ 怨恨+1 级 ———
     char.registerPassive('onAllyDeath', (self, bs, deadChar, log) => {
         if (deadChar.team === self.team && self !== deadChar) {
@@ -183,7 +264,8 @@ function createDrivingPolice(team, position, initialSP = null) {
             { type: 'speed', value: -4, duration: 'permanent' }
         ]),
         // 开创：与目标每有一点速度差，每硬币加成伤害+200
-        new Skill('开创', 500, 400, 400, 1, 3, null, { type: 'speedDiff', bonus: 200 })
+        // v0.689 witness 标记：使出本技能即记入 specialState.driverUsedOpen（原核心按「角色名+技能名」特判）
+        new Skill('开创', 500, 400, 400, 1, 3, null, { type: 'speedDiff', bonus: 200, witness: 'driverUsedOpen' })
     ];
     const char = new Character('开车警察', 4000, 400, [3,7], 500, 200, skills, team, position);
     if (initialSP !== null) char.sp = initialSP;
@@ -265,15 +347,8 @@ function createWangZhuangMing(team, position) {
         new Skill('守护', 700, 800, 800, 1, 4, null, { type: 'guard' })
     ];
     const char = new Character('王庄明', 2000, 300, [2,5], 1000, 400, skills, team, position);
-    // ——— 被动·黎明级先天能力者（同鲁盼旋）：未使用技能回合结束回复 200 算力 ———
-    char.registerPassive('onTurnEnd', (self, bs, log) => {
-        if (!self.actedThisTurn) {
-            const before = self.sp;
-            self.sp = Math.min(self.maxSP, self.sp + 200);
-            const gained = self.sp - before;
-            if (gained > 0) log(`♻️ ${self.name}（位置${self.position}）未使用技能，回复 ${gained} 算力（算力：${self.sp}/${self.maxSP}）`);
-        }
-    });
+    // ——— 被动·黎明级先天能力者（同鲁盼旋）：未使用技能回合结束回复 200 算力（v0.689 通用被动模板） ———
+    PASSIVE_TEMPLATES.idleSpRegen(char, 200);
     // ——— 被动·守护之躯：回合结束时按本回合消耗算力折算减伤（每 100 算力 10%，向下取整、无上限），
     //      覆盖式，持续到下回合结束（下回合结束时按新消耗重算；消耗为 0 则清除） ———
     char.registerPassive('onTurnEnd', (self, bs, log) => {
@@ -300,9 +375,33 @@ function createCaoJiaMeng(team, position) {
     ];
     const char = new Character('曹佳梦', 1800, 100, [3,6], 500, 500, skills, team, position);
     char.directReduce = 20;   // 黎明级书生学院校服：直伤减伤 20%（同灼华）
-    char.specialEmotion = true;   // 特殊情感激荡：不受通用四触发（厌倦只由硬币投正升级）
-    char.specialEmotionType = 'jade';   // v0.673 厌倦：cap 5、每级基础伤害+50、投正率-5%/级
-    char.emotionDisplayName = '厌倦';
+    applyEmotionSpec(char, 'jade');   // v0.689 情感规格：厌倦（cap 5、每级伤害 +50、自身投正率 -5%/级、只由硬币投正升级）
+    // v0.689 光环声明（隐藏 buff「coinLuck」= 投正率加成）：由 SkillSystem.refreshAuras 通用聚合，
+    // 核心不再含「曹佳梦」名字与 +25% / −5%每级 / +10% 硬编码数值。
+    // 刷新时机：回合开始 / 曹佳梦阵亡 / 读档后（攻击内投正率恒定——厌倦升级与归零不触发刷新）。
+    char.aura = {
+        buffType: 'coinLuck',
+        label: '概率论的奇迹',
+        selfBonus: self => 0.25 - self.emotionLevel * 0.05,   // 自身 +25% − 自己的厌倦×5%（取回合开始级）
+        allyBonus: 0.10                                        // 每个同阵营单位 +10%（多个曹佳梦叠加）
+    };
+    // v0.689 技能形态同步钩子（原 battleFlow.syncCaoJiaMengSkill 按角色名特判，现由角色自带；
+    // 由 battleFlow.syncAllSkillForms 在回合开始与读档后统一调用）：
+    // 厌倦 ≥4 级 →【创大运吧】替换为【陨星落下】；<4 级（如使用陨星后归零）→ 恢复【创大运吧】（可逆替换）
+    char.syncSkills = (self, logFn) => {
+        if (!self.alive) return;
+        const idx = self.skills.findIndex(s => s.name === '创大运吧' || s.name === '陨星落下');
+        if (idx < 0) return;
+        const wantMeteor = self.emotionLevel >= 4;
+        const isMeteor = self.skills[idx].name === '陨星落下';
+        if (wantMeteor && !isMeteor) {
+            self.skills[idx] = new Skill('陨星落下', 500, 1250, 1000, 1, 9, null, { type: 'meteor' });
+            if (typeof logFn === 'function') logFn(`🔄 ${self.name} 厌倦达到 ${self.emotionLevel} 级，【创大运吧】替换为【陨星落下】！`);
+        } else if (!wantMeteor && isMeteor) {
+            self.skills[idx] = new Skill('创大运吧', 500, 200, 400, 1, 9, null, { type: 'jadeBurst' });
+            if (typeof logFn === 'function') logFn(`🔄 ${self.name} 厌倦降至 ${self.emotionLevel} 级，【陨星落下】恢复为【创大运吧】！`);
+        }
+    };
     return char;
 }
 
@@ -312,6 +411,13 @@ function createCaoJiaMeng(team, position) {
 // 交叉火力：连携技——与至多2名多能战警连携（每名消耗200算力），射程内全体敌方自动选中；
 // 防爆装参与：对被制服目标+200伤害并对全体施加3层Lv3混乱；步枪装参与：基础+200并对全体施加2层Lv2燃烧；
 // 狙击装参与：加成+400并对全体施加3层Lv3创伤。
+// v0.689 装备配置表（随角色定义；原在 battleFlow.js 顶部）
+const DUONENG_GEAR_CFG = {
+    riot:  { skill: '近身制服', def: 300, speed: 0 },
+    rifle: { skill: '中距点射', def: 100, speed: 1 },
+    snipe: { skill: '远程狙击', def: 0,   speed: 3 }
+};
+
 function createDuoNengZhanJing(team, position) {
     const skills = [
         new Skill('近身制服', 0, 400, 200, 1, 2, null, { type: 'subdue', stacks: 2, pick: 'noSubdued' }),   // 优先未被制服
@@ -325,6 +431,40 @@ function createDuoNengZhanJing(team, position) {
     char.gear = '';            // 当前装备：'riot'防爆装 / 'rifle'步枪装 / 'snipe'狙击装（''=尚未同步）
     char.retreatUsed = false;  // v0.688 战术撤退一局仅触发一次（随存档序列化）
     char._gearSkills = { riot: skills[0], rifle: skills[1], snipe: skills[2], crossfire: skills[3] };   // v0.684 换装技能池
+    // v0.689 装备同步钩子（原 battleFlow.syncDuoNengGear / duoNengTargetGear 按标记 + 全阵营排位实现）：
+    // 回合开始 / 读档后按同阵营多能战警的排位换装，换装同时切换技能[0]；【交叉火力】恒为技能[1]。
+    // 排位方向按阵营取：我方在左（位置大 = 靠前）、敌方在右（位置小 = 靠前）。
+    // 1 = 防爆装 / 2 = 步枪装 / 其余 = 狙击装；直接改基础数值并回退旧装备加成（同开车警察加油/刹车模式）。
+    char.syncGear = (logFn) => {
+        if (!char.alive || char.pendingEntry) return;
+        const mates = battleState.allCharacters.filter(x =>
+            x.alive && x.team === char.team && x !== char && x.duoNengGear && !x.pendingEntry
+        );
+        const frontCount = char.team === 'player'
+            ? mates.filter(x => x.position > char.position).length   // 我方：位置大 = 靠前
+            : mates.filter(x => x.position < char.position).length;  // 敌方：位置小 = 靠前
+        const rank = frontCount + 1;
+        const target = rank === 1 ? 'riot' : rank === 2 ? 'rifle' : 'snipe';
+        if (target === char.gear) return;
+        if (char.gear && DUONENG_GEAR_CFG[char.gear]) {   // 回退旧装备加成
+            const old = DUONENG_GEAR_CFG[char.gear];
+            char.def -= old.def;
+            char.speedMin = Math.max(1, char.speedMin - old.speed);
+        }
+        char.gear = target;
+        const cfg = DUONENG_GEAR_CFG[target];
+        char.def += cfg.def;
+        char.speedMin = Math.max(1, char.speedMin + cfg.speed);
+        if (cfg.speed > 0) char.rerollSpeed();   // 速度下限变化后重掷实际速度（同开车警察）
+        // 换技能：装备技能 + 交叉火力
+        if (char._gearSkills && char._gearSkills[target]) {
+            char.skills = [char._gearSkills[target], char._gearSkills.crossfire];
+        }
+        if (typeof logFn === 'function') {
+            const name = target === 'riot' ? '防爆装' : target === 'rifle' ? '步枪装' : '狙击装';
+            logFn(`🔁 ${char.name}（位置${char.position}）装备切换：${name}（防御 ${char.def}、速度 ${char.speedMin}~${char.speedMax}）→ 使用【${cfg.skill}】`);
+        }
+    };
     return char;
 }
 

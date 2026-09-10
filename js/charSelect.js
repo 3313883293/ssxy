@@ -85,15 +85,14 @@ function selectLevel(level) {
 }
 
 function confirmLevel() {
-    // v0.311+v0.5：第四关/灼华篇第三关 = 待命区（最左）+ 出战3（位置2 锁定 AI 角色 = 战斗最前方）
+    // v0.311+v0.5：Boss 关 = 待命区（最左）+ 出战 3（末位锁定 AI 角色 = 战斗最前方）
     // 布局从左到右：待命区、位置0、位置1、位置2（待命槽 index 0，出战槽 index 1/2/3，锁定出战位置2 = 最前方）
-    // v0.5：强制上场角色统一用内置我方 AI；教程关 1 槽；其余 3 槽
-    if (currentSelectedLevel === 3) {
-        charSelection.setSlotGroups([{ label: '待命', count: 1, bench: true }, { label: '出战', count: 3 }]);
-        charSelection.setLockedSlot(3, '鲁盼旋');
-    } else if (currentSelectedLevel === 6) {
-        charSelection.setSlotGroups([{ label: '待命', count: 1, bench: true }, { label: '出战', count: 3 }]);
-        charSelection.setLockedSlot(3, '灼华');   // 默认第三参 'AI 操控'（与鲁盼旋第四关一致）
+    // v0.689：关卡布阵改由 battleFlow.LEVEL_SETUP **单一来源**驱动——选角槽位与开局布阵不再各写一份
+    // （原实现把「第四关=鲁盼旋 / 灼华第三关=灼华」在本文件与 startBattle 各硬编码了一遍）
+    const setup = (typeof LEVEL_SETUP !== 'undefined') ? (LEVEL_SETUP[currentSelectedLevel] || null) : null;
+    if (setup && setup.lockedRole) {
+        charSelection.setSlotGroups([{ label: '待命', count: setup.benchSlots, bench: true }, { label: '出战', count: 3 }]);
+        charSelection.setLockedSlot(3, setup.lockedRole);   // 默认第三参 'AI 操控'
     } else {
         charSelection.setSlotGroups(null);
         charSelection.setLockedSlot(null, null);

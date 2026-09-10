@@ -1,6 +1,65 @@
 // Characters.js - 角色类定义
 let globalId = 0;
 
+// ==================== v0.689 情感规格（规格驱动） ====================
+// 情感激荡的上限 / 伤害加成 / 算力回复加成 / 防御副作用 / 减伤曲线 / 档位日志 / 效果行 / 投正钩子，
+// 全部收敛为「规格对象」。本文件只注册**通用规格 normal**；角色专属规格（愤怒 anger / 怨恨 hate /
+// 厌倦 jade）由 Roles.js 在各角色工厂旁注册。核心结算只读 char.emotionSpec，
+// **不再出现任何 specialEmotionType 字符串分支**（v0.689 前 anger/hate/jade 三套公式硬编码在本文件）。
+// 规格字段：
+//   key / displayName          标识与显示名
+//   special                    是否「特殊情感激荡」（true = 完全接管通用四触发）
+//   cap                        等级上限
+//   damageBonus(lv)            基础伤害加成（覆盖式）
+//   spBonus(lv)                算力回复加成（覆盖式）
+//   defPenalty(lv)             防御副作用（覆盖式，返回正数表示扣减）
+//   reduction(lv)              减伤曲线（null = 不使用；否则为受击减伤百分比快照，可为负 = 受击加伤）
+//   tierLogs(char,before,after) 跨档位时的日志片段数组
+//   effectLine(char)           卡面 / 弹窗的效果行
+//   onCoinHeads(char,heads,skill)  硬币投正后的追加钩子（可选）
+const EMOTION_SPECS = {
+    normal: {
+        key: 'normal',
+        displayName: '情感激荡',
+        special: false,
+        cap: 8,
+        damageBonus: lv => (lv >= 6 ? 100 : lv >= 2 ? 50 : 0),   // 达 2 级 +50、达 6 级 +100（覆盖式）
+        spBonus: lv => (lv >= 8 ? 100 : lv >= 4 ? 50 : 0),       // 达 4 级 +50、达 8 级 +100（覆盖式）
+        defPenalty: () => 0,
+        reduction: null,
+        tierLogs: (c, before, after) => {
+            const parts = [];
+            if (after >= 2 && before < 2) parts.push(`基础伤害 +${c.getEmotionDamageBonus()}`);
+            if (after >= 4 && before < 4) parts.push(`算力回复 +${c.getEmotionSpBonus()}`);
+            if (after === 6) parts.push('基础伤害加成提升至 +100');
+            if (after === 8) parts.push('算力回复加成提升至 +100');
+            return parts;
+        },
+        effectLine: c => `基础伤害 +${c.getEmotionDamageBonus()} ｜ 算力回复 +${c.getEmotionSpBonus()}`
+    }
+};
+
+// ==================== v0.689 buff 类型通用表 ====================
+// buff 类型 → 每层防御副作用（负值 = 扣防御）。新增「按层扣防御」类 buff 只需在此加一行。
+const BUFF_DEF_PER_STACK = {
+    frenzy: -20   // 狂炎（焚天祭司·烛央）：每层防御 -20
+};
+
+// ==================== v0.689 通用被动模板 ====================
+// 供多个角色复用的标准被动，避免同一段逻辑在 Roles.js 里复制粘贴。
+const PASSIVE_TEMPLATES = {
+    // 未使用技能的回合结束时回复 amount 算力（鲁盼旋「黎明级先天能力者」/ 王庄明同款）
+    idleSpRegen(char, amount) {
+        char.registerPassive('onTurnEnd', (self, bs, log) => {
+            if (self.actedThisTurn) return;
+            const before = self.sp;
+            self.sp = Math.min(self.maxSP, self.sp + amount);
+            const gained = self.sp - before;
+            if (gained > 0) log(`♻️ ${self.name}（位置${self.position}）未使用技能，回复 ${gained} 算力（算力：${self.sp}/${self.maxSP}）`);
+        });
+    }
+};
+
 class Character {
     constructor(name, hp, def, speedRange, maxSP, spRegen, skills, team, position) {
         this.id = globalId++;
@@ -40,7 +99,13 @@ class Character {
         this.emotionLevel = 0;   // 情感激荡等级（v0.62）：0~8 级，受击/攻击/击杀/队友死亡各 +1；2/6 级基础伤害、4/8 级算力回复档位加成
         this.specialEmotion = false;   // 特殊情感激荡（v0.62 鲁盼旋）：触发/效果/副作用完全自定义，不受通用四触发影响
         this.emotionDisplayName = '情感激荡';   // 情感等级显示名（v0.62 鲁盼旋改「愤怒」：仍归属情感激荡机制，仅用户可见文本换名）
-        this.specialEmotionType = '';   // v0.66 特殊情感激荡类型：'anger'（鲁盼旋愤怒）| 'hate'（云长郡怨恨）| ''（普通情感激荡）；区分 cap/效果/副作用
+        this.specialEmotionType = '';   // 'anger'（鲁盼旋愤怒）| 'hate'（云长郡怨恨）| 'jade'（曹佳梦厌倦）| ''（普通情感激荡）
+        this.emotionSpec = EMOTION_SPECS.normal;   // v0.689 情感规格对象（核心只读它，不含角色专属公式）
+        this.syncSkills = null;   // v0.689 通用角色钩子：技能形态同步 syncSkills(char, logFn)，由工厂按需安装
+        this.syncGear = null;     // v0.689 通用角色钩子：装备同步 syncGear(logFn)，由工厂按需安装
+        this.summonPoolConfig = null;   // v0.689 通用角色钩子：召唤池配置（数组），由工厂按需安装
+        this.aura = null;   // v0.689 通用角色钩子：隐藏 buff 光环声明 { buffType, label, selfBonus(self), allyBonus }
+        this.specialStarTarget = false; // v0.689 隐藏星目标标记（被 AI 操控的队友击杀 → 发隐藏星）
     }
 
     // —————— 亡灵怨恨减伤快照：每回合开始判定（100% - 累计阵亡数×15%，可为负，负值转为受到伤害加成） ——————
@@ -50,9 +115,11 @@ class Character {
 
     updateHateReduction() {
         if (!this.hateReduction) return;
-        if (this.specialEmotionType === 'hate') {
-            // v0.66 云长郡「怨恨」：减伤 = 100 − 怨恨等级×15（上限10级），跌破0%转受击加伤（「负转加伤」融合进怨恨）
-            this.hateReductionCurrent = 100 - this.emotionLevel * 15;
+        // v0.689 规格驱动：情感规格提供减伤曲线（如怨恨 100 − 等级×15，跌破 0% 转受击加伤）；
+        // 无曲线的持有者退回「按累计阵亡数」的通用曲线
+        const curve = this.emotionSpec && this.emotionSpec.reduction;
+        if (curve) {
+            this.hateReductionCurrent = curve(this.emotionLevel);
         } else {
             const deaths = (typeof battleState !== 'undefined' && battleState) ? battleState.totalDeaths : 0;
             this.hateReductionCurrent = 100 - deaths * 15;
@@ -61,8 +128,12 @@ class Character {
 
     // 每回合重随机实际速度（在最小~最大速度区间内）：最小速度是加油/刹车改变的核心属性，
     // 实际速度只决定本回合行动顺序，开创伤害按最小速度算（确定性）
+    // v0.689 修正：speedMin 可被永久提升到超过 speedMax（如开车警察连续【加油】），
+    // 原式会算出低于 speedMin 的速度（区间反向，违反「speedMin = 速度下限」）；改以 speedMin 为硬下限。
     rerollSpeed() {
-        this.speed = Math.floor(Math.random() * (this.speedMax - this.speedMin + 1)) + this.speedMin;
+        const lo = this.speedMin;
+        const hi = Math.max(lo, this.speedMax);
+        this.speed = Math.floor(Math.random() * (hi - lo + 1)) + lo;
     }
 
     // v0.684 被制服：速度-2（总共，无论层数）；行动顺序排序/开创速度差/卡片显示均用本方法取生效速度
@@ -77,11 +148,13 @@ class Character {
         let total = this.def;
         this.buffs.forEach(b => {
             if (b.type === 'def') total += b.value;
-            if (b.type === 'frenzy') total -= b.stack * 20;   // 狂炎：每层防御-20（v0.5 烛央）
+            // v0.689 表驱动：buff 类型的「每层防御副作用」集中声明，新增此类 buff 不必再改本方法
+            const perStack = BUFF_DEF_PER_STACK[b.type];
+            if (perStack) total += perStack * (b.stack || 0);
         });
-        // v0.62 鲁盼旋「愤怒」副作用：每2级防御-50；v0.661 云长郡「怨恨」副作用：每3级防御-50（无条件生效，不依赖 buff 存在）
-        if (this.specialEmotionType === 'anger') total -= Math.floor(this.emotionLevel / 2) * 50;
-        if (this.specialEmotionType === 'hate') total -= Math.floor(this.emotionLevel / 3) * 50;
+        // v0.689 规格驱动：情感防御副作用统一由 emotionSpec.defPenalty 提供
+        // （鲁盼旋「愤怒」每 2 级防御 -50 / 云长郡「怨恨」每 3 级防御 -50；无副作用的情感返回 0）
+        total -= this.emotionSpec.defPenalty(this.emotionLevel);
         return total;
     }
 
@@ -103,7 +176,8 @@ class Character {
         const totalDef = this.getTotalDef();
         let actual = Math.max(0, dmg - totalDef);
         // v0.669 王庄明「守护」：防御结算后、扣血前，若即将失去血量则尝试转移（队友掉血 0，不消耗本角色 nextHit buff/不触发受击）
-        if (actual > 0 && Character.guardTransfer(this, actual) === 0) return 0;
+        // v0.689：改问通用伤害转移注册表（守护等机制由角色自行注册；注意本分支提前返回，不消耗 nextHit buff）
+        if (actual > 0 && Character.tryTransferDamage(this, actual)) return 0;
         let reduction = this.getHateReduction();
         // v0.669 王庄明「守护之躯」：减伤叠加（回合结束时按本回合消耗算力折算，持续到下回合结束）
         const guardShield = this.buffs.find(b => b.type === 'guardShield');
@@ -127,35 +201,34 @@ class Character {
         return actual;
     }
 
-    // v0.669 王庄明「守护」转移（静态）：同阵营存在存活且带「守护」层数的王庄明时，
-    // 队友（守护者本人除外）即将失去血量 → 防止之，改为守护者自身受到"对应数值的无来源普通伤害"
-    // （完整走防御/减伤结算），守护层数-1；一切伤害（普通/真伤/dot/混乱反噬）均转移；
-    // v0.669 显示修正（用户指定）：转移伤害不再裸扣血，而是临时生成一个虚拟技能指向守护者，
-    // 走完整技能结算——伤害数字/血条刷新/受击音效/死亡爆发全部正常显示；
-    // 无来源 = 虚拟攻击者不入队（其 damageDealt 不计入任何结算统计、不触发击杀归属）；
-    // 返回 0 表示本次伤害已被转移（受击方不掉血）；返回原值表示未转移
-    static guardTransfer(target, dmg) {
-        if (dmg <= 0 || !target.alive) return dmg;
-        if (typeof battleState === 'undefined' || !battleState) return dmg;
-        if (target.getBuffStack('guard') > 0) return dmg;   // 守护者本人不保护自己
-        const guarder = battleState.allCharacters.find(c =>
-            c.alive && c !== target && c.team === target.team && c.getBuffStack('guard') > 0   // v0.683：guard buff 本身就是判别，删冗余名字检查
-        );
-        if (!guarder) return dmg;
-        guarder.reduceBuffStack('guard', 1);
-        if (typeof log === 'function') log(`🛡️ ${guarder.name} 的「守护」抵挡了${target.name}的伤害（剩余${guarder.getBuffStack('guard')}层）`);
-        // 虚拟技能结算：无动画配置/无卡片 → executeSkill 内部各环节空安全跳过；
-        // 虚拟攻击者不入队：伤害统计/情感激荡归属全部落在守护者与虚拟体上，原攻击者 damageDealt 不受影响
-        const virt = createRoleInstance('模板一', 'player', guarder.position);
-        virt.name = `${guarder.name}的守护`;
-        virt.sp = 0;
-        const virtSkill = new Skill('守护转移', 0, dmg, 0, 1, 99);
-        if (typeof SkillSystem !== 'undefined' && typeof SkillSystem.executeSkill === 'function') {
-            SkillSystem.executeSkill(virt, virtSkill, [guarder], battleState, allCharsDiv, log);
-        } else {
-            guarder.takeDamage(dmg, null);   // 兜底：SkillSystem 未就绪时直接扣血
+    // —————— v0.689 通用伤害转移机制注册表 ——————
+    // 核心伤害管线（takeDamage / takeTrueDamage）在「扣血前」统一询问注册表：是否有机制要拦截这次掉血。
+    // 核心只负责询问与短路，**不含任何角色专属判定**；具体机制（如王庄明「守护」）由角色在 Roles.js 注册。
+    // 处理函数签名：(target, dmg) => true（已完全转移，受击方不掉血）/ false（未转移）
+    static damageTransfers = [];
+    static registerDamageTransfer(fn) {
+        if (typeof fn === 'function' && !Character.damageTransfers.includes(fn)) Character.damageTransfers.push(fn);
+    }
+    static tryTransferDamage(target, dmg) {
+        if (dmg <= 0 || !target.alive) return false;
+        for (const fn of Character.damageTransfers) {
+            if (fn(target, dmg)) return true;
         }
-        return 0;   // 队友本次不掉血
+        return false;
+    }
+
+    // 无来源虚拟攻击者：不入队、不参与任何统计，仅用于让「转移伤害」走完整技能结算
+    // （伤害数字 / 血条刷新 / 受击音效 / 死亡爆发正常显示）。v0.689 前借 createRoleInstance('模板一') 生成，
+    // 属核心对具体角色工厂的硬依赖，现改为直接构造最小 Character。
+    static createPhantom(name, team, position) {
+        const p = new Character(name, 1, 0, [1, 1], 0, 0, [], team, position);
+        p.sp = 0;
+        return p;
+    }
+
+    // v0.669 兼容入口：返回 0 表示本次伤害已被转移，返回原值表示未转移（旧验证脚本仍在使用）
+    static guardTransfer(target, dmg) {
+        return Character.tryTransferDamage(target, dmg) ? 0 : dmg;
     }
 
     // 死亡处理：倒戈复活 → 待命区补位 + 站位重排
@@ -188,7 +261,7 @@ class Character {
     takeTrueDamage(dmg) {
         if (!this.alive) return 0;
         // v0.669 王庄明「守护」：真伤/dot/混乱反噬等一切掉血同样转移（用户指定）
-        if (dmg > 0 && Character.guardTransfer(this, dmg) === 0) return 0;
+        if (dmg > 0 && Character.tryTransferDamage(this, dmg)) return 0;
         this.hp = Math.max(0, this.hp - dmg);
         this.damageReceived += dmg;
         if (this.hp <= 0) {
@@ -214,74 +287,30 @@ class Character {
     // 提升等级（攻击/受击/击杀/队友死亡时调用）；普通封顶 8 级，鲁盼旋「愤怒」（特殊情感激荡）封顶 5 级（用户指定）；跨过档位时打日志
     gainEmotion(n) {
         const before = this.emotionLevel;
-        // v0.66 特殊情感激荡上限：鲁盼旋「愤怒」5 级、云长郡「怨恨」10 级（均用户指定）、普通情感激荡 8 级
-        const cap = this.specialEmotion ? (this.specialEmotionType === 'hate' ? 10 : 5) : 8;
-        this.emotionLevel = Math.min(cap, this.emotionLevel + n);
+        // v0.689 规格驱动：等级上限与档位提示全部取自 emotionSpec
+        // （普通 8 级 / 愤怒 5 级 / 怨恨 10 级 / 厌倦 5 级）
+        this.emotionLevel = Math.min(this.emotionSpec.cap, this.emotionLevel + n);
         if (before >= this.emotionLevel) return;
-        const parts = [];
-        if (this.specialEmotion) {
-            if (this.specialEmotionType === 'hate') {
-                // v0.66 云长郡「怨恨」：减伤连续每级-15%（跌破0% Lv7 起转受击加伤）；v0.661 每3级基础伤害+50/防御-50（覆盖式，上限10级只跨 3/6/9 档）
-                if (before < 3 && this.emotionLevel >= 3) parts.push('基础伤害 +50，防御 -50');
-                if (before < 6 && this.emotionLevel >= 6) parts.push('基础伤害 +100，防御 -100');
-                if (before < 9 && this.emotionLevel >= 9) parts.push('基础伤害 +150，防御 -150');
-                if (before < 7 && this.emotionLevel >= 7) parts.push('减伤跌破 0%，转为受击加伤');
-            } else if (this.specialEmotionType === 'jade') {
-                // v0.673 曹佳梦「厌倦」：每级基础伤害 +50（覆盖式累计），上限 5 级；满级提示
-                if (this.emotionLevel === 5 && before < 5) parts.push('基础伤害 +250（厌倦满级，投正率 -25%）');
-            } else {
-                // v0.62 鲁盼旋「愤怒」：每2级基础伤害+100、防御-50（覆盖式），无算力回复档位；上限5级只跨 2/4 档
-                if (before < 2 && this.emotionLevel >= 2) parts.push('基础伤害 +100，防御 -50');
-                if (before < 4 && this.emotionLevel >= 4) parts.push('基础伤害 +200，防御 -100');
-            }
-        } else {
-            const dmgBonus = this.getEmotionDamageBonus();
-            const spBonus = this.getEmotionSpBonus();
-            if (this.emotionLevel >= 2 && before < 2) parts.push(`基础伤害 +${dmgBonus}`);
-            if (this.emotionLevel >= 4 && before < 4) parts.push(`算力回复 +${spBonus}`);
-            if (this.emotionLevel === 6) parts.push('基础伤害加成提升至 +100');
-            if (this.emotionLevel === 8) parts.push('算力回复加成提升至 +100');
-        }
+        const parts = this.emotionSpec.tierLogs(this, before, this.emotionLevel);
         if (parts.length > 0 && typeof log === 'function') {
             log(`${this.emotionDisplayName}：${this.name} 升至 Lv ${this.emotionLevel}（${parts.join('，')}）`);
         }
     }
 
-    // 基础伤害加成（覆盖式）：普通角色达 2 级 +50、达 6 级 +100；鲁盼旋「愤怒」每2级 +100（Lv2/4=+100/200，Lv5 仍+200）；云长郡「怨恨」每3级 +50（v0.661 Lv3/6/9=+50/100/150，Lv10 仍+150）；曹佳梦「厌倦」每级 +50（v0.673）
+    // 基础伤害加成（覆盖式）：全部由 emotionSpec.damageBonus 提供
+    // （普通 2/6 级 = +50/+100；愤怒每 2 级 +100；怨恨每 3 级 +50；厌倦每级 +50）
     getEmotionDamageBonus() {
-        if (this.specialEmotionType === 'anger') return Math.floor(this.emotionLevel / 2) * 100;
-        if (this.specialEmotionType === 'hate') return Math.floor(this.emotionLevel / 3) * 50;
-        if (this.specialEmotionType === 'jade') return this.emotionLevel * 50;
-        if (this.specialEmotion) return 0;
-        if (this.emotionLevel >= 6) return 100;
-        if (this.emotionLevel >= 2) return 50;
-        return 0;
+        return this.emotionSpec.damageBonus(this.emotionLevel);
     }
 
-    // 算力回复加成（覆盖式）：普通角色达 4 级 +50、达 8 级 +100；特殊情感激荡（愤怒/怨恨/厌倦）均不回蓝
+    // 算力回复加成（覆盖式）：全部由 emotionSpec.spBonus 提供（特殊情感规格一律返回 0）
     getEmotionSpBonus() {
-        if (this.specialEmotion) return 0;
-        if (this.emotionLevel >= 8) return 100;
-        if (this.emotionLevel >= 4) return 50;
-        return 0;
+        return this.emotionSpec.spBonus(this.emotionLevel);
     }
 
-    // v0.66 情感效果一行文本（卡片弹窗/详情面板共用）：怨恨显示减伤/加伤曲线 + 每3级伤害/防御档位（v0.661），愤怒显示伤害+防御副作用，普通显示伤害+算力回复
-    // v0.673 厌倦显示伤害 + 自身投正率下降
+    // v0.689 情感效果一行文本（卡片弹窗 / 详情面板共用）：全部由 emotionSpec.effectLine 提供
     getEmotionEffectLine() {
-        if (this.specialEmotionType === 'hate') {
-            const r = 100 - this.emotionLevel * 15;
-            const reducText = r >= 0 ? `亡灵怨恨减伤 ${r}%` : `减伤跌破 0%，转受击加伤 ${-r}%`;
-            const tier = Math.floor(this.emotionLevel / 3) * 50;
-            return tier > 0 ? `${reducText} ｜ 基础伤害 +${tier} ｜ 防御 -${tier}` : reducText;
-        }
-        if (this.specialEmotionType === 'jade') {
-            return `基础伤害 +${this.emotionLevel * 50} ｜ 自身投正率 -${this.emotionLevel * 5}%`;
-        }
-        if (this.specialEmotion) {
-            return `基础伤害 +${this.getEmotionDamageBonus()} ｜ 防御 -${Math.floor(this.emotionLevel / 2) * 50}`;
-        }
-        return `基础伤害 +${this.getEmotionDamageBonus()} ｜ 算力回复 +${this.getEmotionSpBonus()}`;
+        return this.emotionSpec.effectLine(this);
     }
 
     // —————— Buff 操作 ——————

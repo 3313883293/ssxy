@@ -1,7 +1,7 @@
 // globals.js - 全局变量、DOM引用、工具函数
 
 // ==================== 版本号（v0.663：主界面显示，单一来源，随版本快照更新） ====================
-const GAME_VERSION = 'v0.688';
+const GAME_VERSION = 'v0.689';
 
 // ==================== 战斗状态实例 ====================
 let battleState = new BattleState();
@@ -27,10 +27,14 @@ function log(msg) {
     battleLog.push(msg);
 }
 
-// v0.672 第四关隐藏星：AI 鲁盼旋杀死云长郡（隐藏胜利条件，不在关卡介绍页显示）——
-// 击杀归属判定（普伤/引爆/混乱反噬致死三处调用）；云长郡死亡瞬间标记，胜利结算时发星
-function markAiLuKill(actor, target) {
-    if (actor && actor.name === '鲁盼旋' && actor.aiControlled && target && target.name === '云长郡' && !target.alive) {
+// v0.672 第四关隐藏星（隐藏胜利条件，不在关卡介绍页显示）；v0.689 改为**标记驱动**：
+// AI 操控的队友亲手击杀带 specialStarTarget 标记的目标 → 记隐藏星。
+// （判定强度与改造前的「角色名 = 鲁盼旋 且 aiControlled」等价：原实现只查 aiControlled，
+//   故此处同样只查 aiControlled，不额外要求 lockHp。）
+// 击杀归属判定在普伤 / 创伤反噬 / 混乱反噬 / 引爆 / 陨星五处调用；目标死亡瞬间标记，胜利结算时发星。
+// （specialState 键名沿用 aiLuKilledYun，兼容旧自动存档与历史验证脚本。）
+function markHiddenStarKill(actor, target) {
+    if (actor && actor.aiControlled && target && target.specialStarTarget && !target.alive) {
         if (typeof battleState !== 'undefined' && battleState) battleState.specialState.aiLuKilledYun = true;
     }
 }

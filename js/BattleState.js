@@ -13,8 +13,8 @@ class BattleState {
         this.currentLevel = 0;
         this.benchPlayer = [];   // 玩家待命区（前方友方死亡后最靠前者入场）
         this.benchEnemy = [];    // 敌方待命区
-        this.totalDeaths = 0;    // 场上累计阵亡数（云长郡减伤计算用）
-        this.summonPool = [];    // 云长郡怨灵召唤池（2持盾2持棍4持枪2车）
+        this.totalDeaths = 0;    // 场上累计阵亡数（减伤曲线计算用）
+        this.summonPool = [];    // 召唤池（由场上角色的 summonPoolConfig 汇总，见 battleFlow.initSummonPools）
         this.specialState = {    // v0.314：特殊胜利状态（每关额外成就，达成即记录、读档不丢失）
             achieved: false,       // 本关特殊胜利是否已达成
             driverUsedOpen: false, // 第二关：开车警察是否使出过「开创」（过程追踪）
@@ -26,9 +26,11 @@ class BattleState {
         };
     }
 
-    // —————— 云长郡召唤：每回合开始时若自身无友方单位，召唤2个警察怨灵 ——————
-    summonWraiths() {
+    // —————— 召唤师召唤怨灵：每回合开始时若自身无友方单位，召唤 2 个警察怨灵 ——————
+    // v0.689 泛化：召唤师由调用方传入（原实现把「云长郡」写死在本核心容器里）
+    summonWraiths(summoner) {
         if (!this.summonPool.length) return;
+        const summonerName = (summoner && summoner.name) || '召唤者';
         for (let i = 0; i < 2; i++) {
             if (!this.summonPool.length) break;
             const idx = Math.floor(Math.random() * this.summonPool.length);
@@ -38,16 +40,17 @@ class BattleState {
             wraith.order = -99;   // 怨灵在左边生成（紧贴玩家一侧）
             this.enemyTeam.push(wraith);
             this.allCharacters.push(wraith);
-            if (typeof log === 'function') log(`👻 云长郡 召唤了警察怨灵：${wraith.name}（血量 ${wraith.maxHp}）`);
+            if (typeof log === 'function') log(`👻 ${summonerName} 召唤了警察怨灵：${wraith.name}（血量 ${wraith.maxHp}）`);
         }
         this.repositionAll();
     }
 
-    // —————— 倒戈：李雅礼死亡后作为我方单位复活，位于我方最右方（紧挨敌人） ——————
+    // —————— 倒戈：带 defector 标记的单位死亡后作为我方单位复活，位于我方最右方（紧挨敌人） ——————
     defectToPlayer(defected) {
         this.enemyTeam = this.enemyTeam.filter(c => c !== defected);
         this.allCharacters = this.allCharacters.filter(c => c !== defected);
-        const revived = createRoleInstance('李雅礼', 'player', 0);
+        // v0.689：按倒戈者自身的角色名重建（原实现把「李雅礼」写死在本核心容器里）
+        const revived = createRoleInstance(defected.name, 'player', 0);
         revived.order = 999;          // 排在玩家最右，紧挨敌方（象征抵抗距离1可及）
         revived.aiControlled = true;  // 倒戈后依然由 AI 操控
         this.playerTeam.push(revived);

@@ -1,0 +1,120 @@
+v0.689 更新内容：死硬特殊机制重构（零行为变化）+ 两处 bug 修复 + 两处过期验证脚本对齐
+
+## 背景
+
+用户要求：先调整「过于死硬的特殊机制」，再据此撰写核心机制文档交给下一位 AI。
+所谓「死硬」= 角色专属逻辑写死在核心管道里，违反 CLAUDE.md 的机制实现三模式与禁忌
+（核心结算管道禁止按角色名/技能名特判）。本次把散落在核心文件里的角色专属实现全部收回
+Roles.js / 角色实例自带钩子，并顺手修掉两处真 bug。**除明确标注的两处 bug 修复外，全部为零行为变化。**
+
+## 重构清单（零行为变化）
+
+1. **情感规格化**（Characters.js + Roles.js）
+   原：anger / hate / jade 三套公式以 \`specialEmotionType === '...'\` 字符串分支硬编码在
+   Characters.js 的 getTotalDef / gainEmotion / getEmotionDamageBonus / getEmotionSpBonus /
+   getEmotionEffectLine / updateHateReduction 六处。
+   现：引入「情感规格对象」EMOTION_SPECS，字段 = key / displayName / special / cap /
+   damageBonus(lv) / spBonus(lv) / defPenalty(lv) / reduction(lv) / tierLogs(c,before,after) /
+   effectLine(c) / onCoinHeads(c,heads,skill)。Characters.js 只注册通用规格 normal；
+   角色专属规格 anger/hate/jade 移到 Roles.js 注册，由 applyEmotionSpec(char,key) 装到实例上。
+   核心只读 char.emotionSpec，**已无任何 specialEmotionType 字符串分支**。
+   对外兼容字段 specialEmotion / specialEmotionType / emotionDisplayName 保留不变。
+
+2. **通用被动模板**（Characters.js PASSIVE_TEMPLATES + Roles.js）
+   原：鲁盼旋「黎明级先天能力者」与王庄明同款被动在 Roles.js 复制了两份实现。
+   现：抽为 PASSIVE_TEMPLATES.idleSpRegen(char, 200)，两处调用同一份。
+
+3. **角色自带钩子**（新增 char.syncSkills / char.syncGear / char.summonPoolConfig / char.aura / char.specialStarTarget）
+   · syncSkills：曹佳梦三技能形态同步（原 battleFlow.syncCaoJiaMengSkill 按 c.name === '曹佳梦' 特判）
+     → battleFlow.syncAllSkillForms 通用驱动。
+   · syncGear：多能战警装备切换（原 battleFlow 的 duoNengTargetGear / syncDuoNengGear / DUONENG_GEAR_CFG）
+     → 随角色移入 Roles.js createDuoNengZhanJing；battleFlow 只保留通用驱动 syncAllDuoNengGear（函数名不变）。
+   · summonPoolConfig：云长郡召唤池（原硬编码在 battleFlow.startBattle 关卡 3 配置里）
+     → 随角色定义；battleFlow.initSummonPools 开局按场上角色汇总。summonWraiths(summoner) 改为传入召唤师，日志不再写死「云长郡」。
+   · aura：曹佳梦「概率论的奇迹」（原 SkillSystem.refreshCoinLuckBuffs 里按 c.name === '曹佳梦' 特判、
+     并硬编码 +25% / −5%每级 / +10%）→ 角色声明式光环；核心新增通用 SkillSystem.refreshAuras(buffType)
+     只做遍历聚合，refreshCoinLuckBuffs 保留为兼容入口。sources 来源明细格式不变（check-v0682 B3 依赖）。
+   · specialStarTarget：云长郡标记；隐藏星判定 markAiLuKill → markHiddenStarKill，条件由
+     「角色名 = 鲁盼旋 且 aiControlled」改为「aiControlled 且目标带 specialStarTarget」，判定强度等价。
+     specialState 键名沿用 aiLuKilledYun（兼容旧存档与历史脚本）。
+
+4. **通用伤害转移注册表**（Characters.js + Roles.js）
+   原：Character.guardTransfer 静态方法把「守护」判定写进核心，并借 createRoleInstance('模板一') 造虚拟攻击者。
+   现：核心新增 Character.damageTransfers 注册表 + registerDamageTransfer / tryTransferDamage，
+   takeDamage 与 takeTrueDamage 只询问注册表；「守护」机制在 Roles.js 注册；虚拟攻击者改用
+   Character.createPhantom（不再依赖任何具体角色工厂）。Character.guardTransfer 保留为兼容入口（返回 0 = 已转移）。
+
+5. **技能 witness 标记**（Roles.js + SkillSystem.js）
+   原：SkillSystem 里 \`if (actor.name === '开车警察' && skill.name === '开创')\` 记 specialState.driverUsedOpen。
+   现：技能带 special.witness = '状态键' 时使出即置位；核心只读标记，不含角色名/技能名。
+
+6. **关卡布阵单一来源**（battleFlow.js LEVEL_SETUP + charSelect.js）
+   原：「第四关 = 待命1+锁鲁盼旋 / 灼华第三关 = 待命1+锁灼华」在 confirmLevel 与 startBattle 各写一份。
+   现：battleFlow.LEVEL_SETUP 单一来源，选角槽位与开局布阵共用。
+
+7. **其它去硬编码**
+   · BattleState.defectToPlayer 重建角色改用 defected.name（原写死 '李雅礼'）。
+   · SkillSystem._luckyDice 演出用临时卡角色改由 SKILL_ANIM_CONFIG['创大运吧'].policeRole 提供。
+   · Characters.getTotalDef 的狂炎扣防改为表驱动 BUFF_DEF_PER_STACK（新增同类 buff 不必再改该方法）。
+   · battleFlow.checkSpecialCondition case 3 改按 hateReduction 标记查 Boss，不再按名字。
+   · 隐藏星达成日志文案改为「AI 操控的队友亲手击败了 Boss！」（原写死角色名）。
+
+## bug 修复（本次唯二的行为变化）
+
+1. **【开创】演出抛错**（SkillSystem.js _createStreaks）
+   \`const yOff = (Math.random() - 0.5) * r.height * 0.7;\` 中的 r 未定义（全文件无此变量）→
+   命中时刻抛 ReferenceError，导致速度线与其后的冲击波都不播放（伤害已结算，无规则影响）。
+   改为 s.h。另 playSkillAnimation 中 carRush 之后的 streaks 分支为死代码，保留以便未来技能复用。
+2. **速度下限失效**（Characters.rerollSpeed）
+   speedMin 可被永久提升到超过 speedMax（开车警察连续【加油】：3~7 → speedMin 9 > speedMax 7），
+   原式 \`Math.floor(Math.random()*(max-min+1))+min\` 区间反向，会产出**低于 speedMin** 的速度（8 < 9），
+   违反「speedMin = 速度下限」。改为 hi = Math.max(lo, speedMax)，speedMin ≤ speedMax 时结果完全不变。
+
+## 验证脚本对齐（非游戏改动）
+
+两处历史脚本断言已过期（在 v0.688 基线上同样失败，与本次重构无关），本次一并对齐当前契约：
+- check-v0673-caojiameng.js B 段：v0.682 起投正率由隐藏 buff 承载、coinProbFor 只读 buff，
+  脚本仍按 v0.673 现扫实现断言 → 补 refreshCoinLuckBuffs()。
+- check-v0683-cleanup.js E3：v0.688 燃烧消耗规则改为「每回合至少消耗 1 层」，断言仍为旧文案
+  「每 5 级消耗 1 层」→ 更新为「每回合至少消耗 1 层」。
+
+## 改动文件（v0.688 → v0.689）
+
+js/Characters.js、js/Roles.js、js/BattleState.js、js/SkillSystem.js、js/battleFlow.js、
+js/globals.js、js/charSelect.js（其余文件仅随快照复制）
+开发工具/pwgame/check-v0689-refactor.js（新增）、check-v0673-caojiameng.js、check-v0683-cleanup.js（断言对齐）
+开发工具/pwgame/run-checks.sh（新增：按端口清理 + 批量跑 check/verify 的回归驱动）
+docs/CORE_MECHANICS.md（新增：核心机制文档，供下一位 AI 使用）
+
+## 行为说明（边界）
+
+- 除上述两处 bug 修复外，全部改动为零行为变化：情感 cap/档位/副作用/效果行文本、被动回蓝数值与日志文案、
+  曹佳梦技能形态替换、多能战警装备数值与日志、召唤池内容、投正率数值与来源明细、守护转移数值、
+  隐藏星归属、特殊胜利判定、关卡布阵与锁槽，均与 v0.688 逐项一致。
+- 自选敌人战斗仍**不**初始化召唤池（与 v0.688 行为一致）：initSummonPools 只在 startBattle 调用。
+  这是既有的关卡/测试关不对称，未在本次改动（避免改变测试关行为）。
+- 守护转移的伤害会**再结算一次守护者的防御与减伤**；若转移量不足守护者防御则最终为 0 伤害（格挡）——
+  原实现即如此，文档已写明。
+
+## 验证
+
+适配 \`check-v0689-refactor.js\`（33 项）：
+- A 情感规格化（1~11）：四套规格字段、cap 实测、各档位伤害/回蓝/防御副作用数值、怨恨减伤曲线与效果行文本；
+- B 通用被动模板：未出招 +200（鲁盼旋/王庄明）、已出招不回复；
+- C 技能形态钩子：厌倦 ≥4 ↔ <4 可逆替换、钩子随角色、旧名字特判函数已移除；
+- D 装备钩子：开局按站位换装、交换站位后重新同步、配置表随角色；
+- E 召唤池随角色：配置 10 个、开局汇总、召唤日志含召唤师名、隐藏星目标标记；
+- F 技能 witness：开创使 driverUsedOpen 置位；
+- G 隐藏星标记化：AI 操控角色击杀记星、普通角色击杀不记星；
+- H 伤害转移注册表：兼容入口返回值、受击方不掉血、层数-1、无守护不转移、真伤同样转移；
+- J 速度下限修复：正常区间不变、speedMin > speedMax 时恒为下限；
+- K 关卡布阵单一来源：LEVEL_SETUP、关卡 3/6 锁定槽与待命槽、关卡 0 无待命槽；
+- L 全程无页面异常（含【开创】演出 setTimeout 路径）。
+
+回归（v0.689 服务，19 个 check 脚本全绿）：
+check-v0688-rules / v0687-bench / v0686-sp0 / v0685-gearfix / v0684-duoneng / v0683-cleanup /
+v0682-coinluck / v0673-caojiameng / v0672-thirdstar / v0670-guardnerf / v0669-wangzhuangming /
+v0679-luckydice / v0677-savefix / v0674-newanim / v066-hate / v062-luemotion / v062-emotion / v0681-rangebox。
+
+verify-*.js 老脚本层（v309~v320 时代）在 v0.688 与 v0.689 上失败项**逐条完全一致**（10 个），
+均为历史脚本过期（星数 /8、可选池仅三模板、关卡卡选择器 strict violation 等），非本次回归。
