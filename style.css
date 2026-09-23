@@ -1257,3 +1257,36 @@ button, .character-card, .char-slot, .roster-card, .level-card,
     box-shadow: 0 0 18px 6px rgba(249, 202, 36, 0.5);
     border: 2px solid #f9ca24;
 }
+
+/* ============================================================
+   v0.694 机制图鉴（codex.js）——复用 .buff-popup 模板，只加宽 + 分区排版
+   z-index 1500：盖过设置弹窗(999)，但低于词条弹窗(2100)，图鉴里点词条时词条仍在最上层。
+   入口按钮在主界面与关卡选择页；弹窗不进 showPage 流程，不影响教程弹窗 syncPosition。
+   手机端宽度由现有断点 .buff-popup { width: 92vw }（≤767）接管，桌面 520px。
+   ============================================================ */
+#codexOverlay { z-index: 1500; }
+.codex-popup { width: 520px; }
+#codexBody { max-height: min(70vh, 520px); overflow-y: auto; }
+.codex-section { margin-bottom: 14px; }
+.codex-section:last-child { margin-bottom: 2px; }
+.codex-section-title {
+    color: #f9ca24;
+    font-weight: bold;
+    font-size: 1.02em;
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #0f3460;
+}
+.codex-line {
+    position: relative;
+    color: #ddd;
+    line-height: 1.75;
+    margin-bottom: 5px;
+    padding-left: 12px;
+}
+.codex-line::before {
+    content: '·';
+    position: absolute;
+    left: 2px;
+    color: #f9ca24;
+}

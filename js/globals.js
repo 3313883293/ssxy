@@ -1,7 +1,7 @@
 // globals.js - 全局变量、DOM引用、工具函数
 
 // ==================== 版本号（v0.663：主界面显示，单一来源，随版本快照更新） ====================
-const GAME_VERSION = 'v0.690';
+const GAME_VERSION = 'v0.694';
 
 // ==================== 战斗状态实例 ====================
 let battleState = new BattleState();
@@ -31,7 +31,8 @@ function log(msg) {
 // AI 操控的队友亲手击杀带 specialStarTarget 标记的目标 → 记隐藏星。
 // （判定强度与改造前的「角色名 = 鲁盼旋 且 aiControlled」等价：原实现只查 aiControlled，
 //   故此处同样只查 aiControlled，不额外要求 lockHp。）
-// 击杀归属判定在普伤 / 创伤反噬 / 混乱反噬 / 引爆 / 陨星五处调用；目标死亡瞬间标记，胜利结算时发星。
+// 击杀归属判定在普伤 / 混乱反噬 / 引爆 / 陨星四处调用；目标死亡瞬间标记，胜利结算时发星。
+// （v0.693：创伤反噬改为「拥有者自己投币时自伤」，不再涉及击杀归属，故从本行移除。）
 // （specialState 键名沿用 aiLuKilledYun，兼容旧自动存档与历史验证脚本。）
 function markHiddenStarKill(actor, target) {
     if (actor && actor.aiControlled && target && target.specialStarTarget && !target.alive) {

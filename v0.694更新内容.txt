@@ -1,0 +1,203 @@
+v0.694 更新内容：新手教程重构——架构事件化（声明式步骤表 + 事件通知）+ 内容重写 + 机制图鉴 + 教程进度存档
+
+用户要求（原话）：「在**不动战斗机制与数值**的前提下，把新手教程从「12 步表 + 10 处散落特判」重构为
+「声明式步骤表 + 事件通知」，并重写教学内容的覆盖与编排，最后配新验证脚本 + 全量回归。」
+
+动手前已出设计稿并逐项确认（四个决策点，见第八节「已确认的设计决策」）。
+**本版零机制、零数值改动**：没有改任何技能 / 角色 / 伤害 / 防御 / 情感 / AI / 关卡布阵 / 战斗存档结构，
+唯一被改动的运行时行为是教程弹窗本身与两处新增的教程恢复入口。
+
+## 一、架构：声明式步骤表 + 事件通知（核心交付）
+
+### 1. 旧实现的病根
+推进判据 = 「当前步 id」，散落在 5 个文件 10 处特判（各处自行比较当前步 id 再调 `advance(id)`）。
+`advance(id)` 是**自证式接口**——传入 id 与当前步不符就静默 `return`：漏改任一调用点 → **教程卡死且无任何报错**。
+步骤编号 ①~⑫ 还硬编码在文案里，与「步骤 N / 12」标题、进度条圆点**三处不同源**。
+
+### 2. 新结构（`js/tutorial.js` 整体重写，414 行）
+
+```
+TUTORIAL_STEPS[i] = { id, page:'select'|'battle', text, mode:'force'|'info'|'end',
+                      advanceOn, refreshOn, gates, highlight }   // 每步一个推进事件，全局唯一
+业务代码只发事件：tutNotify(TUT_EVENTS.XXX)      // 一行、不带步骤 id、无需 typeof 守卫
+Tutorial.notify(ev)  → 命中 advanceOn 则推进；命中 refreshOn 则重刷；否则记 trace(miss)
+Tutorial.gate('skipTurn')  → 按钮门控查询（业务代码不再认识步骤 id）
+```
+
+- **8 个事件**（`TUT_EVENTS`）：`char-slotted` / `level-confirmed` / `round-started` / `skill-picked` /
+  `target-picked` / `action-confirmed` / `enemy-acted` / `turn-skipped`。
+- **mode 语义**：`force` 强制步（无「知道了」、✕ 不可关，只能靠事件推进）／`info` 图文步（可关；
+  **声明了 advanceOn 就只关不推进**，未声明则「知道了」= 推进）／`end` 结束步（点击即解除教学）。
+  `dismissable` / `okAdvance` 由 mode 派生 → 单一事实来源。
+- **编号自动生成**：`TUTORIAL_NUMBERING[步骤索引]`，正文前缀 / 标题步骤号 / 进度条圆点三者同源。
+- **可观测（禁止继续静默失败）**：`Tutorial.trace`（begin/advance/refresh/miss/inactive 环形缓冲）+
+  `Tutorial.warnings`（未知事件名、`advance(id)` id 不匹配、高亮目标缺失）+ `console.debug/warn`。
+- **步骤表自检**：载入即跑 `Tutorial.selfCheck()`——id 唯一 / 事件唯一 / 推进来源 / gate 显式声明 /
+  mode·page 合法 / 文案无硬编码编号；问题数组 + `console.warn`，验证脚本直接断言 `length === 0`。
+
+### 3. 钩子收口映射表（旧 10 处特判 → 8 个事件；`Tutorial.step ===` 全仓归零）
+
+| 旧位置（v0.693） | 旧判据 | 新调用 |
+|---|---|---|
+| charSelect.js:19-22 | `step === 'char-select'` → advance | `tutNotify(TUT_EVENTS.CHAR_SLOTTED);` |
+| charSelect.js:43-45 | `step === 'confirm'` → advance | `tutNotify(TUT_EVENTS.LEVEL_CONFIRMED);` |
+| charSelect.js:104 | `Tutorial.begin()` | 不变（唯一启动点，新增可选 index 参数） |
+| battleFlow.js:234 + 236 | `'start-round'` advance **+** `'skip-turn'` showCurrent | **合并一行** `tutNotify(TUT_EVENTS.ROUND_STARTED);`（③ 靠 advanceOn、⑩ 靠 refreshOn） |
+| battleActions.js:190-191 | `step === 'skip-turn'` 决定按钮显隐 | `const showSkip = Tutorial.gate('skipTurn');` |
+| battleActions.js:203-205 | `'skip-turn'` → advance | `tutNotify(TUT_EVENTS.TURN_SKIPPED);` |
+| battleActions.js:297-298 | `'pick-skill'` → advance | `tutNotify(TUT_EVENTS.SKILL_PICKED);` |
+| battleActions.js:308-309 | `'confirm-action'` → advance | `tutNotify(TUT_EVENTS.ACTION_CONFIRMED);` |
+| battleActions.js:376-377 | `'defense'` → advance | `tutNotify(TUT_EVENTS.ENEMY_ACTED);` |
+| battleUI.js:199-200 | `'pick-target'` → advance | `tutNotify(TUT_EVENTS.TARGET_PICKED);` |
+| ui.js:7-8 / ui.js:27 / index.html ×3 / tutorial.js resize | 清理·同步·按钮 | 不变 |
+
+`syncPosition()` 的贴底判据从 `def.id === 'char-select'` 改为 `def.page === 'select'`
+（CSS 侧 `#tutorialOverlay.tutorial-select:not([data-step="char-select"])` 早已为「选角页其它步骤」写好贴顶兜底，
+桌面/竖屏几何与 v0.693 逐项一致，已由 check-v061 / check-v0662 复验）。
+
+## 二、内容：覆盖、编排、文案
+
+主线**保持 12 步**（id、顺序、编号全冻结——`check-v0662` 的「步骤 8」与 `check-v061` 的
+`step === 'char-select'/'confirm'` 是布局契约，不允许判负）。「拆」体现为**词条化 + 机制图鉴**，而不是加步：
+
+| 步 | 改动 | 覆盖补齐 |
+|---|---|---|
+| ① | 补「技能与被动」入口 | 被动查看入口 |
+| ② | 重写：1v1 可放心试错 | — |
+| ③ | 补「速度每回合开始时在速度区间内重新随机（点角色卡可看区间）」 | **速度双轨制（玩家侧第一次可见的时机）** |
+| ⑤ | 重写角标句：「点角标就能看它是什么」 | 状态角标读法 |
+| ⑥ | 补「点【❌ 取消】可以重新选技能」 | 取消路径（也是异常路径指引） |
+| ⑦ | 「格挡」为 0 表述按叙述准则收紧 | 防御减免 / 破防 / 真实伤害 |
+| ⑧ | 保留四触发顺序与档位措辞（v063 断言），末句补「完整档位点词条看」 | 情感激荡 |
+| ⑨ | **重点重写**：三种持续伤害「燃烧」「混乱」「创伤」+ 控制「昏迷」+ 「恶」+ 被动，长解释全部交给可点词条与图鉴 | **创伤 / 混乱 / 燃烧 / 被动 vs 主动 / 状态角标** |
+| ⑪ | 补「场上每边至多 3 名」 | **v0.688 每边 3 人上限 + 回合开始补位** |
+| ⑫ | 补「通关得 1 星、特殊胜利再加 1 星」+「每回合开始自动存档、中途退出用【▶️ 继续战斗】」 | **星级结算 / 特殊胜利 / 自动存档与继续战斗** |
+
+同步五处（叙述准则 §五）：教程（tutorial.js）/ 关卡简介（`charSelect.LEVEL_INFO[10].intro`）/
+关卡卡副文案（index.html 教程卡）/ 文本清单（`游戏文本分类清单.txt` §十五、§十五之二）/ 机制图鉴（codex.js）。
+**词条 / Buff 描述 / 被动文案未改**（本版无机制改动，现有词条已覆盖上述状态）。
+
+## 三、机制图鉴（新增 `js/codex.js`，102 行）
+
+教程主线只有 12 步、手机端正文预算很紧（短高横屏 240px），结构类与后期机制既无法在 1v1 训练场实操、
+塞进弹窗又会顶破高度预算 → 集中到图鉴（**纯表现层弹窗**，不进 `showPage` 流程，不影响教程 `syncPosition`）：
+
+1. ⚔️ 战斗流程与速度（速度区间重随机、我方优先与站位排序、【加油】/【刹车】与【开创】速度差、意图徽章）
+2. 📐 站位、待命区与补位（只看距离 / 死亡后自动重排 / 每边至多 3 名 / 补位时点 / 胜利含待命角色）
+3. 💢 状态一览（持续伤害 / 控制 / 防护 / 强化 / 其他——**被制服、守护、守护之躯、狂炎、休整都在这里**）
+4. 🔁 被动与主动（差别 + 查看入口）
+5. 🌀 技能形态与装备切换（曹佳梦厌倦 ↔ 陨星；多能战警按站位换装 + 只能使用当前装备技能）
+6. 👻 召唤与倒戈（云长郡怨灵 / 李雅礼倒戈）
+7. 🏆 胜负与星级（基础胜利 + 特殊胜利 + 星级解锁 + 教程/测试关不计星）
+8. 💾 存档与继续战斗（自动存档时点 / 读档 / 战斗结束清档 / **教程进度单独保存可续教**）
+
+入口：主界面与关卡选择页各一个【📖 机制图鉴】按钮（`index.html`）；`#codexOverlay` z-index 1500
+（高于设置弹窗 999、低于词条弹窗 2100 —— 图鉴里点词条时词条仍在最上层）。文案内 Buff/状态名一律
+`renderGlossaryText` 渲染 → 词条可点，数值与触发时点仍以词条为唯一来源。
+
+## 四、教程进度存档（v0.694 修掉陷阱 §6.5）
+
+现状缺口：教程关开局会写 `pwgame_battle_save`，但**战斗存档不序列化教学进度**——刷新后从主界面
+「继续战斗」进入会完全没有教学引导。
+
+- 新增两个**独立 key**（**不动 `pwgame_battle_save` 结构**）：`pwgame_tutorial_step`（当前步索引，每步写入）、
+  `pwgame_tutorial_done`（走完 ⑫ 写 '1' 并清掉进度）。
+- `Tutorial.resume()`：已完成 → 不打扰；有进度 → `begin(存下的步)`。
+- 调用点：`loadAutoBattle`（主界面「继续战斗」/ 战斗中「读档」后，`currentLevel === -2` 且教学未激活时）+
+  `restartBattle`（教程关「再来一局」）。
+- 完成教程后想从头重看：回关卡选择页再进一次【🎓 新手教程】（`confirmLevel` → `begin(0)`，清完成标记）。
+- **自愈说明**：恢复到某步时局面可能与该步不匹配（如恢复到⑤但技能还没选）——事件化后
+  「不匹配事件只记 trace(miss) 不推进」，玩家重做前置操作即可继续推进，不会卡死。
+
+## 五、改动文件清单
+
+| 文件 | 改动 |
+|---|---|
+| `js/tutorial.js` | **整体重写**（步骤表 / TUT_EVENTS / tutNotify / notify·advance·gate / 自动编号 / selfCheck / trace·warnings / 进度存档 / page 驱动贴边） |
+| `js/codex.js` | **新增**：机制图鉴内容与渲染 |
+| `js/charSelect.js` | ①`onSlotsChange` 钩子行 → `tutNotify(CHAR_SLOTTED)`；②`startLevelSelect` 钩子行 → `tutNotify(LEVEL_CONFIRMED)`；③教程关 `intro` 重写 |
+| `js/battleFlow.js` | `startNewRound` 两行特判 → **一行** `tutNotify(ROUND_STARTED)`；`loadAutoBattle` / `restartBattle` 各加一次 `Tutorial.resume()` |
+| `js/battleActions.js` | 4 处特判 → 事件/gate（跳过按钮显隐、跳过、选技能、确认、敌方出手） |
+| `js/battleUI.js` | 选目标特判 → `tutNotify(TARGET_PICKED)` |
+| `js/globals.js` | `GAME_VERSION` → `v0.694` |
+| `index.html` | `codex.js` script 标签 + `#codexOverlay` 图鉴弹窗 + 主界面/关卡页两个入口按钮 + 教程关卡卡副文案 |
+| `style.css` | 图鉴样式（`#codexOverlay` z-index 1500 / `.codex-popup` 520px / 分区与行首点） |
+| 开发工具 | **新增** `check-v0694-tutorial.js`（101 项）、`run-checks.ps1`（run-checks.sh 的 PowerShell 等价版）；回归证据 `regress-v0694.txt` / `regress-v0693-baseline.txt` |
+| 文档 | `docs/CORE_MECHANICS.md`（§2 文件地图、C75/C77/C78、§8 新增 16~20 条陷阱、§9 验证）、`游戏文本分类清单.txt`（§三/§五/§十五/§十五之二）、`CLAUDE.md`（版本记录） |
+
+## 六、验证结果
+
+### 新脚本 `开发工具/pwgame/check-v0694-tutorial.js`（101 项，全过）
+
+| 组 | 覆盖 |
+|---|---|
+| A 结构契约（12） | 12 步 / id 顺序冻结 / id 唯一 / 每步都有推进来源 / 事件唯一且合法 / gates 显式声明 / mode·page 合法 / **文案内无硬编码编号** / `selfCheck()` 零问题 / 载入无告警 / 8 事件 + `tutNotify` 就绪 |
+| B 三处同源（1，E2E 中复用） | 正文前缀 = `TUTORIAL_NUMBERING[idx]`、标题 = `步骤 N / 12`、进度条第 idx 点为 current 且前序 done |
+| C 事件化（9） | 未知事件不抛异常 + 有日志；不匹配事件不动步 + trace 记 miss；`advance(id)` 错 id 返 false + 告警；匹配事件正确前移；重复事件不重复推进；**8 个 advanceOn 事件全量打桩走通**；⑩ 收 `round-started` 只重刷不推进；⑧→⑨→⑩→⑪→⑫ 图文步链 |
+| D gate（8） | 强制阶段 gate=false 且 DOM 无跳过按钮；⑦ 显示「知道了」；⑩ gate=true 且 DOM 有按钮 + 高亮命中；⑪ gate=false 与 DOM 一致；自由阶段 gate=true |
+| E E2E（17） | ①→②→③→④→⑤→⑥→⑦→⑧→⑨→⑩→⑪→⑫（active=false），逐步骤校验三处同源、文本要点、词条、高亮、弹窗重显 |
+| F 异常路径（7） | 算力不足点技能（不推进、有日志）；重复点同一目标（取消、不重复推进）；点【❌ 取消】后重选技能/目标不断链；⑦ 点 ✕ 只关不推进；⑨ 点 ✕ 等价「知道了」；**伤害被格挡为 0**（模板三 防御 300 vs Lv2【普通示范】150）仍正常推进且走 Lv1 文案分支 |
+| G 布局（16） | 桌面宽 340；竖屏 390×844 逐步骤 ≤32% vh、角色卡遮挡 <2%；横屏 844×390 步骤⑧ ≤240px 且 ≤55% vh、步骤⑨ ≤45% vw；短高横屏 667×375 步骤⑦ 木偶卡遮挡 ≤10%、步骤⑧ ≤240px |
+| H 进度存档（6） | 每步写 `pwgame_tutorial_step`；完成写 `pwgame_tutorial_done` 并清进度；已完成 `resume()` 返 false；刷新后「继续战斗」可见；点它 → 教学恢复并显示弹窗 |
+| I 机制图鉴（11） | DOM 与入口按钮（主界面/关卡页各一）；8 分区 ≥15 行；含结构类机制关键词；词条 ≥5 且可点（词条弹窗确实打开）；z-index 1500 < 词条 2100；可关闭且视口内 |
+| J 零机制回归（10） | 教程关 `-2` / 训练木偶 ×1 / 我方 1 人 / 双方无待命区 / 不写通关记录与星级；【普通示范】被防御减免后伤害 < 【破防示范】（实测 150 vs 350，差值 ≥150）；杀木偶 → 正常结算、不发星、清自动存档、弹窗随之关闭 |
+| K 异常兜底（4） | 三个视口全程 `pageerror === 0`、无残留浏览器 dialog |
+
+### 必跑回归（`pwsh -File run-checks.ps1 <版本> <脚本…>`，与 v0.693 同集对照）
+
+| 脚本 | v0.693 基线 | v0.694 | 定性 |
+|---|---|---|---|
+| check-v0694-tutorial.js（新） | — | ✅ 101/101 | 本版核心验证 |
+| **check-v061-tutorialsize.js** | ✅ | ✅ | **布局契约，逐项不变（桌面 340 / 竖屏 ≤32% / 收起 ≤70px / 强制步 ✕ 不可关）** |
+| **check-v0662-tutorialoverlap.js** | ✅ | ✅ | **布局契约，逐项不变（步骤②贴顶、⑧零遮挡 ≤240、⑦木偶卡 ≤10%）** |
+| check-v063-emotion-tutorial.js | ✅ | ✅ | 情感步内容 + 双 okAdvance 链 + `8 / 12` 全过 |
+| check-v065-tutorial.js | ✅ | ❌ A5 一项 | **判负（设计性）**：A5 断言「①~⑫ 硬编码在 `TUTORIAL_STEPS[i].text` 里」，本版按设计改为自动编号 → 由新脚本 A8/A9/B1 接替（见第七节） |
+| check-v0693-trauma.js | ✅ | ❌ A6 一项 | **判负（预期）**：仅版本号断言 `v0.693` → 属 CORE_MECHANICS 陷阱 #15（换版后上一版脚本必在这一项失败），其余 25 项全过 → 佐证零机制改动 |
+| verify-v310-tutorial.js | ❌ 2 项 | ❌ 同 2 项 | **非回归**：两项均为「初始可选池仅三模板」，v0.693 上同样失败（王庄明/曹佳梦早已默认解锁）。教程链路 20 项 + 破防数值 3 项全过 |
+| check-v0663-version.js | ❌ 4 项 | ❌ 同 4 项 | **非回归**：全部是 `v0.663` 版本号断言 |
+| check-v0664-text.js | ❌ 5 项 | ❌ 同 5 项 | **非回归**：A1 版本号 + A3/A4（L4/L6 简介已被 v0.667~v0.692 改过）+ A6（「恶」描述主语）+ A10（⑨ 昏迷措辞）——**逐项与 v0.693 完全相同**；A11「恶」主语鲁盼旋本版仍过 |
+| check-v0666-intro.js | ❌ 2 项 | ❌ 同 2 项 | **非回归**：关卡[7] 张子曦一关 intro（v0.684 起改为多能战警阵型） |
+| verify-v313.js | ❌ 驱动失败 | ❌ 同 | **非回归**：strict mode violation（「第一关」匹配 3 个篇章卡片） |
+| verify-v316.js | ❌ 3 项 | ❌ 同 3 项 | **非回归**：三模板可选池 / 星数 `/8` 等旧口径 |
+| verify-v320.js | ❌ 4 项 | ❌ 同 4 项 | **非回归**：可选池与解锁旧口径 |
+| check-v0684-duoneng.js | ❌ G1/G2 | ❌ 同 2 项 | **非回归**：创伤旧语义断言（v0.693 已按设计判负，由 check-v0693-trauma 接替） |
+| check-v0692-zh50.js | ❌ A1 | ❌ 同 1 项 | **非回归**：仅版本号断言 |
+| 其余 14 套（v0665 / v0667 / v0668 / v318-exit / v0677-savefix / v0689-refactor / v0683-cleanup / v0687-bench / v0688-rules / v0682-coinluck / v0673-caojiameng / v0669-wangzhuangming / v0670-guardnerf / v319） | ✅ | ✅ | 全过 |
+
+**结论：相对 v0.693 基线，本版没有引入任何一项新失败**——唯一新增的两条判负是
+`check-v065 A5`（设计性结构断言）与 `check-v0693-trauma A6`（版本号断言，陷阱 #15 的预期模式）。
+
+> 环境说明：本机未安装 bash，`run-checks.sh` 无法直接执行 → 新增 `run-checks.ps1`（同口径：按端口清理残留
+> 服务器、起 serve.js、逐脚本汇总）。两个版本的回归输出留档：`regress-v0694.txt` / `regress-v0693-baseline.txt`。
+
+## 七、判负定性（老脚本读旧结构/旧文案）
+
+| 判负项 | 为什么判负 | 由新脚本哪几条接替 |
+|---|---|---|
+| `check-v065-tutorial.js` **A5** 各步文本编号①②③…⑫ | 它断言编号**硬编码在 `TUTORIAL_STEPS[i].text` 内**；v0.694 按用户要求改为「编号由步骤索引生成」，文案内不再出现 ①~⑫（这正是「三处同源」的前提） | `check-v0694` **A8**（文案内无硬编码编号，静态扫描）/ **A9**（`selfCheck()` 零问题，含硬编码编号告警）/ **A12**（编号表 ≥12 位）/ **B1 + E1~E16**（每一步逐一断言：正文前缀 = 自动编号 = 步骤号 = 进度条圆点） |
+| `check-v0693-trauma.js` **A6** 版本号 v0.693 | 每个版本的 check 都断言自己的 `GAME_VERSION`（陷阱 #15） | 无（非功能断言）；零机制佐证由该脚本其余 **25 项全过** 承担，另有 `check-v0694` **J1~J10** 覆盖教程关布阵/破防/结算 |
+
+`check-v061-tutorialsize.js` 与 `check-v0662-tutorialoverlap.js` **不允许判负，本版逐项全过**（布局契约）。
+
+## 八、已确认的设计决策（动手前逐项问答）
+
+| # | 决策点 | 用户选择 |
+|---|---|---|
+| 1 | 主线步数 | **12 步不变**（id / 顺序 / 编号全冻结，只重写文案；「拆」体现为词条化 + 机制图鉴） |
+| 2 | 机制图鉴入口 | **加轻量图鉴**：主界面 + 关卡页按钮 → 复用 `.buff-popup` 的弹窗式面板（纯表现层，不新增页面） |
+| 3 | 教程进度 | **修掉**：新增 `pwgame_tutorial_step` / `pwgame_tutorial_done` + `loadAutoBattle`/`restartBattle` 恢复 |
+| 4 | 覆盖优先级 | 进主线：创伤 / 燃烧·混乱（⑨）、被动 vs 主动（⑨）、待命补位 + 每边至多 3 人（⑪）、速度每回合重随机（③）、星级·特殊胜利（⑫）、自动存档与继续战斗（⑫）；其余（被制服、守护、狂炎、休整、召唤、倒戈、站位重排、技能形态与装备切换）进图鉴 |
+| 5 | 老 check 脚本 | **新建 `check-v0694-tutorial.js` 接替 + 判负逐条定性**（不改写历史脚本，符合「旧脚本只读」惯例） |
+
+## 九、已知边界与待确认
+
+1. **`resume()` 恢复到的步骤可能与局面不匹配**（如恢复到⑤但技能未选）：靠「不匹配事件不推进」自愈，
+   玩家重做前置操作即可继续。未做「按局面回退步骤」的智能推断（属多余复杂度）。
+2. 教程进度**跨关卡共享一个 key**：教程关进度只在 `currentLevel === -2` 时被使用，其他关卡不受影响；
+   但若玩家在教程关存了进度、又去玩正式关，正式关不会触发 `resume()`。
+3. 图鉴 8 个分区的内容是**图文 + 词条**，不含数值表（数值仍以词条 / 敌方详情为唯一来源）；日后新增机制
+   按 CORE_MECHANICS C75 五处同步，其中「结构类机制」的落点是 `codex.js`。
+4. `check-v0664-text.js` 的 A10（⑨「昏迷」括号措辞）在 v0.693 基线上**就已经失败**（v0.667 时点统一改过措辞），
+   本版未恢复旧措辞（新措辞遵循《触发时点术语表》「轮到行动时无法行动，跳过本次行动后解除」）。
+5. 教程关依旧不发星、不写 `pwgame_cleared`、`restartBattle` 之外没有其他重播入口——与 v0.693 一致
+   （`restartBattle` 现在会 `resume()`，属新增行为，已在更新内容与本表说明）。

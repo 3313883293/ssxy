@@ -288,6 +288,40 @@ class SkillSystem {
             window._actionAnimDelay = 1100;
         }
 
+        // ——— v0.693 创伤（重构）：**拥有者自己投币**时伤口崩裂 ———
+        // 用户设计口径：创伤不是「被打时反噬」，而是「自己身上有伤还硬要出手 → 伤口撕裂」。
+        // 触发时点：本次出招的硬币**尚未掷出**之前（在 witness/动画/技能自带 buff 之前，保证「作废」是真的作废）；
+        // 触发次数：本次实际投出的硬币总数 = 技能 coinCount（无目标 = 不投币 = 不触发；0 币技能同理）。
+        // 每次：层数-1 + 级数×20 真实伤害（走 takeTrueDamage，守护转移依旧可拦；被转移计 0）。
+        // 若反噬致死 → **本次出招整体作废**（不投币、不结算伤害、不施加任何状态），直接走死亡流程后 return。
+        // 驱动：投币是「出招」这个动作本身，故此处是唯一正确时点——与「目标被谁打」完全无关。
+        // 已知边界（当前不可达，仅备录）：本段位于交叉火力连携之后，故若「带创伤的多能战警」施放【交叉火力】，
+        // 连携伙伴的 200 算力与连携演出已经发生，之后才因崩裂作废。目前创伤只有多能战警能施加，
+        // 而多能战警既不在玩家可选池、也不会成为创伤持有者 → 该路径现实中走不到。
+        if (targets.length > 0 && skill.coinCount > 0 && actor.getBuffStack('trauma') > 0) {
+            let traumaTimes = skill.coinCount;
+            while (traumaTimes > 0 && actor.alive && actor.getBuffStack('trauma') > 0) {
+                const traumaLvl = actor.getBuffLevel('trauma');   // 先读级数再减层——最后一层减少后 buff 被清除，后读得 0
+                actor.reduceBuffStack('trauma', 1);
+                const traumaDmg = traumaLvl * 20;
+                const traumaActual = actor.takeTrueDamage(traumaDmg);
+                actor.dotDamageMap['trauma'] = (actor.dotDamageMap['trauma'] || 0) + traumaActual;
+                logFn(`  🩸 ${actor.name} 创伤崩裂！Lv${traumaLvl}×20 = ${traumaDmg} 真实伤害，层数-1（血量：${actor.hp}）`);
+                if (window.refreshCardState) refreshCardState(actor);
+                SkillSystem.showDamageNumber(actor, traumaActual, null, allCharsDiv);   // 用实际值（被守护转移时不再虚报名义值）
+                traumaTimes--;
+            }
+            if (!actor.alive) {
+                logFn(`  💥 ${actor.name} 伤口崩裂倒下，本次【${skill.name}】中断！`);
+                log(`💥 ${actor.name} 倒下！`);
+                actor.handleDeath();   // 待命补位/倒戈（死亡广播：燃烧 dot 同款处理）
+                Character.invokePassives('onAllyDeath', battleState, actor, logFn);
+                if (typeof triggerEmotionOnAllyDeath === 'function') triggerEmotionOnAllyDeath(actor);
+                window._actionAnimDelay = 900;   // 给死亡表现留一拍再重渲染
+                return;
+            }
+        }
+
         // v0.314 第二关特殊胜利追踪；v0.689 改为**技能 witness 标记**驱动（原按「角色名 + 技能名」特判）：
         // 技能带 special.witness = '状态键' 时，使出即把 specialState 对应键置 true
         // （开车警察【开创】→ driverUsedOpen）。怨灵车的同名技能带同一标记，行为与改造前一致。
@@ -413,27 +447,8 @@ class SkillSystem {
             const rollResult = SkillSystem.rollCoins(coins, actor);
             const effectiveCoins = rollResult.heads;
             if (skill.special && skill.special.type === 'meteor') { meteorMain = target; meteorHeads = rollResult.heads; }
-            // v0.684 创伤：投掷硬币时触发（次数 = 本次分配到目标身上的硬币数），每次 20×级数 真伤 + 层数-1
-            if (target.alive && target.getBuffStack('trauma') > 0 && coins > 0) {
-                let traumaTimes = coins;
-                while (traumaTimes > 0 && target.alive && target.getBuffStack('trauma') > 0) {
-                    const traumaLvl = target.getBuffLevel('trauma');
-                    target.reduceBuffStack('trauma', 1);
-                    const traumaDmg = traumaLvl * 20;
-                    const traumaActual = target.takeTrueDamage(traumaDmg);
-                    target.dotDamageMap['trauma'] = (target.dotDamageMap['trauma'] || 0) + traumaActual;
-                    logFn(`  🩸 ${target.name} 创伤反噬！Lv${traumaLvl}×20 = ${traumaDmg} 真实伤害，层数-1（血量：${target.hp}）`);
-                    if (window.refreshCardState) refreshCardState(target);
-                    SkillSystem.showDamageNumber(target, traumaDmg, null, allCharsDiv);
-                    traumaTimes--;
-                    if (!target.alive) {
-                        logFn(`  💥 ${target.name} 被创伤反噬致死！`);
-                        if (!actor.specialEmotion) actor.gainEmotion(1);
-                        markHiddenStarKill(actor, target);   // v0.672 第四关隐藏星：击杀归属（v0.689 标记驱动）
-                        target.handleDeath();   // 补位/倒戈（死亡广播交由下方统一处理）
-                    }
-                }
-            }
+            // v0.693：创伤反噬不再是「被打时触发」——已改为「拥有者自己投币时崩裂」，
+            // 判定整体上移到 executeSkill 开头（本次投币之前），此处不再处理。
             // v0.673 曹佳梦「厌倦」：每投出一个正面硬币 +1 级；【精准狙击】投正额外 +1 级。
             // v0.689 改为**情感规格钩子**驱动：核心只问 emotionSpec.onCoinHeads 是否存在，
             // 不再判断 specialEmotionType 字符串（数值与条件写在 Roles.js 的 jade 规格里）

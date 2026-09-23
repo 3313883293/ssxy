@@ -14,11 +14,10 @@ const charSelection = createSelectionModule({
     emptyPendingDesc: '点击选人',
     emptyDesc: '点击空格选人',
     rosterClickExtra: (roleName) => showRoleInfo(roleName),
-    // v0.310：教程关首次放入角色 → 推进教学步骤①→②（DOM 直接调用模块闭包，钩子须挂模块层）
+    // v0.310：教程关首次放入角色 → 教学步骤①→②；v0.694：钩子收口为事件通知，本文件不再认步骤 id
+    // （DOM 直接调用模块闭包，钩子须挂模块层）
     onSlotsChange: (slots) => {
-        if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'char-select' && slots.some(r => r !== null)) {
-            Tutorial.advance('char-select');
-        }
+        if (slots.some(r => r !== null)) tutNotify(TUT_EVENTS.CHAR_SLOTTED);
     }
 });
 
@@ -39,10 +38,8 @@ function startLevelSelect() {
         initEnemySelection();
         showPage('pageSelectEnemy');
     } else {
-        // v0.310：教程关推进教学步骤②→③（确认出战），随后进入战斗
-        if (typeof Tutorial !== 'undefined') {
-            if (Tutorial.active && Tutorial.step === 'confirm') Tutorial.advance('confirm');
-        }
+        // v0.310：教程关确认出战 → 教学步骤②→③；v0.694：改为事件通知（随后进入战斗）
+        tutNotify(TUT_EVENTS.LEVEL_CONFIRMED);
         startBattle(currentSelectedLevel);
     }
 }
@@ -62,7 +59,7 @@ const LEVEL_INFO = [
     { title: '🌀 第一关', desc: '多能战警 ×3', enemies: ['多能战警'], intro: '三名多能战警组成防爆/步枪/狙击三装备阵型——回合开始按站位自动切换装备并换用对应技能，每名只能使用当前装备技能与【交叉火力】，前排防爆装近身压制、后排狙击装远距离重创，警惕【交叉火力】连携。任意一名血量 ≤40% 会战术撤退休整（一局仅一次），下一回合开始自动补位回归并带回「休整」。优先集火狙击装（脆但输出高），或集中压低一名使其撤退、短暂拆散阵型。' },
     { title: '🌀 第二关 · Boss', desc: '焚天祭司·烛央 ×1　焦木傀儡 ×2', enemies: ['焚天祭司·烛央', '焦木傀儡'], intro: '张子曦篇·占位 Boss 关（配置/特殊胜利待用户后补）。' },
     { title: '🎯 测试关 · 自选任意角色', desc: '自由搭配全部角色', enemies: [], intro: '自由搭配全部角色（含我方角色），测试技能与机制，没有固定关卡配置。' },
-    { title: '🎓 新手教程', desc: '训练木偶 ×1', enemies: ['训练木偶'], intro: '本关将引导你：①选角与站位 ②技能与算力 ③目标选择 ④防御机制。只需选择 1 名角色出战，前半段有教学引导，后半段自由练习。' }
+    { title: '🎓 新手教程', desc: '训练木偶 ×1', enemies: ['训练木偶'], intro: '本关为教学关：将引导你选角与站位、技能与算力、目标选择、防御机制，以及状态与持续伤害、跳过回合、待命与补位；后半段自由练习到胜利。只需选择 1 名角色出战，机制细节可随时用【📖 机制图鉴】或点击词条查看。' }
 ];
 
 function selectLevel(level) {
@@ -402,8 +399,8 @@ function getRoleDefRange(roleName) {
         '开车警察': 400, '李雅礼': 0, '云长郡': 200, '多能战警': 200,   // v0.684 多能战警（装备切换会临时改变防御）
         '纸糊稻草人': 0, '铁皮稻草人': 999, '标准稻草人': 200,
         '灵敏稻草人': 50, '再生稻草人': 100, '训练木偶': 0,
-        // v0.690 灼华篇难度上调：焦木傀儡 250→240、引火学徒 80→100、焚香祭司 150→170、烛央 180→190（烬火信徒 100 不变）
-        '烬火信徒': 120, '焦木傀儡': 260, '引火学徒': 120, '焚香祭司': 190, '焚天祭司·烛央': 190
+        // v0.692 灼华篇数值规整（50 的整数）：烬火信徒 120→100、焦木傀儡 260→250、引火学徒 120→100、焚香祭司 190→200、烛央 190→200
+        '烬火信徒': 100, '焦木傀儡': 250, '引火学徒': 100, '焚香祭司': 200, '焚天祭司·烛央': 200
     };
     return defMap[roleName] || '?';
 }

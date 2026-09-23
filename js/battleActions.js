@@ -185,11 +185,9 @@ function drawPlayerActions(actor) {
         html += `<button class="skill-btn" data-skill-index="${index}" ${disabled}>${skill.name}（${skill.spCost}算力）</button>`;
     });
     html += `</div>`;
-    // v0.310：跳过回合 = 教学步骤⑧之一——强制教学阶段(④⑤⑥⑦)隐藏按钮，⑧起作为教学步骤显示，⑨自由练习起可正常跳过
-    let showSkip = true;
-    if (typeof Tutorial !== 'undefined' && Tutorial.isTutorial()) {
-        showSkip = !Tutorial.active || Tutorial.step === 'skip-turn';
-    }
+    // v0.310：跳过回合 = 教学步骤之一——强制教学阶段隐藏按钮，轮到⑩「跳过本回合」步才显示，自由练习起可正常跳过
+    // v0.694：显隐改由步骤表声明的 gate 决定（本文件不再认步骤 id）
+    const showSkip = (typeof Tutorial !== 'undefined') ? Tutorial.gate('skipTurn') : true;
     if (showSkip) {
         html += `<div style="margin-top:10px;"><button class="skill-btn" id="skipTurnBtn" style="background:#555;">⏭ 跳过本回合</button></div>`;
     }
@@ -201,8 +199,8 @@ function drawPlayerActions(actor) {
     });
     const skipBtn = document.getElementById('skipTurnBtn');
     if (skipBtn) skipBtn.addEventListener('click', () => {
-        // v0.310：教学步骤⑧「跳过回合」——点跳过即完成该步
-        if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'skip-turn') Tutorial.advance('skip-turn');
+        // v0.310：教学步骤⑩「跳过回合」——点跳过即完成该步；v0.694：改为事件通知
+        tutNotify(TUT_EVENTS.TURN_SKIPPED);
         log(`${actor.name} 跳过本回合`);
         actor.actedThisTurn = false;
         battleState.currentActor = null;
@@ -294,8 +292,8 @@ function selectPlayerSkill(actor, skillIndex) {
     btnContainer.appendChild(confirmBtn);
     btnContainer.appendChild(cancelBtn);
     actionContent.appendChild(btnContainer);
-    // v0.310：教程关选定技能 → 推进教学步骤④→⑤
-    if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'pick-skill') Tutorial.advance('pick-skill');
+    // v0.310：教程关选定技能 → 教学步骤④→⑤；v0.694：改为事件通知
+    tutNotify(TUT_EVENTS.SKILL_PICKED);
 }
 
 function cleanupTargetSelection(allCards) {
@@ -305,8 +303,8 @@ function cleanupTargetSelection(allCards) {
 
 function executePlayerAction(actor, targets) {
     battleState.waitingForPlayer = false;
-    // v0.310：教程关确认行动 → 推进教学步骤⑥→⑦（⑦防御机制弹窗在敌方出手前展示）
-    if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'confirm-action') Tutorial.advance('confirm-action');
+    // v0.310：教程关确认行动 → 教学步骤⑥→⑦（⑦防御机制弹窗在敌方出手前展示）；v0.694：改为事件通知
+    tutNotify(TUT_EVENTS.ACTION_CONFIRMED);
     SkillSystem.executeSkill(actor, battleState.selectedSkill, targets, battleState, allCharsDiv, log);
     battleState.currentActor = null;
     battleState.selectedSkill = null;
@@ -373,8 +371,8 @@ function enemyTurn(actor) {
     setTimeout(() => {
         if (epoch !== battleEpoch) return;   // v0.313：读档/重开后丢弃旧回合回调
         SkillSystem.executeSkill(actor, chosenSkill, targets, battleState, allCharsDiv, log);
-        // v0.310：教程关敌方出手后 → 推进教学步骤⑦→⑧（自由练习）
-        if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'defense') Tutorial.advance('defense');
+        // v0.310：教程关敌方出手后 → 教学步骤⑦→⑧；v0.694：改为事件通知
+        tutNotify(TUT_EVENTS.ENEMY_ACTED);
         battleState.currentActor = null;
         // 延迟重渲染：让动画完整播放（v0.285；v0.291 时长由 executeSkill 按技能动画设定）
         const delay = window._actionAnimDelay || 800;

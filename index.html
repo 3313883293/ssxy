@@ -19,6 +19,10 @@
         <div class="control-buttons" style="margin-top:10px;">
             <button class="btn-main" id="continueBtn" onclick="continueBattle()" style="display:none;background:#f9ca24;color:#222;">▶️ 继续战斗</button>
         </div>
+        <!-- v0.694：机制图鉴入口（教程主线放不下的结构类机制集中在这里；纯表现层弹窗） -->
+        <div class="control-buttons" style="margin-top:10px;">
+            <button class="btn-main" style="background:#555;" onclick="showCodex()">📖 机制图鉴</button>
+        </div>
     </div>
 
     <div id="pageLevel" class="page">
@@ -26,7 +30,7 @@
         <!-- 新手教程（最顶部） -->
         <div class="level-card" onclick="selectLevel(-2)" style="border-color:#2ecc71;">
             <h3 style="color:#2ecc71;">🎓 新手教程</h3>
-            <div class="enemy-preview">引导选角站位、技能算力、目标选择与防御机制</div>
+            <div class="enemy-preview">教学关：选角站位、技能算力、目标选择、防御机制、状态与持续伤害</div>
         </div>
         <!-- 测试关（置顶，左上角） -->
         <div class="level-card" onclick="selectLevel(-1)" style="margin-top:12px; border-color:#f9ca24;">
@@ -84,7 +88,10 @@
                 <div class="enemy-preview">敌方配置：焚天祭司·烛央×1　焦木傀儡×2（占位）</div>
             </div>
         </div>
-        <button class="btn-main" style="background:#555; margin-top:15px;" onclick="showPage('pageTitle')">返回</button>
+        <div class="control-buttons" style="margin-top:15px;">
+            <button class="btn-main" style="background:#555;" onclick="showPage('pageTitle')">返回</button>
+            <button class="btn-main" style="background:#555;" onclick="showCodex()">📖 机制图鉴</button>
+        </div>
     </div>
 
     <div id="pageLevelIntro" class="page">
@@ -207,6 +214,17 @@
             </div>
         </div>
     </div>
+    <!-- v0.694：机制图鉴弹窗（复用 .buff-popup 模板；z-index 1500——高于设置弹窗，低于词条弹窗 2100，
+         以便在图鉴里点词条时词条弹窗仍在最上层） -->
+    <div id="codexOverlay" class="buff-popup-overlay" style="display:none;" onclick="closeCodex()">
+        <div class="buff-popup codex-popup" onclick="event.stopPropagation()">
+            <div class="buff-popup-header">
+                <span>📖 机制图鉴</span>
+                <span class="buff-popup-close" onclick="closeCodex()">✕</span>
+            </div>
+            <div class="buff-popup-body" id="codexBody"></div>
+        </div>
+    </div>
     <!-- 设置弹窗（复用 .buff-popup 模板；选角模式对敌我双方生效） -->
     <div id="settingsOverlay" class="buff-popup-overlay" style="display:none;" onclick="closeSettings()">
         <div class="buff-popup" onclick="event.stopPropagation()">
@@ -256,6 +274,7 @@
 <script src="js/modal.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/glossary.js"></script>
+<script src="js/codex.js"></script>
 <script src="js/Skills.js"></script>
 <script src="js/Characters.js"></script>
 <script src="js/Roles.js"></script>

@@ -144,6 +144,11 @@ function loadAutoBattle() {
     nextRoundBtn.style.display = 'none';    // 回合进行中隐藏（onTurnEnd 时重新显示）
     processNextAction();
     showPage('pageBattle');
+    // v0.694：教程关读档/「继续战斗」后恢复教学进度——原先刷新页面再从「继续战斗」进入会完全没有教学引导
+    // （教程进度不写进 pwgame_battle_save，另存于 pwgame_tutorial_step；已完成教程则不再打扰）
+    if (typeof Tutorial !== 'undefined' && battleState.currentLevel === -2 && !Tutorial.active) {
+        Tutorial.resume();
+    }
     return true;
 }
 
@@ -230,10 +235,10 @@ function retreatToBench(c) {
 
 function startNewRound() {
     battleState.turnCount++;
-    // v0.310：教程关点击开始回合 → 推进教学步骤③→④
-    if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'start-round') Tutorial.advance('start-round');
-    // v0.310：⑧跳过回合步骤——每回合渲染行动面板后刷新弹窗+高亮（跳过按钮按回合重建）
-    if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'skip-turn') Tutorial.showCurrent();
+    // v0.310：教程关点击开始回合 → 教学步骤③→④
+    // v0.310：⑩跳过回合步骤——每回合渲染行动面板后刷新弹窗+高亮（跳过按钮按回合重建）
+    // v0.694：上面两条合并为**一次**事件通知——③靠 advanceOn、⑩靠 refreshOn，语义搬进 tutorial.js 步骤表
+    tutNotify(TUT_EVENTS.ROUND_STARTED);
     updateTurnDisplay();
     if (typeof Sfx !== 'undefined') Sfx.play('round');
     log(`══════ 第 ${battleState.turnCount} 回合 ══════`);
@@ -377,21 +382,21 @@ function onTurnEnd() {
         if (burnStack > 0 && burnLevel > 0) {
             // 每有5级消耗1层；v0.688 起每回合至少消耗 1 层（Lv1~4 也会逐回合衰减，不再永不消失）
             const consume = Math.max(1, Math.floor(burnLevel / 5));
-            let burnDmg;
-            if (consume > burnStack) {
-                // 层数不足：按剩余层数能供给的等级结算（每层供给5级），燃烧结束
-                burnDmg = burnStack * 5 * 50;
-                c.clearBuff('burn');
-            } else {
-                burnDmg = burnLevel * 50;
+            // v0.692（用户口径）：取消「燃烧」真伤的层数上限——原实现里每 1 层只供给 5 级，
+            // 层数不足以支撑本回合消耗时按「剩余层数×5 级」打折结算；现在层数耗尽时照样按
+            // 「当前等级 × 50」正常结算，然后燃烧结束。
+            const exhausted = consume > burnStack;   // 层数不足以支撑本次消耗 → 本次为最后一跳
+            if (exhausted) c.clearBuff('burn');
+            else {
                 c.reduceBuffStack('burn', consume);
                 if (c.getBuffStack('burn') <= 0) c.clearBuff('burn');
             }
+            let burnDmg = burnLevel * 50;
             // v0.5 易燃（焦木傀儡）：受到的燃烧 dot 伤害×1.5（仅 dot 结算，引爆不乘）
             if (c.burnMultiplier !== 1) burnDmg = Math.floor(burnDmg * c.burnMultiplier);
             const actual = c.takeTrueDamage(burnDmg);
             c.dotDamageMap['burn'] = (c.dotDamageMap['burn'] || 0) + actual;
-            log(`🔥 ${c.name} 受到 ${burnDmg} 点「燃烧」伤害（Lv${burnLevel}×${burnStack} 层），消耗 ${consume} 层，实际${actual}（血量：${c.hp}）`);
+            log(`🔥 ${c.name} 受到 ${burnDmg} 点「燃烧」伤害（Lv${burnLevel}×${burnStack} 层${exhausted ? '，层数耗尽、燃烧结束' : `，消耗 ${consume} 层`}），实际${actual}（血量：${c.hp}）`);
             // v0.286：燃烧掉血同帧更新血条并飘伤害数字；v0.288 连 buff 标签一起刷新
             if (window.refreshCardState) refreshCardState(c);
             SkillSystem.showDamageNumber(c, actual, null, allCharsDiv);
@@ -495,6 +500,8 @@ function restartBattle() {
     } else {
         startBattle(level);
     }
+    // v0.694：教程关「再来一局」不再吞掉教学——未完成教程时恢复到离开的那一步（已完成则无提示，startBattle 也不调 begin）
+    if (level === -2 && typeof Tutorial !== 'undefined') Tutorial.resume();
 }
 
 function backToTitle() {

@@ -46,7 +46,7 @@ const buffTypeConfig = {
     'guard': { icon: '🛡️', color: '#f1c40f' },   // v0.669 守护（王庄明）：替队友挡伤害的层数
     'guardShield': { icon: '💠', color: '#2ecc71' },   // v0.669 守护之躯（王庄明）：按消耗算力折算的减伤
     'subdued': { icon: '⛓️', color: '#95a5a6' },   // v0.684 被制服（多能战警）：速度-2、回合结束层数-1
-    'trauma': { icon: '🩸', color: '#c0392b' },   // v0.684 创伤（多能战警）：被攻击投币时真伤反噬
+    'trauma': { icon: '🩸', color: '#c0392b' },   // v0.684 创伤（多能战警）：v0.693 起为「拥有者自己投币时」真伤自伤
     'rest': { icon: '🛏️', color: '#1abc9c' }   // v0.684 休整（多能战警）：回合开始回复20%血量
 };
 
@@ -58,7 +58,7 @@ const buffRenderers = {
         return { short: `${sign}${b.value}`, title: `【防御临时变动】${sign}${b.value}`, desc: '持续至下次受击时' };
     },
     'e': b => ({ short: `×${b.stack}`, title: `「恶」${b.stack} 层`, desc: '伤害计算时，每层使鲁盼旋对其无视 50 防御' }),
-    'burn': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「燃烧」Lv ${b.level} × ${b.stack} 层`, desc: `回合结束时造成 ${b.level}×50 = ${b.level * 50} 真实伤害；每回合至少消耗 1 层（每满 5 级再多 1 层），不足按剩余层数×5 级结算` }),
+    'burn': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「燃烧」Lv ${b.level} × ${b.stack} 层`, desc: `回合结束时造成 ${b.level}×50 = ${b.level * 50} 真实伤害；每回合至少消耗 1 层（每满 5 级再多 1 层），层数耗尽时照样按该等级正常结算，然后燃烧结束` }),
     'stun': () => ({ short: '昏迷', title: '「暂时昏迷」', desc: '轮到行动时无法行动，跳过本次行动后解除' }),
     'stunPending': () => ({ short: '催眠中', title: '「催眠气体」待生效', desc: '下一回合陷入「暂时昏迷」，无法行动一回合' }),
     'frenzy': b => ({ short: `×${b.stack}`, title: `「狂炎」${b.stack} 层`, desc: '伤害计算时每层使【烈焰鞭】/【焚天祭】伤害+150，防御计算时每层防御-20' }),
@@ -66,7 +66,7 @@ const buffRenderers = {
     'guard': b => ({ short: `×${b.stack}`, title: `「守护」${b.stack} 层`, desc: '队友即将失去血量时防止之，改为自身受到对应数值的无来源伤害（再次结算防御与减伤），然后层数减一；一切伤害（普通/真伤/持续伤害）均转移，自己受击不转移' }),
     'guardShield': b => ({ short: `${b.value}%`, title: `「守护之躯」${b.value}% 减伤`, desc: '回合结束时按本回合消耗算力折算（每 100 算力 10%，向下取整、无上限），持续到下回合结束' }),
     'subdued': b => ({ short: `×${b.stack}`, title: `「被制服」${b.stack} 层`, desc: '速度-2；回合结束层数-1' }),
-    'trauma': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「创伤」Lv ${b.level} × ${b.stack} 层`, desc: '被攻击投掷硬币时触发（次数=分配硬币数），每次造成 级数×20 真实伤害并消耗 1 层' }),
+    'trauma': b => ({ short: `Lv${b.level}×${b.stack}`, title: `「创伤」Lv ${b.level} × ${b.stack} 层`, desc: '自己投掷硬币时（出招投币之前）伤口崩裂：每次消耗 1 层并造成 级数×20 真实伤害，触发次数 = 本次投出的硬币总数（不投币的技能不触发）；层数耗尽后消失，若崩裂致死则本次行动作废' }),
     'rest': b => ({ short: `×${b.stack}`, title: `「休整」${b.stack} 回合`, desc: '回合开始回复 20% 血量' })
 };
 
@@ -196,8 +196,8 @@ function renderCharacters() {
                 } else {
                     battleState.currentSelectedTargets.add(c);
                     this.style.borderColor = '#f9ca24';
-                    // v0.310：教程关首次选目标 → 推进教学步骤⑤→⑥
-                    if (typeof Tutorial !== 'undefined' && Tutorial.active && Tutorial.step === 'pick-target') Tutorial.advance('pick-target');
+                    // v0.310：教程关首次选目标 → 教学步骤⑤→⑥；v0.694：改为事件通知
+                    tutNotify(TUT_EVENTS.TARGET_PICKED);
                 }
                 return;
             }
@@ -369,8 +369,9 @@ function showResultPage(result) {
     html += `<div style="margin-top:12px;background:#16213e;border-radius:8px;overflow:hidden;">
         <div style="padding:8px 12px;background:#0f3460;color:#e056fd;font-weight:bold;">🔥 Dot伤害明细</div>
         <table style="width:100%;border-collapse:collapse;">`;
-    // v0.6：Dot 明细遍历全部 dotDamageMap key（🔥燃烧 / 🌀混乱），未来新增 DoT 自动分列
-    const dotTypeCfg = { 'burn': { icon: '🔥', label: '燃烧' }, 'confusion': { icon: '🌀', label: '混乱' } };
+    // v0.6：Dot 明细按 dotDamageMap 的 key 分列（🔥燃烧 / 🌀混乱 / 🩸创伤）；
+    // v0.693：补上漏列的「创伤」（本表是硬编码白名单，新增 DoT 必须在此加一行，不会自动分列）
+    const dotTypeCfg = { 'burn': { icon: '🔥', label: '燃烧' }, 'confusion': { icon: '🌀', label: '混乱' }, 'trauma': { icon: '🩸', label: '创伤' } };
     const dotRows = [];
     sorted.forEach(c => {
         if (!c.dotDamageMap) return;
